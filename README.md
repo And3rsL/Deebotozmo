@@ -1,9 +1,11 @@
+BASED ON wpietri/sucks original LIBRARY (https://github.com/wpietri/sucks)
+=====
 
 DeebotOzmo 950
 =====
 
 A simple command-line python script to drive a robot vacuum. Currently
-known to work with the Ecovacs Deebot 950  from both North America and Europe.
+known to work with the Ecovacs Deebot 950 from both North America and Europe.
 
 
 ## Installation
