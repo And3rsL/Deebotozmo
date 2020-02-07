@@ -15,36 +15,6 @@ from deebotozmo import *
 
 _LOGGER = logging.getLogger(__name__)
 
-
-class FrequencyParamType(click.ParamType):
-    name = 'frequency'
-    RATIONAL_PATTERN = re.compile(r'([.0-9]+)/([.0-9]+)')
-
-    def convert(self, value, param, ctx):
-        result = None
-        try:
-            search = self.RATIONAL_PATTERN.search(value)
-            if search:
-                result = float(search.group(1)) / float(search.group(2))
-            else:
-                try:
-                    result = float(value)
-                except ValueError:
-                    pass
-        except (ValueError, ArithmeticError):
-            pass
-
-        if result is None:
-            self.fail('%s is not a valid frequency' % value, param, ctx)
-        if 0 <= result <= 1:
-            return result
-
-        self.fail('%s is not between 0 and 1' % value, param, ctx)
-
-
-FREQUENCY = FrequencyParamType()
-
-
 class BotWait():
     pass
 
@@ -121,16 +91,6 @@ def current_country():
 def continent_for_country(country_code):
     return country_alpha2_to_continent_code(country_code.upper()).lower()
 
-
-def should_run(frequency):
-    if frequency is None:
-        return True
-    n = random.random()
-    result = n <= frequency
-    _LOGGER.debug("tossing coin: {:0.3f} <= {:0.3f}: {}".format(n, frequency, result))
-    return result
-
-
 @click.group(chain=True)
 @click.option('--debug/--no-debug', default=False)
 def cli(debug):
@@ -185,11 +145,11 @@ def area(area, map_position):
 @cli.command(help='Set Clean Speed')
 @click.argument('speed', type=click.STRING, required=True)
 def setfanspeed(speed):
-    return CliAction('setSpeed', {'speed': speed}, terminal=False)    
+    return CliAction('setSpeed', {'speed': speed}, wait=None)    
     
 @cli.command(help='Returns to charger')
 def charge():
-    return CliAction('charge', {'act': 'go'}, terminal=False, wait=StatusWait('clean_status', 'working'))
+    return CliAction('charge', {'act': 'go'}, wait=StatusWait('clean_status', 'working'))
 
 @cli.command(help='Play welcome sound')
 def playsound():
@@ -209,30 +169,12 @@ def batterystate():
 	
 @cli.command(help='pause the robot')
 def pause():
-    return CliAction('clean', {'act': 'pause'}, terminal=True, wait=StatusWait('vacuum_status', 'pause'))
+    return CliAction('clean', {'act': 'pause'}, wait=StatusWait('vacuum_status', 'pause'))
 
 @cli.command(help='resume the robot')
 def resume():
-    return CliAction('clean', {'act': 'resume'}, terminal=True, wait=StatusWait('vacuum_status', 'working'))
+    return CliAction('clean', {'act': 'resume'}, wait=StatusWait('vacuum_status', 'working'))
 
-@cli.command(help='test')
-def test():
-    # Get lzma output size (as done by the Android app)
-    b64 = 'XQAABADoAwAAACe/wY/wAXMtXB0BRTG11RZpNoaJR3MvphcOqp7H+VtmwqLso+xJ2eOQbM2BbszF/pf0VLYbvS322TQoShcj+T1BzPcmRuNKAMD0nAnkVFFpla5ipwEkkUmVAeGeJjf1PdlnmizSbezkr4XlZQ/1WD2INmfUaWwr1Q6lyOih3j8bgMiPPvmpHpTPaf3vAOLUOMcn26qq09zKDzN/lmJyzA40tdtbLYKV6Mbj+sAjfWxqjYcqn55Hst5mflAY4c11DWkuDX+72WXuyAp8CsDQ5UdSLroZyuJgVg4Y8V9l+hNiwmYr+EFt4GJL+0InTF2V38EMLWq5yYHiBtuXJNOEct6RPPloVVIARyJr1s8/LC36KlOCEz65Owl9bNlzV2WF1WrnSwXiLAJTt7F3owFcRYVuL98RJHXrDRLhQfrYZgJALVL1QXrCbXS+2sYx6itLUoQ6lUUQlvt68zTXhdCEzTPWyzVddWd6ntogUlyNq8ZnKUpa2RU0G5MIaG1OOIi6saBcmHn45TyR0TGsPsfYiXCTctFMoCavQzwoGurEtqNgNlVv1nFiFyVRw9EJrgExVH5qQplQjCZt3HJZPrD4+7UfIX21rzsgcy/Fv+Lr3YkFfdbQLlYi213TjVGS+HhHRZ1E/Dcc5dvO4fwn9N8V0JcYKo3c/BgrLcti9KAPfwOMRvnMI4yFQWcU1AxkjgwBZzf8Qbtj5sWDzrxz+Ki1NIJRHv/pBJSRxzJBdsmMtfvfce1EGet8GjkCJFKh22mP48Hdvh9nlrUEY9rnFVy5Ow2PFrRIxA1XmWupmcFLXDU='
-    b64 = b64[0].upper() + b64[1:]
-    data = base64.b64decode(b64)
-    _LOGGER.debug(data)
-    len_array = data[5:5+4]
-    len_value = ((len_array[0] & 0xFF) | (len_array[1] << 8 & 0xFF00) | (len_array[2] << 16 & 0xFF0000) | (len_array[3] << 24 & 0xFF000000)) 
-
-    # Init the LZMA decompressor using the lzma header
-    dec = lzma.LZMADecompressor(lzma.FORMAT_RAW, None, [lzma._decode_filter_properties(lzma.FILTER_LZMA1, data[0:5])])
-        
-    # Decompress the lzma stream to get raw data
-    val = dec.decompress(data[9:], len_value)
-    base64EncodedStr = base64.b64encode(val)
-    _LOGGER.debug(base64EncodedStr)
-	
 @cli.resultcallback()
 def run(actions, debug):
     actions = list(filter(None.__ne__, actions))

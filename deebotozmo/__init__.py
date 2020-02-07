@@ -12,7 +12,7 @@ import requests
 import stringcase
 import os
 import json
-import datetime;
+import datetime
 
 from sleekxmppfs import ClientXMPP, Callback, MatchXPath
 from sleekxmppfs.exceptions import XMPPError
@@ -603,8 +603,9 @@ class VacBot():
             #no valid entries
             raise ValueError("must provide area or map_position for spotarea clean")
 
-    def SetFanSpeed(self, speed=0):
+    def SetFanSpeed(self, speed=1):
         self.exc_command('setSpeed', {'speed': FAN_SPEED_TO_ECOVACS[speed]})
+        self.refresh_statuses()
 
     def exc_command(self, action, params=None, **kwargs):
         #_LOGGER.debug(params)

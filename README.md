@@ -7,7 +7,6 @@ DeebotOzmo 950
 A simple command-line python script to drive a robot vacuum. Currently
 known to work with the Ecovacs Deebot 950 from both North America and Europe.
 
-
 ## Installation
 
 If you have a recent version of Python 3, you should be able to
