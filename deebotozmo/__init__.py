@@ -114,6 +114,22 @@ COMPONENT_FROM_ECOVACS = {
     'heap': COMPONENT_FILTER
 }
 
+ROOMS_FROM_ECOVACS = {
+    0 : 'Default',
+    1 : 'Living Room',
+    2 : 'Dining Room',
+    3 : 'Bedroom',
+    4 : 'Study',
+    5 : 'Kitchen',
+    6 : 'Bathroom',
+    7 : 'Laundry',
+    8 : 'Lounge',
+    9 : 'Storeroom',
+    10 : 'Kids room',
+    11 : 'Sunroom'
+}
+
+
 def str_to_bool_or_cert(s):
     if s == 'True' or s == True:
         return True
@@ -386,6 +402,8 @@ class VacBot():
         # Populated by component Lifespan reports
         self.components = {}
 
+        self.rooms = []
+
         self.statusEvents = EventEmitter()
         self.batteryEvents = EventEmitter()
         self.lifespanEvents = EventEmitter()
@@ -471,6 +489,29 @@ class VacBot():
                 self.vacuum_status = 'STATE_ERROR'
 
             self.statusEvents.notify(self.vacuum_status)
+
+    def _handle_cached_map(self, event):
+        response = event['body']['data']
+        mapid = response['info'][0]['mid']
+        
+        self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
+
+    def _handle_map_set(self, event):
+        response = event['body']['data']
+        
+        mid = response['mid']
+        msid = response['msid']
+        typemap = response['type']
+
+        for s in response['subsets']:
+            self.exc_command('getMapSubSet', {'mid': mid,'msid': msid,'type': typemap, 'mssid': s['mssid']})
+
+    def _handle_map_sub_set(self, event):
+        response = event['body']['data']
+        typeSubset = response['type']
+        subtype = int(response['subtype'])
+
+        self.rooms.append({'subtype':ROOMS_FROM_ECOVACS[subtype],'id': int(response['mssid'])})
 
     def _handle_battery_info(self, event):
         response = event['body']
@@ -606,6 +647,9 @@ class VacBot():
     def SetFanSpeed(self, speed=1):
         self.exc_command('setSpeed', {'speed': FAN_SPEED_TO_ECOVACS[speed]})
         self.refresh_statuses()
+
+    def GetMap(self):
+        self.exc_command('getCachedMapInfo')
 
     def exc_command(self, action, params=None, **kwargs):
         #_LOGGER.debug(params)
@@ -765,7 +809,7 @@ class EcoVacsIOTMQ(ClientMQTT):
             headers = {
                         'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)',
             }
-            response = requests.post(url,headers=headers, json=params, timeout=60, verify=verify_ssl) #May think about having timeout as an arg that could be provided in the future
+            response = requests.post(url,headers=headers, json=params, timeout=20, verify=verify_ssl) #May think about having timeout as an arg that could be provided in the future
         except requests.exceptions.ReadTimeout:
             _LOGGER.warning("call to iotdevmanager failed with ReadTimeout")
             return {}                
@@ -777,7 +821,6 @@ class EcoVacsIOTMQ(ClientMQTT):
             if 'debug' in json:
                 if json['debug'] == 'wait for response timed out': 
                     #TODO - Maybe handle timeout for IOT better in the future
-                    _LOGGER.warning("call to iotdevmanager failed with {}".format(json))
                     return {}
             else:
                 #TODO - Not sure if we want to raise an error yet, just return empty for now
@@ -805,6 +848,12 @@ class EcoVacsIOTMQ(ClientMQTT):
                 jsonstring['event'] = "life_span"
             elif 'getspeed' in eventname.lower():
                 jsonstring['event'] = "fan_speed"
+            elif 'cachedmapinfo' in eventname.lower():
+                jsonstring['event'] = "cached_map"
+            elif 'mapset' in eventname.lower():
+                jsonstring['event'] = "map_set"
+            elif 'mapsubset' in eventname.lower():
+                jsonstring['event'] = "map_sub_set"
             else:
                 _LOGGER.debug('UKNOWN Status:' + eventname.lower())
                 return
