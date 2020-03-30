@@ -39,6 +39,11 @@ FAN_SPEED_NORMAL = 'normal'
 FAN_SPEED_MAX = 'max'
 FAN_SPEED_MAXPLUS = 'max+'
 
+WATER_LOW = "low"
+WATER_MEDIUM = "medium"
+wATER_HIGH = "high"
+WATER_ULTRAHIGH = "ultrahigh"
+
 CHARGE_MODE_RETURN = 'return'
 CHARGE_MODE_RETURNING = 'returning'
 CHARGE_MODE_CHARGING = 'charging'
@@ -87,6 +92,20 @@ FAN_SPEED_FROM_ECOVACS = {
     0: FAN_SPEED_NORMAL,
     1: FAN_SPEED_MAX,
     2: FAN_SPEED_MAXPLUS
+}
+
+WATER_LEVEL_TO_ECOVACS = {
+    WATER_LOW: 1,
+    WATER_MEDIUM: 2,
+    wATER_HIGH: 3,
+    WATER_ULTRAHIGH: 4
+}
+
+WATER_LEVEL_FROM_ECOVACS = {
+    1: WATER_LOW,
+    2: WATER_MEDIUM,
+    3: wATER_HIGH,
+    4: WATER_ULTRAHIGH
 }
 
 CHARGE_MODE_TO_ECOVACS = {
@@ -398,11 +417,13 @@ class VacBot():
         # This is an aggregate state managed by the deebotozmo library, combining the clean and charge events to a single state
         self.vacuum_status = None
         self.fan_speed = None
+        self.water_level = None
 
         # Populated by component Lifespan reports
         self.components = {}
 
         self.rooms = []
+        self.last_clean_image = None
 
         self.statusEvents = EventEmitter()
         self.batteryEvents = EventEmitter()
@@ -475,6 +496,25 @@ class VacBot():
         self.fanspeedEvents.notify(speed)
         _LOGGER.debug("*** fan_speed = {}".format(speed))
 
+    def _handle_clean_logs(self, event):
+        response = event['logs']
+        self.last_clean_image = response[0]['imageUrl']
+
+        _LOGGER.debug(response)
+
+    def _handle_water_info(self, event):
+        response = event['body']['data']
+        amount = response['amount']
+
+        try:
+            amount = WATER_LEVEL_FROM_ECOVACS[amount]
+        except KeyError:
+            _LOGGER.warning("Unknown water level: '" + str(amount) + "'")
+      
+        self.water_level = amount
+        
+        _LOGGER.debug("*** water_level = {}".format(amount))
+
     def _handle_clean_report(self, event):
         response = event['body']['data']
         if response['state'] == 'clean':
@@ -494,6 +534,7 @@ class VacBot():
         response = event['body']['data']
         mapid = response['info'][0]['mid']
         
+        self.rooms = []
         self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
 
     def _handle_map_set(self, event):
@@ -585,6 +626,8 @@ class VacBot():
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["brush"]])
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["sideBrush"]])
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["heap"]])
+            self.exc_command('getCachedMapInfo')
+            self.exc_command('GetCleanLogs')
         except XMPPError as err:
             _LOGGER.warning("Component refresh requests failed to reach VacBot. Will try again later.")
             _LOGGER.warning("*** Error type: " + err.etype)
@@ -597,6 +640,7 @@ class VacBot():
             self.exc_command('getChargeState')
             self.exc_command('getBattery')
             self.exc_command('getSpeed')
+            self.exc_command('getWaterInfo')
         except XMPPError as err:
             _LOGGER.warning("Initial status requests failed to reach VacBot. Will try again on next ping.")
             _LOGGER.warning("*** Error type: " + err.etype)
@@ -632,24 +676,25 @@ class VacBot():
 
     def Relocate(self):
         self.exc_command('setRelocationState', {'mode': 'manu'})
-		
-    def SpotArea(self, area='', map_position='', cleanings=1):
-        if area != '': #For cleaning specified area
-            self.exc_command('clean', {'act': 'start', 'content': area, 'count': cleanings, 'type': 'spotArea'})
-            self.refresh_statuses()
-        elif map_position != '': #For cleaning custom map area, and specify deep amount 1x/2x
-            self.exc_command('clean', {'act': 'start', 'content': map_position, 'count': cleanings, 'type': 'customArea'})
-            self.refresh_statuses()
-        else:
-            #no valid entries
-            raise ValueError("must provide area or map_position for spotarea clean")
+
+    def GetCleanLogs(self):
+        self.exc_command('GetCleanLogs')
+
+    def CustomArea(self, map_position, cleanings=1):
+        self.exc_command('clean', {'act': 'start', 'content': str(map_position), 'count': cleanings, 'type': 'customArea'})
+        self.refresh_statuses()
+
+    def SpotArea(self, area, cleanings=1):
+        self.exc_command('clean', {'act': 'start', 'content': str(area), 'count': cleanings, 'type': 'spotArea'})
+        self.refresh_statuses()
 
     def SetFanSpeed(self, speed=1):
         self.exc_command('setSpeed', {'speed': FAN_SPEED_TO_ECOVACS[speed]})
         self.refresh_statuses()
 
-    def GetMap(self):
-        self.exc_command('getCachedMapInfo')
+    def SetWaterLevel(self, amount=1):
+        self.exc_command('setWaterInfo', {'amount': WATER_LEVEL_TO_ECOVACS[amount], 'enable': 0})
+        self.refresh_statuses()
 
     def exc_command(self, action, params=None, **kwargs):
         #_LOGGER.debug(params)
@@ -756,13 +801,29 @@ class EcoVacsIOTMQ(ClientMQTT):
             return False
 
     def send_command(self, action, recipient):
-        c = self._wrap_command(action, recipient)
-        _LOGGER.debug('Sending command {0}'.format(c))        
+        if action.name.lower() == 'getcleanlogs':
+            c = self._wrap_log_command(action, recipient)
+            _LOGGER.debug('Sending command {0}'.format(c))  
+            self._handle_ctl_api(action, self.__call_logs_api(c ,verify_ssl=self.verify_ssl ))
+        else:
+            c = self._wrap_command(action, recipient)
+            _LOGGER.debug('Sending command {0}'.format(c))  
+            self._handle_ctl_api(action, self.__call_iotdevmanager_api(c ,verify_ssl=self.verify_ssl ))
 
-        self._handle_ctl_api(action, 
-            self.__call_iotdevmanager_api(c ,verify_ssl=self.verify_ssl )
-            )
-			
+    def _wrap_log_command(self, cmd, recipient):
+        return {
+            'auth': {
+                'realm': EcoVacsAPI.REALM,
+                'resource': self.resource,
+                'token': self.secret,
+                'userid': self.user,
+                'with': 'users',
+            },
+            "td": cmd.name,
+            "did": recipient,
+            "resource": self.vacuum['resource'],
+        }     
+
     def _wrap_command(self, cmd, recipient):
         #All requests need to have this header -- not sure about timezone and ver
         payloadRequest = OrderedDict()
@@ -827,37 +888,73 @@ class EcoVacsIOTMQ(ClientMQTT):
                 _LOGGER.error("call to iotdevmanager failed with {}".format(json))
                 return {}
 
+    def __call_logs_api(self, args, verify_ssl=True):
+        _LOGGER.debug("calling logs api with {}".format(args))                
+        params = {}
+        params.update(args)
+
+        url = (EcoVacsAPI.PORTAL_URL_FORMAT + "/lg/log.do?td=" + params['td'] + "&u=" + params['auth']['userid'] + "&cv=1.67.3&t=a&av=1.3.1").format(continent=self.continent)
+        response = None        
+        try: #The RestAPI sometimes doesnt provide a response depending on command, reduce timeout to 3 to accomodate and make requests faster
+            headers = {
+                        'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)',
+            }
+            response = requests.post(url,headers=headers, json=params, timeout=20, verify=verify_ssl) #May think about having timeout as an arg that could be provided in the future
+        except requests.exceptions.ReadTimeout:
+            _LOGGER.warning("call to logs failed with ReadTimeout")
+            return {}                
+        
+        json = response.json()
+        if json['ret'] == 'ok':
+            return json
+        elif json['ret'] == 'fail':
+            if 'debug' in json:
+                if json['debug'] == 'wait for response timed out': 
+                    #TODO - Maybe handle timeout for IOT better in the future
+                    return {}
+            else:
+                #TODO - Not sure if we want to raise an error yet, just return empty for now
+                _LOGGER.error("call to logs failed with {}".format(json))
+                return {}
+
     def _handle_ctl_api(self, action, message):
         if not message == {}:
-            resp = self._ctl_to_dict_api(action, message['resp'])
+            if(action.name.lower() == 'getcleanlogs'):
+                resp = self._ctl_to_dict_api(action, message)
+            else:
+                resp = self._ctl_to_dict_api(action, message['resp'])
             if resp is not None:
                 for s in self.ctl_subscribers:
                     s(resp)       
 
     def _ctl_to_dict_api(self, action, jsonstring):
-        if jsonstring['body']['msg'] == 'ok':
-            eventname = action.name 
-            _LOGGER.debug('BEFORE Status:' + eventname.lower())
-            if 'cleaninfo' in eventname.lower():
+        eventname = action.name.lower()
+
+        if eventname == 'getcleanlogs':
+            jsonstring['event'] = "clean_logs"
+        elif jsonstring['body']['msg'] == 'ok':
+            _LOGGER.debug('BEFORE Status:' + eventname)
+            if 'cleaninfo' in eventname:
                 jsonstring['event'] = "clean_report"
-            elif 'chargestate' in eventname.lower():
+            elif 'chargestate' in eventname:
                 jsonstring['event'] = "charge_state"
-            elif 'battery' in eventname.lower():
+            elif 'battery' in eventname:
                 jsonstring['event'] = "battery_info"
-            elif 'lifespan' in eventname.lower():
+            elif 'lifespan' in eventname:
                 jsonstring['event'] = "life_span"
-            elif 'getspeed' in eventname.lower():
+            elif 'getspeed' in eventname:
                 jsonstring['event'] = "fan_speed"
-            elif 'cachedmapinfo' in eventname.lower():
+            elif 'cachedmapinfo' in eventname:
                 jsonstring['event'] = "cached_map"
-            elif 'mapset' in eventname.lower():
+            elif 'mapset' in eventname:
                 jsonstring['event'] = "map_set"
-            elif 'mapsubset' in eventname.lower():
+            elif 'mapsubset' in eventname:
                 jsonstring['event'] = "map_sub_set"
+            elif 'getwater' in eventname:
+                jsonstring['event'] = "water_info"
             else:
-                _LOGGER.debug('UKNOWN Status:' + eventname.lower())
+                _LOGGER.debug('UKNOWN Status:' + eventname)
                 return
-				
         else:
             if jsonstring['body']['msg'] == 'fail':
                 if action.name == "charge": #So far only seen this with Charge, when already docked

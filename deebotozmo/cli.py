@@ -198,7 +198,7 @@ def run(actions, debug):
         for action in actions:
             click.echo("performing " + str(action.vac_command))
             #vacbot.SetFanSpeed('normal')
-            vacbot.GetMap()
+            vacbot.CustomArea('-1008,-2302,250,-3240',1)
             vacbot.refresh_statuses()
             #vacbot.request_all_statuses()
             #action.wait.wait(vacbot)
@@ -210,7 +210,8 @@ def run(actions, debug):
         _LOGGER.debug("Battery Status: {}".format(vacbot.battery_status))
         _LOGGER.debug("Vacuum Status: {}".format(vacbot.vacuum_status))
         _LOGGER.debug("Fan Speed: {}".format(vacbot.fan_speed))
-		
+        _LOGGER.debug("Image Url: {}".format(vacbot.last_clean_image))
+
     click.echo("done")
 
 
