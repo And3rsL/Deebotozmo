@@ -13,6 +13,8 @@ import stringcase
 import os
 import json
 import datetime
+import base64
+import lzma
 
 from sleekxmppfs import ClientXMPP, Callback, MatchXPath
 from sleekxmppfs.exceptions import XMPPError
@@ -147,7 +149,6 @@ ROOMS_FROM_ECOVACS = {
     10 : 'Kids room',
     11 : 'Sunroom'
 }
-
 
 def str_to_bool_or_cert(s):
     if s == 'True' or s == True:
@@ -431,12 +432,24 @@ class VacBot():
         self.fanspeedEvents = EventEmitter()
         self.errorEvents = EventEmitter()
 
+        # Map variables
+        self.buffer = []
+        self.height = 0
+        self.width = 0
+        self.row_grid = 0
+        self.column_grid = 0
+        self.row_piece = 0
+        self.column_piece = 0
+        self.width = 0
+
+        self.InitializeMapBuffer(8,8,100,100)
+
         #Set none for clients to start        
         self.iotmq = None
         
         self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, server_address, verify_ssl=verify_ssl)
         self.iotmq.subscribe_to_ctls(self._handle_ctl)
-
+        
     def connect_and_wait_until_ready(self):
         self.iotmq.connect_and_wait_until_ready()
         self.iotmq.schedule(30, self.send_ping)   
@@ -681,11 +694,11 @@ class VacBot():
         self.exc_command('GetCleanLogs')
 
     def CustomArea(self, map_position, cleanings=1):
-        self.exc_command('clean', {'act': 'start', 'content': str(map_position), 'count': cleanings, 'type': 'customArea'})
+        self.exc_command('clean', {'act': 'start', 'content': str(map_position), 'count': int(cleanings), 'type': 'customArea'})
         self.refresh_statuses()
 
     def SpotArea(self, area, cleanings=1):
-        self.exc_command('clean', {'act': 'start', 'content': str(area), 'count': cleanings, 'type': 'spotArea'})
+        self.exc_command('clean', {'act': 'start', 'content': str(area), 'count': int(cleanings), 'type': 'spotArea'})
         self.refresh_statuses()
 
     def SetFanSpeed(self, speed=1):
@@ -706,6 +719,66 @@ class VacBot():
 
     def disconnect(self, wait=False):
         self.iotmq._disconnect()              
+
+    def AddMapPiece(self,mapPiece, b64):
+        decoded = self.decompress7zBase64Data(b64)
+
+        self.UpdateMapBuffer(mapPiece, decoded)
+
+    def decompress7zBase64Data(self, data):
+        # Decode Base64
+        data = base64.b64decode(data)
+        
+        # Get lzma output size (as done by the Android app)
+        len_array = data[5:5+4]
+        len_value = ((len_array[0] & 0xFF) | (len_array[1] << 8 & 0xFF00) | (len_array[2] << 16 & 0xFF0000) | (len_array[3] << 24 & 0xFF000000)) 
+        
+        # Init the LZMA decompressor using the lzma header
+        dec = lzma.LZMADecompressor(lzma.FORMAT_RAW, None, [lzma._decode_filter_properties(lzma.FILTER_LZMA1, data[0:5])])
+        
+        # Decompress the lzma stream to get raw data
+        return dec.decompress(data[9:], len_value)
+
+    def InitializeMapBuffer(self, i,i2,i3,i4):
+        self.row_grid = i
+        self.column_grid = i2
+        self.column_piece = i4
+        self.row_piece = i3
+
+        self.pieceCount = i3 * i4
+        self.gridCount = i * i2
+
+        self.width = i2 * i4
+        self.height = i * i3
+        
+        self.buffer = [[0 for x in range(self.width)] for y in range(self.height)]
+        _LOGGER.debug('Map Buffer Initialized')
+
+    def StampMap(self):
+        for i6 in range(800):
+            for i9 in range(800):
+                arr = self.buffer[i6][i9]
+                if arr == 0x01:
+                    print('1', end = '')
+                if arr == 0x02:
+                    print('2', end = '')
+                if arr == 0x00:
+                    print(' ', end = '')
+            print('')
+                
+
+    def UpdateMapBuffer(self, i, bArr):
+        rowStart = int(i / self.row_grid)
+        columnStart = int(i % self.column_grid)
+        
+        for row in range(self.row_grid):
+            for column in range(self.column_grid):
+                bufferRow = row + rowStart * self.row_grid
+                bufferColumn = column + columnStart * self.column_grid
+                pieceDataPosition = self.row_grid * row + column
+
+                self.buffer[bufferRow][bufferColumn] = bArr[pieceDataPosition]
+                print(str(bufferRow) + '-' + str(bufferColumn)) 
 
 #This is used by EcoVacsIOTMQ for _ctl_to_dict
 def RepresentsInt(stringvar):
