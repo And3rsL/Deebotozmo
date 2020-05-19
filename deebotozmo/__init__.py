@@ -1,170 +1,26 @@
 import hashlib
 import logging
-import time
-from base64 import b64decode, b64encode
-from collections import OrderedDict
-from threading import Event
-import threading
-import sched
 import random
-import ssl
 import requests
 import stringcase
 import os
 import json
-import datetime
-import base64
-import lzma
+import threading
+import urllib3
 
+from base64 import b64decode, b64encode
 from sleekxmppfs import ClientXMPP, Callback, MatchXPath
 from sleekxmppfs.exceptions import XMPPError
-
-from paho.mqtt.client import Client  as ClientMQTT
-from paho.mqtt import publish as MQTTPublish
-from paho.mqtt import subscribe as MQTTSubscribe
+from .map import *
+from .constants import *
+from .ecovacsiotmq import *
 
 _LOGGER = logging.getLogger(__name__)
 
 # These consts define all of the vocabulary used by this library when presenting various states and components.
 # Applications implementing this library should import these rather than hard-code the strings, for future-proofing.
 
-CLEAN_MODE_AUTO = 'auto'
-CLEAN_MODE_SPOT_AREA = 'spotArea'
-CLEAN_MODE_CUSTOM_AREA = 'customArea'
 
-CLEAN_ACTION_START = 'start'
-CLEAN_ACTION_PAUSE = 'pause'
-CLEAN_ACTION_RESUME = 'resume'
-
-FAN_SPEED_QUIET = 'quiet'
-FAN_SPEED_NORMAL = 'normal'
-FAN_SPEED_MAX = 'max'
-FAN_SPEED_MAXPLUS = 'max+'
-
-WATER_LOW = "low"
-WATER_MEDIUM = "medium"
-wATER_HIGH = "high"
-WATER_ULTRAHIGH = "ultrahigh"
-
-CHARGE_MODE_RETURN = 'return'
-CHARGE_MODE_RETURNING = 'returning'
-CHARGE_MODE_CHARGING = 'charging'
-CHARGE_MODE_IDLE = 'idle'
-
-COMPONENT_SIDE_BRUSH = 'sideBrush'
-COMPONENT_MAIN_BRUSH = 'brush'
-COMPONENT_FILTER = 'heap'
-
-CLEANING_STATES = {CLEAN_MODE_AUTO,CLEAN_MODE_CUSTOM_AREA, CLEAN_MODE_SPOT_AREA}
-CHARGING_STATES = {CHARGE_MODE_CHARGING}
-
-CLEAN_MODE_TO_ECOVACS = {
-    CLEAN_MODE_AUTO: 'auto',
-    CLEAN_MODE_SPOT_AREA: 'SpotArea',
-	CLEAN_MODE_CUSTOM_AREA: 'customArea'
-}
-
-CLEAN_ACTION_TO_ECOVACS = {
-    CLEAN_ACTION_START: 'start',
-    CLEAN_ACTION_PAUSE: 'pause',
-    CLEAN_ACTION_RESUME: 'resume'
-}
-
-CLEAN_ACTION_FROM_ECOVACS = {
-    'start': CLEAN_ACTION_START,
-    'pause': CLEAN_ACTION_PAUSE,
-    'resume': CLEAN_ACTION_RESUME
-}
-
-CLEAN_MODE_FROM_ECOVACS = {
-    'auto': CLEAN_MODE_AUTO,
-    'spotArea': CLEAN_MODE_SPOT_AREA,
-    'customArea': CLEAN_MODE_CUSTOM_AREA
-}
-
-FAN_SPEED_TO_ECOVACS = {
-    FAN_SPEED_QUIET: 1000,
-    FAN_SPEED_NORMAL: 0,
-    FAN_SPEED_MAX: 1,
-    FAN_SPEED_MAXPLUS: 2
-}
-
-FAN_SPEED_FROM_ECOVACS = {
-    1000: FAN_SPEED_QUIET,
-    0: FAN_SPEED_NORMAL,
-    1: FAN_SPEED_MAX,
-    2: FAN_SPEED_MAXPLUS
-}
-
-WATER_LEVEL_TO_ECOVACS = {
-    WATER_LOW: 1,
-    WATER_MEDIUM: 2,
-    wATER_HIGH: 3,
-    WATER_ULTRAHIGH: 4
-}
-
-WATER_LEVEL_FROM_ECOVACS = {
-    1: WATER_LOW,
-    2: WATER_MEDIUM,
-    3: wATER_HIGH,
-    4: WATER_ULTRAHIGH
-}
-
-CHARGE_MODE_TO_ECOVACS = {
-    CHARGE_MODE_RETURN: 'go',
-    CHARGE_MODE_RETURNING: 'going',
-    CHARGE_MODE_CHARGING: 'charging',
-    CHARGE_MODE_IDLE: 'idle'
-}
-
-CHARGE_MODE_FROM_ECOVACS = {
-    'going': CHARGE_MODE_RETURNING,
-    'charging': CHARGE_MODE_CHARGING,
-    'idle': CHARGE_MODE_IDLE
-}
-
-COMPONENT_TO_ECOVACS = {
-    COMPONENT_MAIN_BRUSH: 'brush',
-    COMPONENT_SIDE_BRUSH: 'sideBrush',
-    COMPONENT_FILTER: 'heap'
-}
-
-COMPONENT_FROM_ECOVACS = {
-    'brush': COMPONENT_MAIN_BRUSH,
-    'sideBrush': COMPONENT_SIDE_BRUSH,
-    'heap': COMPONENT_FILTER
-}
-
-ROOMS_FROM_ECOVACS = {
-    0 : 'Default',
-    1 : 'Living Room',
-    2 : 'Dining Room',
-    3 : 'Bedroom',
-    4 : 'Study',
-    5 : 'Kitchen',
-    6 : 'Bathroom',
-    7 : 'Laundry',
-    8 : 'Lounge',
-    9 : 'Storeroom',
-    10 : 'Kids room',
-    11 : 'Sunroom'
-}
-
-def str_to_bool_or_cert(s):
-    if s == 'True' or s == True:
-        return True
-    elif s == 'False' or s == False:
-        return False    
-    else:
-        if not s == None:
-            if os.path.exists(s): # User could provide a path to a CA Cert as well, which is useful for Bumper
-                if os.path.isfile(s):
-                    return s
-                else:                
-                    raise ValueError("Certificate path provided is not a file - {}".format(s))
-        
-        raise ValueError("Cannot covert {} to a bool or certificate path".format(s))
-        
 
 class EcoVacsAPI:
     CLIENT_KEY = "eJUWrzRv34qFSaYk"
@@ -182,6 +38,7 @@ class EcoVacsAPI:
     REALM = 'ecouser.net'
 
     def __init__(self, device_id, account_id, password_hash, country, continent, verify_ssl=True):
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self.meta = {
             'country': country,
             'lang': 'en',
@@ -227,13 +84,13 @@ class EcoVacsAPI:
         return result
 
     def __call_main_api(self, function, *args):
-        _LOGGER.debug("calling main api {} with {}".format(function, args))
+        #_LOGGER.debug("calling main api {} with {}".format(function, args))
         params = OrderedDict(args)
         params['requestId'] = self.md5(time.time())
         url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
         api_response = requests.get(url, self.__sign(params), verify=self.verify_ssl)
         json = api_response.json()
-        _LOGGER.debug("got {}".format(json))
+        #_LOGGER.debug("got {}".format(json))
         if json['code'] == '0000':
             return json['data']
         elif json['code'] == '1005':
@@ -245,12 +102,12 @@ class EcoVacsAPI:
                 json['code'], json['msg'], function, args))
 
     def __call_user_api(self, function, args):
-        _LOGGER.debug("calling user api {} with {}".format(function, args))
+        #_LOGGER.debug("calling user api {} with {}".format(function, args))
         params = {'todo': function}
         params.update(args)
         response = requests.post(EcoVacsAPI.USER_URL_FORMAT.format(continent=self.continent), json=params, verify=self.verify_ssl)
         json = response.json()
-        _LOGGER.debug("got {}".format(json))
+        #_LOGGER.debug("got {}".format(json))
         if json['result'] == 'ok':
             return json
         else:
@@ -267,7 +124,7 @@ class EcoVacsAPI:
             params = {}
             params.update(args)
 
-        _LOGGER.debug("calling portal api {} function {} with {}".format(api, function, params))            
+        #_LOGGER.debug("calling portal api {} function {} with {}".format(api, function, params))            
         
         continent = self.continent
         if 'continent' in kwargs:
@@ -278,10 +135,10 @@ class EcoVacsAPI:
         response = requests.post(url, json=params, verify=verify_ssl)        
 
         json = response.json()
-        _LOGGER.debug("got {}".format(json))
+        #_LOGGER.debug("got {}".format(json))
         if api == self.USERSAPI:    
             if json['result'] == 'ok':
-                _LOGGER.debug("RESULT OK")
+                #_LOGGER.debug("RESULT OK")
                 return json
             elif json['result'] == 'fail':
                 if json['error'] == 'set token error.': # If it is a set token error try again
@@ -425,40 +282,22 @@ class VacBot():
 
         self.rooms = []
         self.last_clean_image = None
-
-        self.statusEvents = EventEmitter()
-        self.batteryEvents = EventEmitter()
-        self.lifespanEvents = EventEmitter()
-        self.fanspeedEvents = EventEmitter()
-        self.errorEvents = EventEmitter()
-
-        # Map variables
-        self.buffer = []
-        self.height = 0
-        self.width = 0
-        self.row_grid = 0
-        self.column_grid = 0
-        self.row_piece = 0
-        self.column_piece = 0
-        self.width = 0
-
-        self.InitializeMapBuffer(8,8,100,100)
+        self.Map = Map()
+        self.live_map = None
 
         #Set none for clients to start        
         self.iotmq = None
         
-        self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, server_address, verify_ssl=verify_ssl)
+        self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT, server_address, verify_ssl=verify_ssl)
         self.iotmq.subscribe_to_ctls(self._handle_ctl)
-        
+
+        self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
+        self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
+        self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
+
     def connect_and_wait_until_ready(self):
         self.iotmq.connect_and_wait_until_ready()
-        self.iotmq.schedule(30, self.send_ping)   
-
-        if self._monitor:
-            # Do a first ping, which will also fetch initial statuses if the ping succeeds
-            self.send_ping()
-            self.iotmq.schedule(300,self.refresh_components)
-            self.iotmq.schedule(30,self.refresh_statuses)
+        self.iotmq.schedule(30, self.send_ping)
 
     def _handle_ctl(self, ctl):
         method = '_handle_' + ctl['event']
@@ -472,7 +311,6 @@ class VacBot():
             error = event['errs']
 
         if not error == '':
-            self.errorEvents.notify(error)
             _LOGGER.warning("*** error = " + error)
 
     def _handle_life_span(self, event):
@@ -490,10 +328,6 @@ class VacBot():
         lifespan = (left/total) * 100
        
         self.components[type] = lifespan
-        
-        lifespan_event = {'type': type, 'lifespan': lifespan}
-        self.lifespanEvents.notify(lifespan_event)
-        _LOGGER.debug("*** life_span " + type + " = " + str(lifespan))
 
     def _handle_fan_speed(self, event):
         response = event['body']['data']
@@ -505,15 +339,10 @@ class VacBot():
             _LOGGER.warning("Unknown fan speed: '" + str(speed) + "'")
       
         self.fan_speed = speed
-        
-        self.fanspeedEvents.notify(speed)
-        _LOGGER.debug("*** fan_speed = {}".format(speed))
 
     def _handle_clean_logs(self, event):
         response = event['logs']
         self.last_clean_image = response[0]['imageUrl']
-
-        _LOGGER.debug(response)
 
     def _handle_water_info(self, event):
         response = event['body']['data']
@@ -526,7 +355,7 @@ class VacBot():
       
         self.water_level = amount
         
-        _LOGGER.debug("*** water_level = {}".format(amount))
+        #_LOGGER.debug("*** water_level = {}".format(amount))
 
     def _handle_clean_report(self, event):
         response = event['body']['data']
@@ -541,14 +370,33 @@ class VacBot():
             elif response['trigger'] == 'alert':
                 self.vacuum_status = 'STATE_ERROR'
 
-            self.statusEvents.notify(self.vacuum_status)
+    def _handle_minor_map(self, event):
+        response = event['body']['data']
+
+        _LOGGER.debug("Handled minor_map : " + str(response['pieceIndex']))
+
+        self.Map.AddMapPiece(response['pieceIndex'], response['pieceValue'])
+
+    def _handle_major_map(self, event):
+        _LOGGER.debug("_handle_major_map begin")
+        response = event['body']['data']
+        
+        values = response['value'].split(",")
+
+        for i in range(64):
+            if self.Map.isUpdatePiece(i, values[i]):
+                _LOGGER.debug("MapPiece" + str(i) + ' needs to be updated')
+                self.exc_command('getMinorMap', {'mid': response['mid'],'type': 'ol', 'pieceIndex': i})
 
     def _handle_cached_map(self, event):
         response = event['body']['data']
-        mapid = response['info'][0]['mid']
         
-        self.rooms = []
-        self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
+        try:
+            mapid = response['info'][0]['mid']
+            self.rooms = []
+            self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
+        except:
+            _LOGGER.warning("MapID not found -- did you finish your first auto cleaning?")
 
     def _handle_map_set(self, event):
         response = event['body']['data']
@@ -573,10 +421,6 @@ class VacBot():
             self.battery_status = response['data']['value']
         except ValueError:
             _LOGGER.warning("couldn't parse battery status " + response)
-        else:
-            self.batteryEvents.notify(self.battery_status)
-
-        _LOGGER.debug("*** battery_status = {} %".format(self.battery_status))
 
     def _handle_charge_state(self, event):
         response = event['body']
@@ -596,11 +440,9 @@ class VacBot():
 
         if status != 'none':
             self.vacuum_status = status
-            self.statusEvents.notify(self.vacuum_status)
-            _LOGGER.debug("*** vacuum_status = " + self.vacuum_status)
 
     def _vacuum_address(self):
-        return self.vacuum['did'] #IOTMQ only uses the did
+        return self.vacuum['did']
 
     def send_ping(self):
         try:
@@ -646,7 +488,6 @@ class VacBot():
             _LOGGER.warning("*** Error type: " + err.etype)
             _LOGGER.warning("*** Error condition: " + err.condition)
 
-    
     def refresh_statuses(self):
         try:
             self.exc_command('getCleanInfo')
@@ -659,9 +500,28 @@ class VacBot():
             _LOGGER.warning("*** Error type: " + err.etype)
             _LOGGER.warning("*** Error condition: " + err.condition)
 
+    def refresh_liveMap(self):
+        try:
+            _LOGGER.debug("Refresh_liveMap begin")
+            self.exc_command('getMajorMap')
+            self.live_map = self.Map.GetBase64Map()
+        except XMPPError as err:
+            _LOGGER.warning("Initial live map failed to reach VacBot. Will try again on next ping.")
+            _LOGGER.warning("*** Error type: " + err.etype)
+            _LOGGER.warning("*** Error condition: " + err.condition)
+
     def request_all_statuses(self):
-        self.refresh_statuses()
-        self.refresh_components()
+        if not self.thread_statuses.isAlive():
+            self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
+            self.thread_statuses.start()
+        
+        if not self.thread_livemap.isAlive():
+            self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
+            self.thread_livemap.start()
+         
+        if not self.thread_components.isAlive():
+            self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
+            self.thread_components.start()
 
 	#Common ecovacs commands
     def Clean(self, type='auto'):
@@ -710,7 +570,6 @@ class VacBot():
         self.refresh_statuses()
 
     def exc_command(self, action, params=None, **kwargs):
-        #_LOGGER.debug(params)
         self.send_command(VacBotCommand(action, params))
 
     def send_command(self, action):
@@ -720,66 +579,6 @@ class VacBot():
     def disconnect(self, wait=False):
         self.iotmq._disconnect()              
 
-    def AddMapPiece(self,mapPiece, b64):
-        decoded = self.decompress7zBase64Data(b64)
-
-        self.UpdateMapBuffer(mapPiece, decoded)
-
-    def decompress7zBase64Data(self, data):
-        # Decode Base64
-        data = base64.b64decode(data)
-        
-        # Get lzma output size (as done by the Android app)
-        len_array = data[5:5+4]
-        len_value = ((len_array[0] & 0xFF) | (len_array[1] << 8 & 0xFF00) | (len_array[2] << 16 & 0xFF0000) | (len_array[3] << 24 & 0xFF000000)) 
-        
-        # Init the LZMA decompressor using the lzma header
-        dec = lzma.LZMADecompressor(lzma.FORMAT_RAW, None, [lzma._decode_filter_properties(lzma.FILTER_LZMA1, data[0:5])])
-        
-        # Decompress the lzma stream to get raw data
-        return dec.decompress(data[9:], len_value)
-
-    def InitializeMapBuffer(self, i,i2,i3,i4):
-        self.row_grid = i
-        self.column_grid = i2
-        self.column_piece = i4
-        self.row_piece = i3
-
-        self.pieceCount = i3 * i4
-        self.gridCount = i * i2
-
-        self.width = i2 * i4
-        self.height = i * i3
-        
-        self.buffer = [[0 for x in range(self.width)] for y in range(self.height)]
-        _LOGGER.debug('Map Buffer Initialized')
-
-    def StampMap(self):
-        for i6 in range(800):
-            for i9 in range(800):
-                arr = self.buffer[i6][i9]
-                if arr == 0x01:
-                    print('1', end = '')
-                if arr == 0x02:
-                    print('2', end = '')
-                if arr == 0x00:
-                    print(' ', end = '')
-            print('')
-                
-
-    def UpdateMapBuffer(self, i, bArr):
-        rowStart = int(i / self.row_grid)
-        columnStart = int(i % self.column_grid)
-        
-        for row in range(self.row_grid):
-            for column in range(self.column_grid):
-                bufferRow = row + rowStart * self.row_grid
-                bufferColumn = column + columnStart * self.column_grid
-                pieceDataPosition = self.row_grid * row + column
-
-                self.buffer[bufferRow][bufferColumn] = bArr[pieceDataPosition]
-                print(str(bufferRow) + '-' + str(bufferColumn)) 
-
 #This is used by EcoVacsIOTMQ for _ctl_to_dict
 def RepresentsInt(stringvar):
     try: 
@@ -787,264 +586,6 @@ def RepresentsInt(stringvar):
         return True
     except ValueError:
         return False
-
-class EcoVacsIOTMQ(ClientMQTT):
-    def __init__(self, user, domain, resource, secret, continent, vacuum, server_address=None, verify_ssl=True):
-        ClientMQTT.__init__(self)
-        self.ctl_subscribers = []        
-        self.user = user
-        self.domain = str(domain).split(".")[0] #MQTT is using domain without tld extension
-        self.resource = resource
-        self.secret = secret
-        self.continent = continent
-        self.vacuum = vacuum
-        self.scheduler = sched.scheduler(time.time, time.sleep)
-        self.scheduler_thread = threading.Thread(target=self.scheduler.run, daemon=True, name="mqtt_schedule_thread")
-        self.verify_ssl = str_to_bool_or_cert(verify_ssl)
-        
-        if server_address is None: 	
-            self.hostname = ('mq-{}.ecouser.net'.format(self.continent))
-            self.port = 8883
-        else:
-            saddress = server_address.split(":")
-            if len(saddress) > 1:
-                self.hostname = saddress[0]
-                if RepresentsInt(saddress[1]):
-                    self.port = int(saddress[1])
-                else:
-                    self.port = 8883                    
-
-        self._client_id = self.user + '@' + self.domain.split(".")[0] + '/' + self.resource        
-        self.username_pw_set(self.user + '@' + self.domain, secret)
-
-        self.ready_flag = Event()
-
-    def connect_and_wait_until_ready(self):        
-        self._on_log = self.on_log #This provides more logging than needed, even for debug
-        self._on_message = self._handle_ctl_mqtt
-        self._on_connect = self.on_connect        
-
-        #TODO: This is pretty insecure and accepts any cert, maybe actually check?
-        ssl_ctx = ssl.create_default_context()
-        ssl_ctx.check_hostname = False
-        ssl_ctx.verify_mode = ssl.CERT_NONE
-        self.tls_set_context(ssl_ctx)
-        self.tls_insecure_set(True)
-        self.connect(self.hostname, self.port)
-        self.loop_start()        
-        self.wait_until_ready()
-
-    def subscribe_to_ctls(self, function):
-        self.ctl_subscribers.append(function)   
-
-    def _disconnect(self):
-        self.disconnect() #disconnect mqtt connection
-        self.scheduler.empty() #Clear schedule queue  
-
-    def _run_scheduled_func(self, timer_seconds, timer_function):
-        timer_function()
-        self.schedule(timer_seconds, timer_function)
-
-    def schedule(self, timer_seconds, timer_function):
-        self.scheduler.enter(timer_seconds, 1, self._run_scheduled_func,(timer_seconds, timer_function))
-        if not self.scheduler_thread.isAlive():
-            self.scheduler_thread.start()
-        
-    def wait_until_ready(self):
-        self.ready_flag.wait()
-
-    def on_connect(self, client, userdata, flags, rc):        
-        if rc != 0:
-            _LOGGER.error("EcoVacsMQTT - error connecting with MQTT Return {}".format(rc))
-            raise RuntimeError("EcoVacsMQTT - error connecting with MQTT Return {}".format(rc))
-                 
-        else:
-            _LOGGER.debug("EcoVacsMQTT - Connected with result code "+str(rc))
-            _LOGGER.debug("EcoVacsMQTT - Subscribing to all")        
-
-            self.subscribe('iot/atr/+/' + self.vacuum['did'] + '/' + self.vacuum['class'] + '/' + self.vacuum['resource'] + '/+', qos=0)            
-            self.ready_flag.set()
-
-    def send_ping(self):
-        _LOGGER.debug("*** MQTT sending ping ***")
-        rc = self._send_simple_command(MQTTPublish.paho.PINGREQ)
-        if rc == MQTTPublish.paho.MQTT_ERR_SUCCESS:
-            return True         
-        else:
-            return False
-
-    def send_command(self, action, recipient):
-        if action.name.lower() == 'getcleanlogs':
-            c = self._wrap_log_command(action, recipient)
-            _LOGGER.debug('Sending command {0}'.format(c))  
-            self._handle_ctl_api(action, self.__call_logs_api(c ,verify_ssl=self.verify_ssl ))
-        else:
-            c = self._wrap_command(action, recipient)
-            _LOGGER.debug('Sending command {0}'.format(c))  
-            self._handle_ctl_api(action, self.__call_iotdevmanager_api(c ,verify_ssl=self.verify_ssl ))
-
-    def _wrap_log_command(self, cmd, recipient):
-        return {
-            'auth': {
-                'realm': EcoVacsAPI.REALM,
-                'resource': self.resource,
-                'token': self.secret,
-                'userid': self.user,
-                'with': 'users',
-            },
-            "td": cmd.name,
-            "did": recipient,
-            "resource": self.vacuum['resource'],
-        }     
-
-    def _wrap_command(self, cmd, recipient):
-        #All requests need to have this header -- not sure about timezone and ver
-        payloadRequest = OrderedDict()
-			
-        payloadRequest['header'] = OrderedDict()
-        payloadRequest['header']['pri'] = '2'
-        payloadRequest['header']['ts'] = datetime.datetime.now().timestamp()
-        payloadRequest['header']['tmz'] = 480
-        payloadRequest['header']['ver'] = '0.0.22'
-        
-        if len(cmd.args) > 0:
-            payloadRequest['body'] = OrderedDict()
-            payloadRequest['body']['data'] = cmd.args
-			
-        payload = payloadRequest
-        payloadType = "j"
-
-        return {
-            'auth': {
-                'realm': EcoVacsAPI.REALM,
-                'resource': self.resource,
-                'token': self.secret,
-                'userid': self.user,
-                'with': 'users',
-            },
-            "cmdName": cmd.name,            
-            "payload": payload,  
-                      
-            "payloadType": payloadType,
-            "td": "q",
-            "toId": recipient,
-            "toRes": self.vacuum['resource'],
-            "toType": self.vacuum['class']
-        }     
-
-    def __call_iotdevmanager_api(self, args, verify_ssl=True):
-        _LOGGER.debug("calling iotdevmanager api with {}".format(args))                
-        params = {}
-        params.update(args)
-
-        url = (EcoVacsAPI.PORTAL_URL_FORMAT + "/iot/devmanager.do?mid=" + params['toType'] + "&did=" + params['toId'] + "&td=" + params['td'] + "&u=" + params['auth']['userid'] + "&cv=1.67.3&t=a&av=1.3.1").format(continent=self.continent)
-        response = None        
-        try: #The RestAPI sometimes doesnt provide a response depending on command, reduce timeout to 3 to accomodate and make requests faster
-            headers = {
-                        'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)',
-            }
-            response = requests.post(url,headers=headers, json=params, timeout=20, verify=verify_ssl) #May think about having timeout as an arg that could be provided in the future
-        except requests.exceptions.ReadTimeout:
-            _LOGGER.warning("call to iotdevmanager failed with ReadTimeout")
-            return {}                
-        
-        json = response.json()
-        if json['ret'] == 'ok':
-            return json
-        elif json['ret'] == 'fail':
-            if 'debug' in json:
-                if json['debug'] == 'wait for response timed out': 
-                    #TODO - Maybe handle timeout for IOT better in the future
-                    return {}
-            else:
-                #TODO - Not sure if we want to raise an error yet, just return empty for now
-                _LOGGER.error("call to iotdevmanager failed with {}".format(json))
-                return {}
-
-    def __call_logs_api(self, args, verify_ssl=True):
-        _LOGGER.debug("calling logs api with {}".format(args))                
-        params = {}
-        params.update(args)
-
-        url = (EcoVacsAPI.PORTAL_URL_FORMAT + "/lg/log.do?td=" + params['td'] + "&u=" + params['auth']['userid'] + "&cv=1.67.3&t=a&av=1.3.1").format(continent=self.continent)
-        response = None        
-        try: #The RestAPI sometimes doesnt provide a response depending on command, reduce timeout to 3 to accomodate and make requests faster
-            headers = {
-                        'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)',
-            }
-            response = requests.post(url,headers=headers, json=params, timeout=20, verify=verify_ssl) #May think about having timeout as an arg that could be provided in the future
-        except requests.exceptions.ReadTimeout:
-            _LOGGER.warning("call to logs failed with ReadTimeout")
-            return {}                
-        
-        json = response.json()
-        if json['ret'] == 'ok':
-            return json
-        elif json['ret'] == 'fail':
-            if 'debug' in json:
-                if json['debug'] == 'wait for response timed out': 
-                    #TODO - Maybe handle timeout for IOT better in the future
-                    return {}
-            else:
-                #TODO - Not sure if we want to raise an error yet, just return empty for now
-                _LOGGER.error("call to logs failed with {}".format(json))
-                return {}
-
-    def _handle_ctl_api(self, action, message):
-        if not message == {}:
-            if(action.name.lower() == 'getcleanlogs'):
-                resp = self._ctl_to_dict_api(action, message)
-            else:
-                resp = self._ctl_to_dict_api(action, message['resp'])
-            if resp is not None:
-                for s in self.ctl_subscribers:
-                    s(resp)       
-
-    def _ctl_to_dict_api(self, action, jsonstring):
-        eventname = action.name.lower()
-
-        if eventname == 'getcleanlogs':
-            jsonstring['event'] = "clean_logs"
-        elif jsonstring['body']['msg'] == 'ok':
-            _LOGGER.debug('BEFORE Status:' + eventname)
-            if 'cleaninfo' in eventname:
-                jsonstring['event'] = "clean_report"
-            elif 'chargestate' in eventname:
-                jsonstring['event'] = "charge_state"
-            elif 'battery' in eventname:
-                jsonstring['event'] = "battery_info"
-            elif 'lifespan' in eventname:
-                jsonstring['event'] = "life_span"
-            elif 'getspeed' in eventname:
-                jsonstring['event'] = "fan_speed"
-            elif 'cachedmapinfo' in eventname:
-                jsonstring['event'] = "cached_map"
-            elif 'mapset' in eventname:
-                jsonstring['event'] = "map_set"
-            elif 'mapsubset' in eventname:
-                jsonstring['event'] = "map_sub_set"
-            elif 'getwater' in eventname:
-                jsonstring['event'] = "water_info"
-            else:
-                _LOGGER.debug('UKNOWN Status:' + eventname)
-                return
-        else:
-            if jsonstring['body']['msg'] == 'fail':
-                if action.name == "charge": #So far only seen this with Charge, when already docked
-                    jsonstring['event'] = "charge_state"
-                return
-            else:
-                return
-
-        _LOGGER.debug("LOGGED EVENT: " + jsonstring['event'])
-        return jsonstring
-
-    def _handle_ctl_mqtt(self, client, userdata, message):
-        #_LOGGER.warning("EcoVacs MQTT Received Message on Topic: {} - Message: {}".format(message.topic, str(message.payload.decode("utf-8"))))
-        as_dict = self._ctl_to_dict_api(message.topic, str(message.payload.decode("utf-8")))
-        if as_dict is not None:
-            for s in self.ctl_subscribers:
-                s(as_dict)
 
 class VacBotCommand:
     def __init__(self, name, args=None, **kwargs):

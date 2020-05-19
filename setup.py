@@ -10,7 +10,7 @@ long_description = ''
 
 setup(
     name='deebotozmo',
-    version='1.2.9',
+    version='1.4.8',
 
     description='a library for controlling certain robot vacuums [SUCKS FORK]',
     long_description=long_description,
@@ -62,7 +62,9 @@ setup(
         'pycryptodome>=3.4',
         'pycountry-convert>=0.5',
         'paho-mqtt>=1.4',
-        'stringcase>=1.2'
+        'stringcase>=1.2',
+        'numpy>=1.18.3',
+        'Pillow>=7.1.2'
     ],
 
     # List additional groups of dependencies here (e.g. development
