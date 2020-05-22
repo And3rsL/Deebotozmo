@@ -280,7 +280,6 @@ class VacBot():
         # Populated by component Lifespan reports
         self.components = {}
 
-        self.rooms = []
         self.last_clean_image = None
         self.Map = Map()
         self.live_map = None
@@ -370,6 +369,17 @@ class VacBot():
             elif response['trigger'] == 'alert':
                 self.vacuum_status = 'STATE_ERROR'
 
+    def _handle_set_position(self, event):
+        response = event['body']['data']
+
+        # Charger
+        charger_pos = response['chargePos']
+        self.Map.updateChargerPosition(charger_pos[0]['x'], charger_pos[0]['y'])
+
+        # Robot
+        robot_pos = response['deebotPos']
+        self.Map.updateRobotPosition(robot_pos['x'], robot_pos['y'])
+
     def _handle_minor_map(self, event):
         response = event['body']['data']
 
@@ -393,7 +403,7 @@ class VacBot():
         
         try:
             mapid = response['info'][0]['mid']
-            self.rooms = []
+            self.Map.rooms = []
             self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
         except:
             _LOGGER.warning("MapID not found -- did you finish your first auto cleaning?")
@@ -410,10 +420,10 @@ class VacBot():
 
     def _handle_map_sub_set(self, event):
         response = event['body']['data']
-        typeSubset = response['type']
         subtype = int(response['subtype'])
+        value = response['value']
 
-        self.rooms.append({'subtype':ROOMS_FROM_ECOVACS[subtype],'id': int(response['mssid'])})
+        self.Map.rooms.append({'subtype':ROOMS_FROM_ECOVACS[subtype],'id': int(response['mssid']), 'values': value})
 
     def _handle_battery_info(self, event):
         response = event['body']
@@ -481,7 +491,6 @@ class VacBot():
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["brush"]])
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["sideBrush"]])
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["heap"]])
-            self.exc_command('getCachedMapInfo')
             self.exc_command('GetCleanLogs')
         except XMPPError as err:
             _LOGGER.warning("Component refresh requests failed to reach VacBot. Will try again later.")
@@ -503,6 +512,8 @@ class VacBot():
     def refresh_liveMap(self):
         try:
             _LOGGER.debug("Refresh_liveMap begin")
+            self.exc_command('getCachedMapInfo')
+            self.exc_command('getPos',['chargePos','deebotPos'])
             self.exc_command('getMajorMap')
             self.live_map = self.Map.GetBase64Map()
         except XMPPError as err:

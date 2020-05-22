@@ -222,7 +222,6 @@ class EcoVacsIOTMQ(ClientMQTT):
         if eventname == 'getcleanlogs':
             jsonstring['event'] = "clean_logs"
         elif jsonstring['body']['msg'] == 'ok':
-            #_LOGGER.debug('BEFORE Status:' + eventname)
             if 'cleaninfo' in eventname:
                 jsonstring['event'] = "clean_report"
             elif 'chargestate' in eventname:
@@ -245,11 +244,10 @@ class EcoVacsIOTMQ(ClientMQTT):
                 jsonstring['event'] = "map_sub_set"
             elif 'getwater' in eventname:
                 jsonstring['event'] = "water_info"
-            elif 'setspeed' in eventname:
-                # Ignore, no need to handle
-                return
+            elif 'getpos' in eventname:
+                jsonstring['event'] = "set_position"
             else:
-                _LOGGER.warning("Event Not Found " + str(eventname))
+                # No need to handle other events
                 return
         else:
             if jsonstring['body']['msg'] == 'fail':
