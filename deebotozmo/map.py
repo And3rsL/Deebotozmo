@@ -75,21 +75,29 @@ class Map:
         return decompressed_data
     
     def updateRobotPosition(self, cordx, cordy):
-        _LOGGER.debug("New robot position: " + str(cordx) + ',' + str(cordy))
-        
-        self.robot_position = {'x':cordx ,'y': cordy}
-
-        self.draw_robot = True
-        self.isMapUpdated = False
+        if(self.robot_position != None):
+            _LOGGER.debug("New robot position: " + str(cordx) + ',' + str(cordy))
+            if (self.robot_position['x'] != cordx) or (self.robot_position['y'] != cordy):
+                self.robot_position = {'x':cordx ,'y': cordy}
+                self.isMapUpdated = False
+        else:
+            _LOGGER.debug("robot position set: " + str(cordx) + ',' + str(cordy))
+            self.robot_position = {'x':cordx ,'y': cordy}
+            self.isMapUpdated = False
+            self.draw_robot = True
 
     def updateChargerPosition(self, cordx, cordy):
-        _LOGGER.debug("New charger position: " + str(cordx) + ',' + str(cordy))
+        if(self.charger_position != None):
+            _LOGGER.debug("New charger position: " + str(cordx) + ',' + str(cordy))
+            if (self.charger_position['x'] != cordx) or (self.charger_position['y'] != cordy):
+                self.charger_position = {'x':cordx ,'y': cordy}
+                self.isMapUpdated = False
+        else:
+            _LOGGER.debug("charger position set: " + str(cordx) + ',' + str(cordy))
+            self.charger_position = {'x':cordx ,'y': cordy}
+            self.isMapUpdated = False
+            self.draw_charger = True
         
-        self.charger_position = {'x':cordx ,'y': cordy}
-        
-        self.draw_charger = True
-        self.isMapUpdated = False
-
     def GetBase64Map(self):
         if self.isMapUpdated == False:
             _LOGGER.debug("GetBase64Map begin")
