@@ -22,18 +22,8 @@ class Map:
         self.draw_charger = False
         self.draw_robot = False
 
-        self.room_colors = {"Default": (186,203,255,255),
-        "Living Room": (181,235,255,255),
-        "Dinning Room": "",
-        "Bedroom": (212,223,255,255),
-        "Study": "",
-        "Bathroom": (247,197,181,255),
-        "Kitchen": "",
-        "Laundry": "",
-        "Lounge": "",
-        "StoreRoom": "",
-        "Kids room": (253,247,226,255),
-        "Sunroom": ""}
+        self.room_colors = [(238,225,235,255),(239,236,221,255),(228,239,223,255),(225,234,239,255),(238,223,216,255),(240,228,216,255),(233,139,157,255),(239,200,201,255),(201,2019,239,255)]
+       
 
     def isUpdatePiece(self, index, mapPiece):
         _LOGGER.debug("isUpdatePiece " + str(index) + ' ' + str(mapPiece))
@@ -110,7 +100,7 @@ class Map:
 
             im = Image.new("RGBA", (1000, 1000))
             draw = ImageDraw.Draw(im)
-
+            roomnr = 0
             #Draw Rooms
             for room in self.rooms:
                 coordsXY = room['values'].split(';')
@@ -118,7 +108,7 @@ class Map:
                 _sumx = 0
                 _sumy = 0
                 _points = 0
-                
+
                 for cord in coordsXY:
                     cord = cord.split(',')
 
@@ -138,9 +128,10 @@ class Map:
                 centerX = _sumx / len(coordsXY)
                 centerY = _sumy / len(coordsXY)
 
-                ImageDraw.floodfill(im,xy=(centerX,centerY),value=self.room_colors[room['subtype']])
+                ImageDraw.floodfill(im,xy=(centerX,centerY),value=self.room_colors[roomnr % len(self.room_colors)])
 
                 draw.line(listcord,fill=(0,0,0,0),width=1)
+                roomnr = roomnr +1
 
             #Draw MAP
             imageX = 0
