@@ -9,10 +9,10 @@ here = path.abspath(path.dirname(__file__))
 long_description = ''
 
 setup(
-    name='deebotozmo',
-    version='1.5.8',
+    name='deebotozmodev',
+    version='0.0.2',
 
-    description='a library for controlling certain robot vacuums [SUCKS FORK]',
+    description='a library for controlling certain robot vacuums [DEV edition]',
     long_description=long_description,
 
     # Author details
@@ -28,7 +28,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 4 - Beta',
+        'Development Status :: 3 - Alpha',
 
         # Indicate who your project is intended for
         'Intended Audience :: Developers',

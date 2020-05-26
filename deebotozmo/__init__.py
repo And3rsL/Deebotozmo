@@ -482,9 +482,7 @@ class VacBot():
                     self.request_all_statuses()
                     self.is_available == True
             else:
-                # If we're not auto-monitoring the status, then just reset the status to None, which indicates unknown
-                if self.is_available == False:
-                    self.is_available = None
+                self.is_available = True
 
     def refresh_components(self):
         try:
@@ -522,14 +520,14 @@ class VacBot():
             _LOGGER.warning("*** Error condition: " + err.condition)
 
     def request_all_statuses(self):
-        if not self.thread_statuses.isAlive():
-            self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
-            self.thread_statuses.start()
-        
         if not self.thread_livemap.isAlive():
             self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
             self.thread_livemap.start()
-         
+
+        if not self.thread_statuses.isAlive():
+            self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
+            self.thread_statuses.start()
+
         if not self.thread_components.isAlive():
             self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
             self.thread_components.start()
