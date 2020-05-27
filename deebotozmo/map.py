@@ -4,6 +4,7 @@ import lzma
 import numpy as np
 import logging
 from PIL import Image, ImageDraw, ImageOps
+import struct
 #import matplotlib.path as mplPath
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,11 +19,12 @@ class Map:
         self.charger_position = None
         self.robot_position = None
 
-        self.colors = {"floor": "#badaff", "wall": "#4e96e2", "carpet": "#1a81ed"}
+        self.traceValues = []
+        self.colors = {"floor": "#badaff", "wall": "#4e96e2", "carpet": "#1a81ed","tracemap": "#FFFFFF"}
 
         self.draw_charger = False
         self.draw_robot = False
-
+        
         self.room_colors = [(238,225,235,255),(239,236,221,255),(228,239,223,255),(225,234,239,255),(238,223,216,255),(240,228,216,255),(233,139,157,255),(239,200,201,255),(201,2019,239,255)]
         self.robot_png = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="
         self.charger_png = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAOCAYAAAAWo42rAAAAdUlEQVQoU2NkQAP/nzD8BwkxyjAwIkuhcEASRCmEKYKZhGwq3ER0ReiKSVOIyzRkU8EmwhUyKzAwSNyHyL9QZGD4+wDMBLmVEasimFHIiuEKpcHBhwmeQryBMJFohcjuw2s1SBKHZ8BWo/gauyshvobJEYoZAEOSPXnhzwZnAAAAAElFTkSuQmCC"
@@ -74,7 +76,25 @@ class Map:
 
         _LOGGER.debug("decompress7zBase64Data done")
         return decompressed_data
-    
+
+    def updateTracePoints(self, data):
+        tracePoints = self.decompress7zBase64Data(data)
+        h = "h" * 1
+        
+        for i in range(0,len(tracePoints),5):
+            bytePositionX = struct.unpack('<'+h, tracePoints[i:i+2])
+            bytePositionY = struct.unpack('<'+h, tracePoints[i+2:i+4])
+            # ignore Type and ConnectedWithPrevious.. i dont care for now
+            # byte type = tracePoints[i + Short.BYTES + Short.BYTES]; # Types? there are more type of line?
+            # boolean connectedWithPrevious = (tracePoints[i + Short.BYTES + Short.BYTES] >>> 7) != 0;  # What is purpose of it?
+
+            # Add To List
+            positionX = (int(bytePositionX[0]/5))+400
+            positionY = (int(bytePositionY[0]/5))+400
+
+            self.traceValues.append(positionX)
+            self.traceValues.append(positionY)
+
     def updateRobotPosition(self, cordx, cordy):
         if(self.robot_position != None):
             if (self.robot_position['x'] != cordx) or (self.robot_position['y'] != cordy):
@@ -172,6 +192,11 @@ class Map:
                         if self.buffer[i][x][y] == 0x03: #carpet
                             if im.getpixel((imageX+x,imageY+y)) == (0,0,0,0):
                                 draw.point((imageX+x,imageY+y), fill=self.colors['carpet'])
+
+            # Draw Trace Route
+            if len(self.traceValues) > 0:
+                _LOGGER.debug("GetBase64Map draw trace")
+                draw.line(self.traceValues,fill=self.colors['tracemap'],width=1)
 
             del draw
 

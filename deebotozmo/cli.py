@@ -200,7 +200,7 @@ def run(actions, debug):
 
         for action in actions:
             click.echo("performing " + str(action.vac_command))
-            vacbot.request_all_statuses()
+ 
             vacbot.refresh_liveMap()
 
             _LOGGER.debug("Vacuum Status: {}".format(vacbot.vacuum_status))

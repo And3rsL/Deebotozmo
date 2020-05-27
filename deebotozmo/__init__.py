@@ -353,8 +353,6 @@ class VacBot():
             _LOGGER.warning("Unknown water level: '" + str(amount) + "'")
       
         self.water_level = amount
-        
-        #_LOGGER.debug("*** water_level = {}".format(amount))
 
     def _handle_clean_report(self, event):
         response = event['body']['data']
@@ -368,6 +366,19 @@ class VacBot():
                     self.vacuum_status = 'STATE_RETURNING'
             elif response['trigger'] == 'alert':
                 self.vacuum_status = 'STATE_ERROR'
+
+    def _handle_map_trace(self, event):
+        response = event['body']['data']
+        totalCount = int(response['totalCount'])
+        traceStart = int(response['traceStart'])
+        pointCount = 200
+
+        _LOGGER.debug("Trace Request: TotalCount=" + str(totalCount) + ' traceStart=' + str(traceStart))
+        self.Map.updateTracePoints(response['traceValue'])
+
+        if (traceStart+pointCount) < totalCount:
+            self.exc_command('getMapTrace',{'pointCount':pointCount,'traceStart':traceStart+pointCount})
+
 
     def _handle_set_position(self, event):
         response = event['body']['data']
@@ -511,6 +522,8 @@ class VacBot():
         try:
             _LOGGER.debug("Refresh_liveMap begin")
             self.exc_command('getCachedMapInfo')
+            self.Map.traceValues = []
+            self.exc_command('getMapTrace',{'pointCount':200,'traceStart':0})
             self.exc_command('getPos',['chargePos','deebotPos'])
             self.exc_command('getMajorMap')
             self.live_map = self.Map.GetBase64Map()
