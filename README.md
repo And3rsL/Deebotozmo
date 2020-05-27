@@ -1,7 +1,7 @@
-=====
+<a href="https://www.buymeacoffee.com/4nd3rs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-black.png" width="150px" height="35px" alt="Buy Me A Coffee" style="height: 35px !important;width: 150px !important;" ></a>
 
-DeebotOzmo 960/950/920
 =====
+# Library for DeebotOzmo 960/950/920
 
 A simple command-line python script to drive a robot vacuum. Currently
 known to work with the Ecovacs Deebot 960/950/920 from both North America and Europe.
@@ -64,8 +64,6 @@ vacbot.Clean()  # start cleaning
 time.sleep(900)      # clean for 15 minutes
 vacbot.Charge() # return to the charger
 ```
-
-<a href="https://www.buymeacoffee.com/4nd3rs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" style="height: 51px !important;width: 217px !important;" ></a>
 
 ## Thanks
 
