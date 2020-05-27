@@ -19,7 +19,7 @@ using your smartphone.
 
 With that ready, step one is to log in:
 ```
-    % sucks login
+    % deebotozmo createconfig
     Ecovacs app email: [your email]
     Ecovacs app password: [your password]
     your two-letter country code: us
@@ -35,7 +35,7 @@ With that set up, you could have it clean in auto mode for 10 minutes
 and return to its charger:
 
 ```
-    % deebotozmo clean 10
+    % deebotozmo clean
 ```
 
 To tell it to go plug in:
@@ -71,6 +71,8 @@ vacbot.Charge() # return to the charger
 
 My heartfelt thanks to:
 
+* [sucks](https://github.com/wpietri/sucks),
+After all, this is a sucks fork :)
 * [xmpppeek](https://www.beneaththewaves.net/Software/XMPPPeek.html),
 a great library for examining XMPP traffic flows (yes, your vacuum
 speaks Jabbber!),

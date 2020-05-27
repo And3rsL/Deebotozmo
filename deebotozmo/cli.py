@@ -10,50 +10,10 @@ import json
 
 import click
 from pycountry_convert import country_alpha2_to_continent_code
-
 from deebotozmo import *
 
 _LOGGER = logging.getLogger(__name__)
-
-class BotWait():
-    pass
-
-    def wait(self, bot):
-        raise NotImplementedError()
-
-
-class TimeWait(BotWait):
-    def __init__(self, seconds):
-        super().__init__()
-        self.seconds = seconds
-
-    def wait(self, bot):
-        click.echo("waiting for " + str(self.seconds) + "s")
-        time.sleep(self.seconds)
-
-
-class StatusWait(BotWait):
-    def __init__(self, wait_on, wait_for):
-        super().__init__()
-        self.wait_on = wait_on
-        self.wait_for = wait_for
-
-    def wait(self, bot):
-        if not hasattr(bot, self.wait_on):
-            raise ValueError("object " + bot + " does not have method " + self.wait_on)
-        _LOGGER.debug("waiting on " + self.wait_on + " for value " + self.wait_for)
-
-        while getattr(bot, self.wait_on) != self.wait_for:
-            time.sleep(0.5)
-        _LOGGER.debug("wait complete; " + self.wait_on + " is now " + self.wait_for)
-
-
-class CliAction:
-    def __init__(self, vac_command, terminal=False, wait=None):
-        self.vac_command = vac_command
-        self.terminal = terminal
-        self.wait = wait
-
+vacbot = None
 
 def config_file():
     if platform.system() == 'Windows':
@@ -81,7 +41,6 @@ def write_config(config):
 
 
 def current_country():
-    # noinspection PyBroadException
     try:
         return requests.get('http://ipinfo.io/json').json()['country'].lower()
     except:
@@ -105,9 +64,9 @@ def cli(debug):
 @click.option('--continent-code', prompt='your two-letter continent code',
               default=lambda: continent_for_country(click.get_current_context().params['country_code']))
 @click.option('--verify-ssl', prompt='Verify SSL for API requests', default=True)
-def login(email, password, country_code, continent_code, verify_ssl):
+def CreateConfig(email, password, country_code, continent_code, verify_ssl):
     if config_file_exists() and not click.confirm('overwrite existing config?'):
-        click.echo("Skipping login.")
+        click.echo("Skipping setconfig.")
         exit(0)
     config = OrderedDict()
     password_hash = EcoVacsAPI.md5(password)
@@ -127,89 +86,121 @@ def login(email, password, country_code, continent_code, verify_ssl):
     click.echo("Config saved.")
     exit(0)
 
-
-@cli.command(help='auto clean until bot returns to charger by itself')
+@cli.command(help='Auto clean')
 def clean():
-    waiter = StatusWait('charge_status', 'charging')    
-    return CliAction('clean', {'act': 'go','type': 'auto'}, wait=waiter)
+    dologin()
+    vacbot.Clean()
 
-@cli.command(help='cleans provided area(s), ex: "0,1"',context_settings={"ignore_unknown_options": True}) #ignore_unknown for map coordinates with negatives
-@click.option("--map-position","-p", is_flag=True, help='clean provided map position instead of area, ex: "-602,1812,800,723"')
+@cli.command(help='Cleans provided area(s), ex: "-602,1812,800,723"',context_settings={"ignore_unknown_options": True})
 @click.argument('area', type=click.STRING, required=True)
-def area(area, map_position):
-    if map_position:
-        return CliAction('clean', {'act': 'start', 'content': area, 'count': 1, 'type': 'spotArea'}, wait=StatusWait('charge_status', 'returning'))    
-    else:
-        return CliAction('clean', {'act': 'start', 'content': area, 'count': 1, 'type': 'customArea'}, wait=StatusWait('charge_status', 'returning'))
-    
+@click.argument('cleanings', type=click.STRING, required=False)
+def CustomArea(area, cleanings=1):
+    dologin()
+    vacbot.CustomArea(area, cleanings)
+
+@cli.command(help='Cleans provided rooms(s), ex: "0,1" | Use GetRooms to see saved numbers',context_settings={"ignore_unknown_options": True})
+@click.argument('rooms', type=click.STRING, required=True)
+@click.argument('cleanings', type=click.STRING)
+def SpotArea(rooms, cleanings=1):
+    dologin()
+    vacbot.SpotArea(rooms, cleanings)
+
 @cli.command(help='Set Clean Speed')
 @click.argument('speed', type=click.STRING, required=True)
 def setfanspeed(speed):
-    return CliAction('setSpeed', {'speed': speed}, wait=None)    
+    dologin()
+    vacbot.SetFanSpeed(speed)
+
+@cli.command(help='Set Water Level')
+@click.argument('level', type=click.STRING, required=True)
+def setwaterLevel(level):
+    dologin()
+    vacbot.SetWaterLevel(level)
     
 @cli.command(help='Returns to charger')
 def charge():
-    return CliAction('charge', {'act': 'go'}, wait=StatusWait('clean_status', 'working'))
+    dologin()
+    vacbot.Charge()
 
 @cli.command(help='Play welcome sound')
 def playsound():
-    return CliAction("playSound", terminal=False)
-
-@cli.command(help='Charge State')
-def chargestate():
-    return CliAction("getChargeState", terminal=True, wait=StatusWait('charge_status', 'charging'))
-
-@cli.command(help='Get Fan Speed')
-def fanspeed():
-    return CliAction("getSpeed", terminal=False)
-
-@cli.command(help='Battery State')
-def batterystate():
-    return CliAction("getBatteryState", terminal=False)
+    dologin()
+    vacbot.PlaySound()
 	
 @cli.command(help='pause the robot')
 def pause():
-    return CliAction('clean', {'act': 'pause'}, wait=StatusWait('vacuum_status', 'STATE_DOCKED'))
+    dologin()
+    vacbot.CleanPause()
 
-@cli.command(help='resume the robot')
+@cli.command(help='Resume the robot')
 def resume():
-    return CliAction('clean', {'act': 'resume'}, wait=StatusWait('vacuum_status', 'working'))
+    dologin()
+    vacbot.CleanResume()
 
-@cli.resultcallback()
-def run(actions, debug):
-    actions = list(filter(None.__ne__, actions))
-	
-	
+@cli.command(help='Get Clean Logs')
+def getCleanLogs():
+    dologin()
+    vacbot.refresh_components()
+    vacbot.GetCleanLogs()
+
+    print(vacbot.lastCleanLogs)
+
+@cli.command(help='Get robot statuses [Status,Battery,FanSpeed,WaterLevel]')
+def statuses():
+    dologin()
+    vacbot.refresh_statuses()
+
+    print("Vacuum Status: " + vacbot.vacuum_status)
+    print("Battery: " + str(vacbot.battery_status) + '%')
+    print("Fan Speed: " + vacbot.fan_speed)
+    print("Water Level: " + vacbot.water_level)
+
+@cli.command(help='Get robot components life span')
+def components():
+    dologin()
+    vacbot.refresh_components()
+
+    for component in vacbot.components:
+        print(component + ': ' + str(vacbot.components[component]) + '%')
+
+@cli.command(help='Get saved rooms')
+def getrooms():
+    dologin()
+    vacbot.refresh_liveMap()
+
+    for v in vacbot.getSavedRooms():
+        print(str(v['id']) + ' ' + v['subtype'])
+
+@cli.command(help='debug function, do not use :)')
+def dodebug():
+    dologin()
+    vacbot.setScheduleUpdates(10)
+    
+@cli.command(help='Get robot map and save it [filepath ex: "/folder/livemap.png"')
+@click.argument('filepath', type=click.STRING, required=True)
+def exportLiveMap(filepath):
+    dologin()
+    vacbot.refresh_liveMap()
+
+    with open(filepath, "wb") as fh:
+        fh.write(base64.decodebytes(vacbot.live_map))
+
+def dologin():
+    global vacbot
+
     if not config_file_exists():
-        click.echo("Not logged in. Do 'click login' first.")
+        click.echo("Not logged in. Do 'click setconfig' first.")
         exit(1)
+    config = read_config()
 
-    if debug:
-        _LOGGER.debug("will run {}".format(actions))
-
-    if actions:
-        config = read_config()
-        api = EcoVacsAPI(config['device_id'], config['email'], config['password_hash'],
+    api = EcoVacsAPI(config['device_id'], config['email'], config['password_hash'],
                          config['country'], config['continent'], verify_ssl=config['verify_ssl'])
 
-        vacuum = api.devices()[0]
+    vacuum = api.devices()[0]
 
-        vacbot = VacBot(api.uid, api.REALM, api.resource, api.user_access_token, vacuum, config['continent'], verify_ssl=config['verify_ssl'])
+    vacbot = VacBot(api.uid, api.REALM, api.resource, api.user_access_token, vacuum, config['continent'], verify_ssl=config['verify_ssl'])
         
-        vacbot.connect_and_wait_until_ready()
-
-        for action in actions:
-            click.echo("performing " + str(action.vac_command))
- 
-            vacbot.refresh_liveMap()
-
-            _LOGGER.debug("Vacuum Status: {}".format(vacbot.vacuum_status))
-            _LOGGER.debug("Fan Speed: {}".format(vacbot.fan_speed))
-            _LOGGER.debug("Image Url: {}".format(vacbot.last_clean_image))
-            _LOGGER.debug("Live Map: {}".format(vacbot.live_map))
-
-    click.echo("done")
-
+    vacbot.connect_and_wait_until_ready()
 
 if __name__ == '__main__':
     cli()

@@ -17,11 +17,6 @@ from .ecovacsiotmq import *
 
 _LOGGER = logging.getLogger(__name__)
 
-# These consts define all of the vocabulary used by this library when presenting various states and components.
-# Applications implementing this library should import these rather than hard-code the strings, for future-proofing.
-
-
-
 class EcoVacsAPI:
     CLIENT_KEY = "eJUWrzRv34qFSaYk"
     SECRET = "Cyu5jcR4zyK6QEPn1hdIGXB5QIDAQABMA0GC"
@@ -34,7 +29,6 @@ class EcoVacsAPI:
     IOTDEVMANAGERAPI = 'iot/devmanager.do' # IOT Device Manager - This provides control of "IOT" products via RestAPI
     PRODUCTAPI = 'pim/product' # Leaving this open, the only endpoint known currently is "Product IOT Map" -  pim/product/getProductIotMap - This provides a list of "IOT" products.  Not sure what this provides the app.
         
-      
     REALM = 'ecouser.net'
 
     def __init__(self, device_id, account_id, password_hash, country, continent, verify_ssl=True):
@@ -122,9 +116,7 @@ class EcoVacsAPI:
             params.update(args)
         else:
             params = {}
-            params.update(args)
-
-        #_LOGGER.debug("calling portal api {} function {} with {}".format(api, function, params))            
+            params.update(args)      
         
         continent = self.continent
         if 'continent' in kwargs:
@@ -138,7 +130,6 @@ class EcoVacsAPI:
         #_LOGGER.debug("got {}".format(json))
         if api == self.USERSAPI:    
             if json['result'] == 'ok':
-                #_LOGGER.debug("RESULT OK")
                 return json
             elif json['result'] == 'fail':
                 if json['error'] == 'set token error.': # If it is a set token error try again
@@ -193,16 +184,6 @@ class EcoVacsAPI:
             }
         }, verify_ssl=self.verify_ssl)['data']
 
-    def SetIOTDevices(self, devices, iotproducts):
-        #Originally added for D900, and not actively used in code now - Not sure what the app checks the items in this list for
-        for device in devices: #Check if the device is part of iotProducts
-            device['iot_product'] = False
-            for iotProduct in iotproducts:
-                if device['class'] in iotProduct['classid']:
-                    device['iot_product'] = True
-                    
-        return devices
-
     def SetIOTMQDevices(self, devices):
         #Added for devices that utilize MQTT
         for device in devices:
@@ -227,44 +208,10 @@ class EcoVacsAPI:
         result = cipher.encrypt(bytes(text, 'utf8'))
         return str(b64encode(result), 'utf8')
 
-
-class EventEmitter(object):
-    """A very simple event emitting system."""
-    def __init__(self):
-        self._subscribers = []
-
-    def subscribe(self, callback):
-        listener = EventListener(self, callback)
-        self._subscribers.append(listener)
-        return listener
-
-    def unsubscribe(self, listener):
-        self._subscribers.remove(listener)
-
-    def notify(self, event):
-        for subscriber in self._subscribers:
-            subscriber.callback(event)
-
-
-class EventListener(object):
-    """Object that allows event consumers to easily unsubscribe from events."""
-    def __init__(self, emitter, callback):
-        self._emitter = emitter
-        self.callback = callback
-
-    def unsubscribe(self):
-        self._emitter.unsubscribe(self)
-
 class VacBot():
-    def __init__(self, user, domain, resource, secret, vacuum, continent, server_address=None, monitor=False, verify_ssl=True):
+    def __init__(self, user, domain, resource, secret, vacuum, continent, verify_ssl=True):
 
         self.vacuum = vacuum
-
-        # If True, the VacBot object will handle keeping track of all statuses,
-        # including the initial request for statuses, and new requests after the
-        # VacBot returns from being offline. It will also cause it to regularly
-        # request component lifespans
-        self._monitor = monitor
 
         self._failed_pings = 0
         self.is_available = False
@@ -280,16 +227,20 @@ class VacBot():
         # Populated by component Lifespan reports
         self.components = {}
 
-        self.last_clean_image = None
-        self.Map = Map()
+        # Map Components
+        self.__map = Map()
         self.live_map = None
+
+        self.lastCleanLogs = []
+        self.last_clean_image = None
 
         #Set none for clients to start        
         self.iotmq = None
         
-        self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT, server_address, verify_ssl=verify_ssl)
+        self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT, verify_ssl=verify_ssl)
         self.iotmq.subscribe_to_ctls(self._handle_ctl)
 
+        # Threads
         self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
         self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
         self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
@@ -341,6 +292,14 @@ class VacBot():
 
     def _handle_clean_logs(self, event):
         response = event['logs']
+        self.lastCleanLogs = []
+
+        # Ecovacs API is changing their API, this request may not working properly
+        if response != None:
+            self.last_clean_image = response[0]['imageUrl']
+            for cleanLog in response:
+                self.lastCleanLogs.append({'timestamp':cleanLog['ts'],'imageUrl': cleanLog['imageUrl'], 'type': cleanLog['type']})
+
         self.last_clean_image = response[0]['imageUrl']
 
     def _handle_water_info(self, event):
@@ -373,8 +332,11 @@ class VacBot():
         traceStart = int(response['traceStart'])
         pointCount = 200
 
+        if traceStart == 0:
+            self.__map.traceValues = []
+
         _LOGGER.debug("Trace Request: TotalCount=" + str(totalCount) + ' traceStart=' + str(traceStart))
-        self.Map.updateTracePoints(response['traceValue'])
+        self.__map.updateTracePoints(response['traceValue'])
 
         if (traceStart+pointCount) < totalCount:
             self.exc_command('getMapTrace',{'pointCount':pointCount,'traceStart':traceStart+pointCount})
@@ -385,18 +347,18 @@ class VacBot():
 
         # Charger
         charger_pos = response['chargePos']
-        self.Map.updateChargerPosition(charger_pos[0]['x'], charger_pos[0]['y'])
+        self.__map.updateChargerPosition(charger_pos[0]['x'], charger_pos[0]['y'])
 
         # Robot
         robot_pos = response['deebotPos']
-        self.Map.updateRobotPosition(robot_pos['x'], robot_pos['y'])
+        self.__map.updateRobotPosition(robot_pos['x'], robot_pos['y'])
 
     def _handle_minor_map(self, event):
         response = event['body']['data']
 
         _LOGGER.debug("Handled minor_map : " + str(response['pieceIndex']))
 
-        self.Map.AddMapPiece(response['pieceIndex'], response['pieceValue'])
+        self.__map.AddMapPiece(response['pieceIndex'], response['pieceValue'])
 
     def _handle_major_map(self, event):
         _LOGGER.debug("_handle_major_map begin")
@@ -405,7 +367,7 @@ class VacBot():
         values = response['value'].split(",")
 
         for i in range(64):
-            if self.Map.isUpdatePiece(i, values[i]):
+            if self.__map.isUpdatePiece(i, values[i]):
                 _LOGGER.debug("MapPiece" + str(i) + ' needs to be updated')
                 self.exc_command('getMinorMap', {'mid': response['mid'],'type': 'ol', 'pieceIndex': i})
 
@@ -414,7 +376,7 @@ class VacBot():
         
         try:
             mapid = response['info'][0]['mid']
-            self.Map.rooms = []
+            self.__map.rooms = []
             self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
         except:
             _LOGGER.warning("MapID not found -- did you finish your first auto cleaning?")
@@ -434,7 +396,7 @@ class VacBot():
         subtype = int(response['subtype'])
         value = response['value']
 
-        self.Map.rooms.append({'subtype':ROOMS_FROM_ECOVACS[subtype],'id': int(response['mssid']), 'values': value})
+        self.__map.rooms.append({'subtype':ROOMS_FROM_ECOVACS[subtype],'id': int(response['mssid']), 'values': value})
 
     def _handle_battery_info(self, event):
         response = event['body']
@@ -487,13 +449,7 @@ class VacBot():
 
         else:
             self._failed_pings = 0
-            if self._monitor:
-                # If we don't yet have a vacuum status, request initial statuses again now that the ping succeeded
-                if self.is_available == False or self.vacuum_status is None:
-                    self.request_all_statuses()
-                    self.is_available == True
-            else:
-                self.is_available = True
+            self.is_available = True
 
     def refresh_components(self):
         try:
@@ -522,28 +478,36 @@ class VacBot():
         try:
             _LOGGER.debug("Refresh_liveMap begin")
             self.exc_command('getCachedMapInfo')
-            self.Map.traceValues = []
             self.exc_command('getMapTrace',{'pointCount':200,'traceStart':0})
             self.exc_command('getPos',['chargePos','deebotPos'])
             self.exc_command('getMajorMap')
-            self.live_map = self.Map.GetBase64Map()
+            self.live_map = self.__map.GetBase64Map()
         except XMPPError as err:
             _LOGGER.warning("Initial live map failed to reach VacBot. Will try again on next ping.")
             _LOGGER.warning("*** Error type: " + err.etype)
             _LOGGER.warning("*** Error condition: " + err.condition)
 
     def request_all_statuses(self):
-        if not self.thread_livemap.isAlive():
-            self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
-            self.thread_livemap.start()
-
         if not self.thread_statuses.isAlive():
             self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
             self.thread_statuses.start()
 
+        if not self.thread_livemap.isAlive():
+            self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
+            self.thread_livemap.start()
+                
         if not self.thread_components.isAlive():
             self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
             self.thread_components.start()
+
+    def setScheduleUpdates(self, seconds):
+        # It will refresh all statuses very X seconds
+        self.iotmq.schedule(seconds, self.refresh_liveMap)
+        self.iotmq.schedule(seconds, self.refresh_statuses)
+        self.iotmq.schedule(seconds, self.refresh_components)
+
+    def getSavedRooms(self):
+        return self.__map.rooms
 
 	#Common ecovacs commands
     def Clean(self, type='auto'):
@@ -599,15 +563,7 @@ class VacBot():
         self.iotmq.send_command(action, self._vacuum_address())  #IOTMQ devices need the full action for additional parsing
 
     def disconnect(self, wait=False):
-        self.iotmq._disconnect()              
-
-#This is used by EcoVacsIOTMQ for _ctl_to_dict
-def RepresentsInt(stringvar):
-    try: 
-        int(stringvar)
-        return True
-    except ValueError:
-        return False
+        self.iotmq._disconnect()
 
 class VacBotCommand:
     def __init__(self, name, args=None, **kwargs):

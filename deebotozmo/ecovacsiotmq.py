@@ -31,7 +31,7 @@ def str_to_bool_or_cert(s):
         
 
 class EcoVacsIOTMQ(ClientMQTT):
-    def __init__(self, user, domain, resource, secret, continent, vacuum, realm, portal_url_format, server_address=None, verify_ssl=True):
+    def __init__(self, user, domain, resource, secret, continent, vacuum, realm, portal_url_format, verify_ssl=True):
         ClientMQTT.__init__(self)
         self.ctl_subscribers = []        
         self.user = user
@@ -45,18 +45,9 @@ class EcoVacsIOTMQ(ClientMQTT):
         self.verify_ssl = str_to_bool_or_cert(verify_ssl)
         self.realm = realm
         self.portal_url_format = portal_url_format
-
-        if server_address is None: 	
-            self.hostname = ('mq-{}.ecouser.net'.format(self.continent))
-            self.port = 8883
-        else:
-            saddress = server_address.split(":")
-            if len(saddress) > 1:
-                self.hostname = saddress[0]
-                if RepresentsInt(saddress[1]):
-                    self.port = int(saddress[1])
-                else:
-                    self.port = 8883                    
+        
+        self.hostname = ('mq-{}.ecouser.net'.format(self.continent))
+        self.port = 8883                
 
         self._client_id = self.user + '@' + self.domain.split(".")[0] + '/' + self.resource        
         self.username_pw_set(self.user + '@' + self.domain, secret)
