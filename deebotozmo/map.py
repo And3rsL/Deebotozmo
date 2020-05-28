@@ -30,7 +30,7 @@ class Map:
         self.charger_png = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAOCAYAAAAWo42rAAAAdUlEQVQoU2NkQAP/nzD8BwkxyjAwIkuhcEASRCmEKYKZhGwq3ER0ReiKSVOIyzRkU8EmwhUyKzAwSNyHyL9QZGD4+wDMBLmVEasimFHIiuEKpcHBhwmeQryBMJFohcjuw2s1SBKHZ8BWo/gauyshvobJEYoZAEOSPXnhzwZnAAAAAElFTkSuQmCC"
 
     def isUpdatePiece(self, index, mapPiece):
-        _LOGGER.debug("isUpdatePiece " + str(index) + ' ' + str(mapPiece))
+        _LOGGER.debug("[isUpdatePiece] Check " + str(index) + ' ' + str(mapPiece))
 
         value = str(index) + '-' + str(mapPiece)
         
@@ -43,10 +43,10 @@ class Map:
             else:
                 return False
 
-        _LOGGER.debug("AddMapPiece not to update")
+        _LOGGER.debug("[isUpdatePiece] no need to update")
 
     def AddMapPiece(self, mapPiece, b64):
-        _LOGGER.debug("AddMapPiece " + str(mapPiece) + ' ' + str(b64))
+        _LOGGER.debug("[AddMapPiece] " + str(mapPiece) + ' ' + str(b64))
 
         decoded = self.decompress7zBase64Data(b64)
 
@@ -54,10 +54,10 @@ class Map:
         MATRIX_PIECE = np.reshape(decoded,(100,100))
 
         self.buffer[mapPiece] = MATRIX_PIECE
-        _LOGGER.debug("AddMapPiece done")
+        _LOGGER.debug("[AddMapPiece] Done")
 
     def decompress7zBase64Data(self, data):
-        _LOGGER.debug("decompress7zBase64Data begin")
+        _LOGGER.debug("[decompress7zBase64Data] Begin")
         finalArray = bytearray()
         
         # Decode Base64
@@ -74,10 +74,11 @@ class Map:
 
         decompressed_data = dec.decompress(finalArray)
 
-        _LOGGER.debug("decompress7zBase64Data done")
+        _LOGGER.debug("[decompress7zBase64Data] Done")
         return decompressed_data
 
     def updateTracePoints(self, data):
+        _LOGGER.debug("[updateTracePoints] Begin")
         tracePoints = self.decompress7zBase64Data(data)
         h = "h" * 1
         
@@ -95,14 +96,15 @@ class Map:
             self.traceValues.append(positionX)
             self.traceValues.append(positionY)
 
+        _LOGGER.debug("[updateTracePoints] finish")
     def updateRobotPosition(self, cordx, cordy):
         if(self.robot_position != None):
             if (self.robot_position['x'] != cordx) or (self.robot_position['y'] != cordy):
-                _LOGGER.debug("New robot position: " + str(cordx) + ',' + str(cordy))
+                _LOGGER.debug("[updateRobotPosition] New robot position: " + str(cordx) + ',' + str(cordy))
                 self.robot_position = {'x':cordx ,'y': cordy}
                 self.isMapUpdated = False
         else:
-            _LOGGER.debug("robot position set: " + str(cordx) + ',' + str(cordy))
+            _LOGGER.debug("[updateRobotPosition] Robot position set: " + str(cordx) + ',' + str(cordy))
             self.robot_position = {'x':cordx ,'y': cordy}
             self.isMapUpdated = False
             self.draw_robot = True
@@ -110,11 +112,11 @@ class Map:
     def updateChargerPosition(self, cordx, cordy):
         if(self.charger_position != None):
             if (self.charger_position['x'] != cordx) or (self.charger_position['y'] != cordy):
-                _LOGGER.debug("New charger position: " + str(cordx) + ',' + str(cordy))
+                _LOGGER.debug("[updateChargerPosition] New charger position: " + str(cordx) + ',' + str(cordy))
                 self.charger_position = {'x':cordx ,'y': cordy}
                 self.isMapUpdated = False
         else:
-            _LOGGER.debug("charger position set: " + str(cordx) + ',' + str(cordy))
+            _LOGGER.debug("[updateChargerPosition] Charger position set: " + str(cordx) + ',' + str(cordy))
             self.charger_position = {'x':cordx ,'y': cordy}
             self.isMapUpdated = False
             self.draw_charger = True
@@ -125,19 +127,20 @@ class Map:
 
     def GetBase64Map(self):
         if self.isMapUpdated == False:
-            _LOGGER.debug("GetBase64Map begin")
+            _LOGGER.debug("[GetBase64Map] Begin")
 
-            resizeFactor = 10
             pixelWidth = 50
             offset = 400
 
-            im = Image.new("RGBA", (3000, 3000))
+            im = Image.new("RGBA", (6400, 6400))
+            
             draw = ImageDraw.Draw(im)
             roomnr = 0
 
-            _LOGGER.debug("GetBase64Map draw_rooms")
+            _LOGGER.debug("[GetBase64Map] Draw rooms")
             #Draw Rooms
             for room in self.rooms:
+                _LOGGER.debug("[GetBase64Map] Draw room: " + str(roomnr))
                 coordsXY = room['values'].split(';')
                 listcord = []
                 _sumx = 0
@@ -168,7 +171,7 @@ class Map:
                 draw.line(listcord,fill=(0,0,0,0),width=1)
                 roomnr = roomnr +1
 
-            _LOGGER.debug("GetBase64Map draw_map")
+            _LOGGER.debug("[GetBase64Map] Draw Map")
 
             #Draw MAP
             imageX = 0
@@ -184,50 +187,54 @@ class Map:
 
                 for y in range(100):
                     for x in range(100):
+                        pointX = imageX+x
+                        pointY = imageY+y
+                        if (pointX > 6400) or (pointY > 6400):
+                            _LOGGER.error("[GetBase64Map] Map Limit 6400!! X: " + str(pointX) + ' Y: ' + str(pointY))
+
                         if self.buffer[i][x][y] == 0x01: #floor
-                            if im.getpixel((imageX+x,imageY+y)) == (0,0,0,0):
-                                draw.point((imageX+x,imageY+y), fill=self.colors['floor'])
+                            if im.getpixel((pointX,pointY)) == (0,0,0,0):
+                                draw.point((pointX,pointY), fill=self.colors['floor'])
                         if self.buffer[i][x][y] == 0x02: #wall
-                            draw.point((imageX+x,imageY+y), fill=self.colors['wall'])
+                            draw.point((pointX,pointY), fill=self.colors['wall'])
                         if self.buffer[i][x][y] == 0x03: #carpet
-                            if im.getpixel((imageX+x,imageY+y)) == (0,0,0,0):
-                                draw.point((imageX+x,imageY+y), fill=self.colors['carpet'])
+                            if im.getpixel((pointX,pointY)) == (0,0,0,0):
+                                draw.point((pointX,pointY), fill=self.colors['carpet'])
 
             # Draw Trace Route
             if len(self.traceValues) > 0:
-                _LOGGER.debug("GetBase64Map draw trace")
+                _LOGGER.debug("[GetBase64Map] Draw Trace")
                 draw.line(self.traceValues,fill=self.colors['tracemap'],width=1)
 
             del draw
 
             if self.draw_charger:
-                _LOGGER.debug("GetBase64Map draw robot")
+                _LOGGER.debug("[GetBase64Map] Draw robot")
                 #Draw Current Deebot Position
                 robot_icon = Image.open(BytesIO(base64.b64decode(self.robot_png)))
                 im.paste(robot_icon, (int(((self.robot_position['x']/pixelWidth)+offset)), int(((self.robot_position['y']/pixelWidth)+offset))), robot_icon.convert('RGBA'))
 
             if self.draw_robot:
-                _LOGGER.debug("GetBase64Map draw charger")
+                _LOGGER.debug("[GetBase64Map] Draw charge station")
                 #Draw charger
                 charger_icon = Image.open(BytesIO(base64.b64decode(self.charger_png)))
                 im.paste(charger_icon, (int(((self.charger_position['x']/pixelWidth)+offset)), int(((self.charger_position['y']/pixelWidth)+offset))), charger_icon.convert('RGBA'))
 
 
-            _LOGGER.debug("GetBase64Map flip")
+            _LOGGER.debug("[GetBase64Map] Flipping Image")
 
             #Flip
             im = ImageOps.flip(im)
 
-            _LOGGER.debug("GetBase64Map crop")
+            _LOGGER.debug("[GetBase64Map] Crop Image")
             #Crop
             imageBox = im.getbbox()
             im=im.crop(imageBox)
 
-            _LOGGER.debug("GetBase64Map resize")
-            # Resize * resizeFactor
-            im = im.resize((im.size[0]*resizeFactor, im.size[1]*resizeFactor), Image.NEAREST)
+            _LOGGER.debug("[GetBase64Map] Resize * 3")
+            im = im.resize((im.size[0]*3, im.size[1]*3), Image.NEAREST)
 
-            _LOGGER.debug("GetBase64Map save")
+            _LOGGER.debug("[GetBase64Map] Saving to buffer")
             #save
             buffered = BytesIO()
 
@@ -236,8 +243,8 @@ class Map:
             self.isMapUpdated = True
 
             self.base64Image = base64.b64encode(buffered.getvalue())
-            _LOGGER.debug("GetBase64Map done")
+            _LOGGER.debug("[GetBase64Map] Finish")
         else:
-            _LOGGER.debug("GetBase64Map NO NEED TO UPDATE")
+            _LOGGER.debug("[GetBase64Map] No need to update")
 
         return self.base64Image

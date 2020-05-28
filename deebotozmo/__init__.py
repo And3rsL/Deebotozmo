@@ -453,6 +453,7 @@ class VacBot():
 
     def refresh_components(self):
         try:
+            _LOGGER.debug("[refresh_components] Begin")
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["brush"]])
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["sideBrush"]])
             self.exc_command('getLifeSpan',[COMPONENT_TO_ECOVACS["heap"]])
@@ -464,6 +465,7 @@ class VacBot():
 
     def refresh_statuses(self):
         try:
+            _LOGGER.debug("[refresh_statuses] Begin")
             self.exc_command('getCleanInfo')
             self.exc_command('getChargeState')
             self.exc_command('getBattery')
@@ -476,7 +478,7 @@ class VacBot():
 
     def refresh_liveMap(self):
         try:
-            _LOGGER.debug("Refresh_liveMap begin")
+            _LOGGER.debug("[refresh_liveMap] Begin")
             self.exc_command('getCachedMapInfo')
             self.exc_command('getMapTrace',{'pointCount':200,'traceStart':0})
             self.exc_command('getPos',['chargePos','deebotPos'])
@@ -511,47 +513,59 @@ class VacBot():
 
 	#Common ecovacs commands
     def Clean(self, type='auto'):
+        _LOGGER.debug("[Command] Clean Start TYPE: " + type)
         self.exc_command('clean', {'act': CLEAN_ACTION_START,'type': type})
         self.refresh_statuses()
 
     def CleanPause(self):
+        _LOGGER.debug("[Command] Clean Pause")
         self.exc_command('clean', {'act': CLEAN_ACTION_PAUSE})
         self.refresh_statuses()
 
     def CleanResume(self):
         if self.vacuum_status == 'STATE_PAUSED':
+            _LOGGER.debug("[Command] Clean Resume - Resume")
             self.exc_command('clean', {'act': CLEAN_ACTION_RESUME})
         else:
+            _LOGGER.debug("[Command] Clean Resume - ActionStart")
             self.exc_command('clean', {'act': CLEAN_ACTION_START,'type': 'auto'})
 
         self.refresh_statuses()
 
     def Charge(self):
+        _LOGGER.debug("[Command] Charge")
         self.exc_command('charge', {'act': CHARGE_MODE_TO_ECOVACS['return']})
         self.refresh_statuses()
 
     def PlaySound(self):
+        _LOGGER.debug("[Command] PlaySound")
         self.exc_command('playSound', {'count': 1, 'sid': 30})
 
     def Relocate(self):
+        _LOGGER.debug("[Command] Relocate")
         self.exc_command('setRelocationState', {'mode': 'manu'})
 
     def GetCleanLogs(self):
+        _LOGGER.debug("[Command] GetCleanLogs")
         self.exc_command('GetCleanLogs')
 
     def CustomArea(self, map_position, cleanings=1):
+        _LOGGER.debug("[Command] CustomArea content=" + str(map_position) + ' count=' + cleanings)
         self.exc_command('clean', {'act': 'start', 'content': str(map_position), 'count': int(cleanings), 'type': 'customArea'})
         self.refresh_statuses()
 
     def SpotArea(self, area, cleanings=1):
+        _LOGGER.debug("[Command] SpotArea content=" + str(area) + ' count=' + cleanings)
         self.exc_command('clean', {'act': 'start', 'content': str(area), 'count': int(cleanings), 'type': 'spotArea'})
         self.refresh_statuses()
 
     def SetFanSpeed(self, speed=1):
+        _LOGGER.debug("[Command] setSpeed speed=" + str(speed))
         self.exc_command('setSpeed', {'speed': FAN_SPEED_TO_ECOVACS[speed]})
         self.refresh_statuses()
 
     def SetWaterLevel(self, amount=1):
+        _LOGGER.debug("[Command] setWaterInfo amount=" + str(amount))
         self.exc_command('setWaterInfo', {'amount': WATER_LEVEL_TO_ECOVACS[amount], 'enable': 0})
         self.refresh_statuses()
 
