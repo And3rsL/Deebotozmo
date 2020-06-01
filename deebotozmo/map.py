@@ -232,32 +232,35 @@ class Map:
                 charger_icon = Image.open(BytesIO(base64.b64decode(self.charger_png)))
                 im.paste(charger_icon, (int(((self.charger_position['x']/pixelWidth)+offset)), int(((self.charger_position['y']/pixelWidth)+offset))), charger_icon.convert('RGBA'))
 
+            _LOGGER.debug("[GetBase64Map] Crop Image")
+            #Crop
+            imageBox = im.getbbox()
+            cropped=im.crop(imageBox)
+
+            del im
 
             _LOGGER.debug("[GetBase64Map] Flipping Image")
 
             #Flip
-            im = ImageOps.flip(im)
+            cropped = ImageOps.flip(cropped)
 
-            _LOGGER.debug("[GetBase64Map] Crop Image")
-            #Crop
-            imageBox = im.getbbox()
-            im=im.crop(imageBox)
+            _LOGGER.debug("[GetBase64Map] Map current Size: X: " + str(cropped.size[0]) + ' Y: ' + str(cropped.size[1]))
 
-            _LOGGER.debug("[GetBase64Map] Map current Size: X: " + str(im.size[0]) + ' Y: ' + str(im.size[1]))
-
-            if im.size[0] > 400 or im.size[1] > 400:
+            if cropped.size[0] > 400 or cropped.size[1] > 400:
                 _LOGGER.debug("[GetBase64Map] Resize disabled")
             else:
                 _LOGGER.debug("[GetBase64Map] Resize * 3")
-                im = im.resize((im.size[0]*3, im.size[1]*3), Image.NEAREST)
+                cropped = cropped.resize((cropped.size[0]*3, cropped.size[1]*3), Image.NEAREST)
                 
 
             _LOGGER.debug("[GetBase64Map] Saving to buffer")
             #save
             buffered = BytesIO()
 
-            im.save(buffered, format="PNG")
+            cropped.save(buffered, format="PNG")
 
+            del cropped
+            
             self.isMapUpdated = True
 
             self.base64Image = base64.b64encode(buffered.getvalue())
