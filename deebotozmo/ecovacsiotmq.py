@@ -93,14 +93,14 @@ class EcoVacsIOTMQ(ClientMQTT):
             raise RuntimeError("EcoVacsMQTT - error connecting with MQTT Return {}".format(rc))
                  
         else:
-            #_LOGGER.debug("EcoVacsMQTT - Connected with result code "+str(rc))
-            #_LOGGER.debug("EcoVacsMQTT - Subscribing to all")        
+            _LOGGER.debug("EcoVacsMQTT - Connected with result code "+str(rc))
+            _LOGGER.debug("EcoVacsMQTT - Subscribing to all")        
 
             self.subscribe('iot/atr/+/' + self.vacuum['did'] + '/' + self.vacuum['class'] + '/' + self.vacuum['resource'] + '/+', qos=0)            
             self.ready_flag.set()
 
     def send_ping(self):
-        #_LOGGER.debug("*** MQTT sending ping ***")
+        _LOGGER.debug("*** MQTT sending ping ***")
         rc = self._send_simple_command(MQTTPublish.paho.PINGREQ)
         if rc == MQTTPublish.paho.MQTT_ERR_SUCCESS:
             return True         
@@ -202,7 +202,11 @@ class EcoVacsIOTMQ(ClientMQTT):
             if(action.name.lower() == 'getcleanlogs'):
                 resp = self._ctl_to_dict_api(action, message)
             else:
-                resp = self._ctl_to_dict_api(action, message['resp'])
+                if 'resp' in message:
+                    resp = self._ctl_to_dict_api(action, message['resp'])
+                else:
+                    return
+
             if resp is not None:
                 for s in self.ctl_subscribers:
                     s(resp)       

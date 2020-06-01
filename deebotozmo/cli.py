@@ -198,7 +198,7 @@ def dologin():
 
     vacuum = api.devices()[0]
 
-    vacbot = VacBot(api.uid, api.REALM, api.resource, api.user_access_token, vacuum, config['continent'], verify_ssl=config['verify_ssl'])
+    vacbot = VacBot(api.uid, api.REALM, api.resource, api.user_access_token, vacuum, config['continent'], True, verify_ssl=config['verify_ssl'])
         
     vacbot.connect_and_wait_until_ready()
 

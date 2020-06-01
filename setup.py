@@ -10,7 +10,7 @@ long_description = ''
 
 setup(
     name='deebotozmo',
-    version='1.6.0',
+    version='1.6.1',
 
     description='a library for controlling certain robot vacuums [SUCKS FORK]',
     long_description=long_description,
@@ -66,6 +66,8 @@ setup(
         'numpy>=1.18.3',
         'Pillow>=7.1.2'
     ],
+
+    #'matplotlib>=3.2.1'
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

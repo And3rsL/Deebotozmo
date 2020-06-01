@@ -78,13 +78,13 @@ class EcoVacsAPI:
         return result
 
     def __call_main_api(self, function, *args):
-        #_LOGGER.debug("calling main api {} with {}".format(function, args))
+        _LOGGER.debug("calling main api {} with {}".format(function, args))
         params = OrderedDict(args)
         params['requestId'] = self.md5(time.time())
         url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
         api_response = requests.get(url, self.__sign(params), verify=self.verify_ssl)
         json = api_response.json()
-        #_LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
         if json['code'] == '0000':
             return json['data']
         elif json['code'] == '1005':
@@ -96,12 +96,12 @@ class EcoVacsAPI:
                 json['code'], json['msg'], function, args))
 
     def __call_user_api(self, function, args):
-        #_LOGGER.debug("calling user api {} with {}".format(function, args))
+        _LOGGER.debug("calling user api {} with {}".format(function, args))
         params = {'todo': function}
         params.update(args)
         response = requests.post(EcoVacsAPI.USER_URL_FORMAT.format(continent=self.continent), json=params, verify=self.verify_ssl)
         json = response.json()
-        #_LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
         if json['result'] == 'ok':
             return json
         else:
@@ -127,7 +127,7 @@ class EcoVacsAPI:
         response = requests.post(url, json=params, verify=verify_ssl)        
 
         json = response.json()
-        #_LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
         if api == self.USERSAPI:    
             if json['result'] == 'ok':
                 return json
@@ -209,7 +209,7 @@ class EcoVacsAPI:
         return str(b64encode(result), 'utf8')
 
 class VacBot():
-    def __init__(self, user, domain, resource, secret, vacuum, continent, verify_ssl=True):
+    def __init__(self, user, domain, resource, secret, vacuum, continent, live_map_enabled = True, show_rooms_color = False, verify_ssl=True):
 
         self.vacuum = vacuum
 
@@ -229,6 +229,8 @@ class VacBot():
 
         # Map Components
         self.__map = Map()
+        self.__map.draw_rooms = show_rooms_color
+        
         self.live_map = None
 
         self.lastCleanLogs = []
@@ -239,6 +241,8 @@ class VacBot():
         
         self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT, verify_ssl=verify_ssl)
         self.iotmq.subscribe_to_ctls(self._handle_ctl)
+
+        self.live_map_enabled = live_map_enabled
 
         # Threads
         self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
@@ -295,12 +299,10 @@ class VacBot():
         self.lastCleanLogs = []
 
         # Ecovacs API is changing their API, this request may not working properly
-        if response != None:
+        if response != None and len(response) >= 0:
             self.last_clean_image = response[0]['imageUrl']
             for cleanLog in response:
                 self.lastCleanLogs.append({'timestamp':cleanLog['ts'],'imageUrl': cleanLog['imageUrl'], 'type': cleanLog['type']})
-
-        self.last_clean_image = response[0]['imageUrl']
 
     def _handle_water_info(self, event):
         response = event['body']['data']
@@ -332,26 +334,30 @@ class VacBot():
         traceStart = int(response['traceStart'])
         pointCount = 200
 
-        if traceStart == 0:
-            self.__map.traceValues = []
+        # No trace value avaiable
+        if 'traceValue' in response:
+            if traceStart == 0:
+                self.__map.traceValues = []
 
-        _LOGGER.debug("Trace Request: TotalCount=" + str(totalCount) + ' traceStart=' + str(traceStart))
-        self.__map.updateTracePoints(response['traceValue'])
+            _LOGGER.debug("Trace Request: TotalCount=" + str(totalCount) + ' traceStart=' + str(traceStart))
+            self.__map.updateTracePoints(response['traceValue'])
 
-        if (traceStart+pointCount) < totalCount:
-            self.exc_command('getMapTrace',{'pointCount':pointCount,'traceStart':traceStart+pointCount})
+            if (traceStart+pointCount) < totalCount:
+                self.exc_command('getMapTrace',{'pointCount':pointCount,'traceStart':traceStart+pointCount})
 
 
     def _handle_set_position(self, event):
         response = event['body']['data']
 
         # Charger
-        charger_pos = response['chargePos']
-        self.__map.updateChargerPosition(charger_pos[0]['x'], charger_pos[0]['y'])
+        if 'chargePos' in response:
+            charger_pos = response['chargePos']
+            self.__map.updateChargerPosition(charger_pos[0]['x'], charger_pos[0]['y'])
 
-        # Robot
-        robot_pos = response['deebotPos']
-        self.__map.updateRobotPosition(robot_pos['x'], robot_pos['y'])
+        if 'deebotPos' in response:
+            # Robot
+            robot_pos = response['deebotPos']
+            self.__map.updateRobotPosition(robot_pos['x'], robot_pos['y'])
 
     def _handle_minor_map(self, event):
         response = event['body']['data']
@@ -494,19 +500,22 @@ class VacBot():
             self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
             self.thread_statuses.start()
 
-        if not self.thread_livemap.isAlive():
-            self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
-            self.thread_livemap.start()
+        if self.live_map_enabled:
+            if not self.thread_livemap.isAlive():
+                self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
+                self.thread_livemap.start()
                 
         if not self.thread_components.isAlive():
             self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
             self.thread_components.start()
-
-    def setScheduleUpdates(self, seconds):
+    
+    def setScheduleUpdates(self, livemap_cycle = 15, status_cycle = 30, components_cycle = 60):
         # It will refresh all statuses very X seconds
-        self.iotmq.schedule(seconds, self.refresh_liveMap)
-        self.iotmq.schedule(seconds, self.refresh_statuses)
-        self.iotmq.schedule(seconds, self.refresh_components)
+        if self.live_map_enabled:
+            self.iotmq.schedule(livemap_cycle, self.refresh_liveMap)
+
+        self.iotmq.schedule(status_cycle, self.refresh_statuses)
+        self.iotmq.schedule(components_cycle, self.refresh_components)
 
     def getSavedRooms(self):
         return self.__map.rooms
@@ -550,12 +559,12 @@ class VacBot():
         self.exc_command('GetCleanLogs')
 
     def CustomArea(self, map_position, cleanings=1):
-        _LOGGER.debug("[Command] CustomArea content=" + str(map_position) + ' count=' + cleanings)
+        _LOGGER.debug("[Command] CustomArea content=" + str(map_position) + " count=" + str(cleanings))
         self.exc_command('clean', {'act': 'start', 'content': str(map_position), 'count': int(cleanings), 'type': 'customArea'})
         self.refresh_statuses()
 
     def SpotArea(self, area, cleanings=1):
-        _LOGGER.debug("[Command] SpotArea content=" + str(area) + ' count=' + cleanings)
+        _LOGGER.debug("[Command] SpotArea content=" + str(area) + " count=" + str(cleanings))
         self.exc_command('clean', {'act': 'start', 'content': str(area), 'count': int(cleanings), 'type': 'spotArea'})
         self.refresh_statuses()
 
