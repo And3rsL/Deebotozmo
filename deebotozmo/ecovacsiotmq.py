@@ -167,18 +167,29 @@ class EcoVacsIOTMQ(ClientMQTT):
         params = {}
         params.update(args)
 
+        es = datetime.datetime.now().timestamp()
+
+        _LOGGER.debug(str(es) + "| calling IOT api with {}".format(args))
+
         headers = {'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)',}
         url = (self.portal_url_format + "/iot/devmanager.do?mid=" + params['toType'] + "&did=" + params['toId'] + "&td=" + params['td'] + "&u=" + params['auth']['userid'] + "&cv=1.67.3&t=a&av=1.3.1").format(continent=self.continent)
         
         try:  
             with requests.post(url, headers=headers, json=params, timeout=20, verify=verify_ssl) as response:
-                data = response.json()
                 if response.status_code != 200:
-                    _LOGGER.warning("Error calling API " + str(url))
+                    _LOGGER.warning(str(es) + "| Error calling API " + str(url) + " StatusCode " + str(response.status_code))
+                    return {}
+
+                data = response.json()
+                _LOGGER.debug(str(es) + "| got {}".format(data))
 
                 return data
-        except:
-            return {}
+        except requests.exceptions.HTTPError as errh:
+            _LOGGER.debug("Http Error: " + str(errh))
+        except requests.exceptions.ConnectionError as errc:
+            _LOGGER.debug("Error Connecting: " + str(errc))
+        except requests.exceptions.Timeout as errt:
+            _LOGGER.debug("Timeout Error: " + str(errt))     
             
     def CallCleanLogsApi(self, args, verify_ssl=True):
         params = {}
