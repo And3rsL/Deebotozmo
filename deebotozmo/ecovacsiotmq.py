@@ -28,7 +28,7 @@ def str_to_bool_or_cert(s):
                     raise ValueError("Certificate path provided is not a file - {}".format(s))
         
         raise ValueError("Cannot covert {} to a bool or certificate path".format(s))
-        
+
 
 class EcoVacsIOTMQ(ClientMQTT):
     def __init__(self, user, domain, resource, secret, continent, vacuum, realm, portal_url_format, verify_ssl=True):
@@ -209,21 +209,20 @@ class EcoVacsIOTMQ(ClientMQTT):
             return {}
 
     def _handle_ctl_api(self, action, message):
-        if not message == {}:
-            if(action.name.lower() == 'getcleanlogs'):
-                resp = self._ctl_to_dict_api(action, message)
-            else:
-                if 'resp' in message:
-                    resp = self._ctl_to_dict_api(action, message['resp'])
-                else:
-                    return
-
-            if resp is not None:
-                for s in self.ctl_subscribers:
-                    s(resp)       
-
-    def _ctl_to_dict_api(self, action, jsonstring):
         eventname = action.name.lower()
+
+        if eventname == 'getcleanlogs':
+            resp = self._ctl_to_dict_api(eventname, message)
+        else:
+            resp = self._ctl_to_dict_api(eventname, message.get('resp'))
+
+        if resp is not None:
+            for s in self.ctl_subscribers:
+                s(resp)
+
+    def _ctl_to_dict_api(self, eventname: str, jsonstring: dict):
+        if jsonstring is None or jsonstring == {}:
+            return
 
         if eventname == 'getcleanlogs':
             jsonstring['event'] = "clean_logs"
@@ -259,7 +258,7 @@ class EcoVacsIOTMQ(ClientMQTT):
                 return
         else:
             if jsonstring['body']['msg'] == 'fail':
-                if action.name == "charge": #So far only seen this with Charge, when already docked
+                if eventname == "charge": #So far only seen this with Charge, when already docked
                     jsonstring['event'] = "charge_state"
                 return
             else:
