@@ -295,14 +295,15 @@ class VacBot():
         self.fan_speed = speed
 
     def _handle_clean_logs(self, event):
-        response = event['logs']
+        response = event.get('logs')
         self.lastCleanLogs = []
 
         # Ecovacs API is changing their API, this request may not working properly
-        if response != None and len(response) >= 0:
+        if response is not None and len(response) >= 0:
             self.last_clean_image = response[0]['imageUrl']
             for cleanLog in response:
-                self.lastCleanLogs.append({'timestamp':cleanLog['ts'],'imageUrl': cleanLog['imageUrl'], 'type': cleanLog['type']})
+                self.lastCleanLogs.append({'timestamp': cleanLog['ts'], 'imageUrl': cleanLog['imageUrl'],
+                                           'type': cleanLog['type']})
 
     def _handle_water_info(self, event):
         response = event['body']['data']
