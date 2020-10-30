@@ -154,8 +154,15 @@ class Map:
                     for cord in coordsXY:
                         cord = cord.split(',')
 
-                        x = (int(cord[0])/pixelWidth)+offset
-                        y = (int(cord[1])/pixelWidth)+offset
+                        if cord[0] is not None:
+                            x = (int(cord[0])/pixelWidth)+offset
+                        else:
+                            x = 0
+
+                        if cord[1] is not None:
+                            y = (int(cord[1])/pixelWidth)+offset
+                        else:
+                            y = 0
 
                         listcord.append(x)
                         listcord.append(y)

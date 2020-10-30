@@ -304,7 +304,7 @@ class VacBot():
             for cleanLog in response:
                 self.lastCleanLogs.append({'timestamp': cleanLog['ts'], 'imageUrl': cleanLog['imageUrl'],
                                            'type': cleanLog['type']})
-
+                                           
     def _handle_water_info(self, event):
         response = event['body']['data']
         amount = response['amount']
@@ -478,6 +478,7 @@ class VacBot():
             self.exc_command('getBattery')
             self.exc_command('getSpeed')
             self.exc_command('getWaterInfo')
+            self.exc_command('getCachedMapInfo')
         except XMPPError as err:
             _LOGGER.warning("Initial status requests failed to reach VacBot. Will try again on next ping.")
             _LOGGER.warning("*** Error type: " + err.etype)
@@ -486,7 +487,6 @@ class VacBot():
     def refresh_liveMap(self):
         try:
             _LOGGER.debug("[refresh_liveMap] Begin")
-            self.exc_command('getCachedMapInfo')
             self.exc_command('getMapTrace',{'pointCount':200,'traceStart':0})
             self.exc_command('getPos',['chargePos','deebotPos'])
             self.exc_command('getMajorMap')
