@@ -253,6 +253,8 @@ class EcoVacsIOTMQ(ClientMQTT):
                 jsonstring['event'] = "set_position"
             elif 'getmaptrace' in eventname:
                 jsonstring['event'] = "map_trace"
+            elif 'getstats' in eventname:
+                jsonstring['event'] = "stats"
             else:
                 # No need to handle other events
                 return

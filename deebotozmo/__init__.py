@@ -22,6 +22,7 @@ class EcoVacsAPI:
     SECRET = "Cyu5jcR4zyK6QEPn1hdIGXB5QIDAQABMA0GC"
     PUBLIC_KEY = 'MIIB/TCCAWYCCQDJ7TMYJFzqYDANBgkqhkiG9w0BAQUFADBCMQswCQYDVQQGEwJjbjEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMCAXDTE3MDUwOTA1MTkxMFoYDzIxMTcwNDE1MDUxOTEwWjBCMQswCQYDVQQGEwJjbjEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDb8V0OYUGP3Fs63E1gJzJh+7iqeymjFUKJUqSD60nhWReZ+Fg3tZvKKqgNcgl7EGXp1yNifJKUNC/SedFG1IJRh5hBeDMGq0m0RQYDpf9l0umqYURpJ5fmfvH/gjfHe3Eg/NTLm7QEa0a0Il2t3Cyu5jcR4zyK6QEPn1hdIGXB5QIDAQABMA0GCSqGSIb3DQEBBQUAA4GBANhIMT0+IyJa9SU8AEyaWZZmT2KEYrjakuadOvlkn3vFdhpvNpnnXiL+cyWy2oU1Q9MAdCTiOPfXmAQt8zIvP2JC8j6yRTcxJCvBwORDyv/uBtXFxBPEC6MDfzU2gKAaHeeJUWrzRv34qFSaYkYta8canK+PSInylQTjJK9VqmjQ'
     MAIN_URL_FORMAT = 'https://eco-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}'
+    MAIN_URL_CHINESE_FORMAT = 'https://gl-cn-api.ecovacs.cn/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}'
     USER_URL_FORMAT = 'https://users-{continent}.ecouser.net:8000/user.do'
     PORTAL_URL_FORMAT = 'https://portal-{continent}.ecouser.net/api'
 
@@ -81,7 +82,12 @@ class EcoVacsAPI:
         _LOGGER.debug("calling main api {} with {}".format(function, args))
         params = OrderedDict(args)
         params['requestId'] = self.md5(time.time())
-        url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
+
+        if self.country.lower() == 'cn':
+            url = (EcoVacsAPI.MAIN_URL_CHINESE_FORMAT + "/" + function).format(**self.meta)
+        else:
+            url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
+
         api_response = requests.get(url, self.__sign(params), verify=self.verify_ssl)
         json = api_response.json()
         _LOGGER.debug("got {}".format(json))
@@ -243,6 +249,12 @@ class VacBot():
         self.iotmq.subscribe_to_ctls(self._handle_ctl)
 
         self.live_map_enabled = live_map_enabled
+
+        # Stats
+        self.stats_area = None
+        self.stats_cid = None
+        self.stats_time = None
+        self.stats_type = None
 
         # Threads
         self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
@@ -431,6 +443,17 @@ class VacBot():
         if status != 'none':
             self.vacuum_status = status
 
+    def _handle_stats(self, event):
+        response = event['body']
+
+        if response['code'] == 0:
+            self.stats_area = response['data']['area']
+            self.stats_cid = response['data']['cid']
+            self.stats_time = response['data']['time']
+            self.stats_type = response['data']['type']
+        else:
+            _LOGGER.error("Error in finding stats, status code = " + response['code']) #Log this so we can identify more errors    
+
     def _vacuum_address(self):
         return self.vacuum['did']
 
@@ -479,6 +502,7 @@ class VacBot():
             self.exc_command('getSpeed')
             self.exc_command('getWaterInfo')
             self.exc_command('getCachedMapInfo')
+            self.exc_command('getStats')
         except XMPPError as err:
             _LOGGER.warning("Initial status requests failed to reach VacBot. Will try again on next ping.")
             _LOGGER.warning("*** Error type: " + err.etype)

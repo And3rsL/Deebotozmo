@@ -155,6 +155,16 @@ def statuses():
     print("Fan Speed: " + vacbot.fan_speed)
     print("Water Level: " + vacbot.water_level)
 
+@cli.command(help='Get stats')
+def stats():
+    dologin()
+    vacbot.refresh_statuses()
+
+    print("Stats Cid: " + vacbot.stats_cid)
+    print("Stats Area: " + str(vacbot.stats_area))
+    print("Stats Time: " + str(int(vacbot.stats_time/60)) + " minutes")
+    print("Stats Type: " + vacbot.stats_type)
+
 @cli.command(help='Get robot components life span')
 def components():
     dologin()
