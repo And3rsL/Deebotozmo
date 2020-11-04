@@ -552,6 +552,9 @@ class VacBot():
     def getSavedRooms(self):
         return self.__map.rooms
 
+    def getTypeRooms(self):
+        return ROOMS_FROM_ECOVACS
+
 	#Common ecovacs commands
     def Clean(self, type='auto'):
         _LOGGER.debug("[Command] Clean Start TYPE: " + type)
