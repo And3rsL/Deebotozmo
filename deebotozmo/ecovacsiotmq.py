@@ -209,6 +209,9 @@ class EcoVacsIOTMQ(ClientMQTT):
             return {}
 
     def _handle_ctl_api(self, action, message):
+        if message is None:
+            return
+
         eventname = action.name.lower()
 
         if eventname == 'getcleanlogs':
