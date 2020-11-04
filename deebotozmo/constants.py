@@ -117,5 +117,8 @@ ROOMS_FROM_ECOVACS = {
     8 : 'Lounge',
     9 : 'Storeroom',
     10 : 'Kids room',
-    11 : 'Sunroom'
+    11 : 'Sunroom',
+    12 : 'Corridor',
+    13 : 'Balcony',
+    14 : 'Gym'
 }
