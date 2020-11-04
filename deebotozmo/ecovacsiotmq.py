@@ -211,14 +211,15 @@ class EcoVacsIOTMQ(ClientMQTT):
     def _handle_ctl_api(self, action, message):
         eventname = action.name.lower()
 
-        if eventname == 'getcleanlogs':
-            resp = self._ctl_to_dict_api(eventname, message)
-        else:
-            resp = self._ctl_to_dict_api(eventname, message.get('resp'))
+        if message is not None:
+            if eventname == 'getcleanlogs':
+                resp = self._ctl_to_dict_api(eventname, message)
+            else:
+                resp = self._ctl_to_dict_api(eventname, message.get('resp'))
 
-        if resp is not None:
-            for s in self.ctl_subscribers:
-                s(resp)
+            if resp is not None:
+                for s in self.ctl_subscribers:
+                    s(resp)
 
     def _ctl_to_dict_api(self, eventname: str, jsonstring: dict):
         if jsonstring is None or jsonstring == {}:

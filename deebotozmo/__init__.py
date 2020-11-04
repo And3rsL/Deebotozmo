@@ -447,10 +447,17 @@ class VacBot():
         response = event['body']
 
         if response['code'] == 0:
-            self.stats_area = response['data']['area']
-            self.stats_cid = response['data']['cid']
-            self.stats_time = response['data']['time']
-            self.stats_type = response['data']['type']
+            if 'area' in  response['data']:
+                self.stats_area = response['data']['area']
+            
+            if 'cid' in  response['data']:
+                self.stats_cid = response['data']['cid']
+            
+            if 'time' in  response['data']:
+                self.stats_time = response['data']['time']
+
+            if 'type' in response['data']:
+                self.stats_type = response['data']['type']
         else:
             _LOGGER.error("Error in finding stats, status code = " + response['code']) #Log this so we can identify more errors    
 

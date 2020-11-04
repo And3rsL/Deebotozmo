@@ -176,7 +176,7 @@ def components():
 @cli.command(help='Get saved rooms')
 def getrooms():
     dologin()
-    vacbot.refresh_liveMap()
+    vacbot.refresh_statuses()
 
     for v in vacbot.getSavedRooms():
         print(str(v['id']) + ' ' + v['subtype'])
