@@ -229,6 +229,7 @@ class VacBot():
         self.vacuum_status = None
         self.fan_speed = None
         self.water_level = None
+        self.mop_attached: bool = False
 
         # Populated by component Lifespan reports
         self.components = {}
@@ -327,6 +328,7 @@ class VacBot():
             _LOGGER.warning("Unknown water level: '" + str(amount) + "'")
       
         self.water_level = amount
+        self.mop_attached = bool(response.get("enable"))
 
     def _handle_clean_report(self, event):
         response = event['body']['data']
