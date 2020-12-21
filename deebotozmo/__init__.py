@@ -333,7 +333,7 @@ class VacBot():
     def _handle_clean_report(self, event):
         response = event['body']['data']
         if response['state'] == 'clean':
-            if response['trigger'] == 'app':
+            if response['trigger'] == 'app' or response['trigger'] == 'shed':
                 if response['cleanState']['motionState'] == 'working':
                     self.vacuum_status = 'STATE_CLEANING'
                 elif response['cleanState']['motionState'] == 'pause':
