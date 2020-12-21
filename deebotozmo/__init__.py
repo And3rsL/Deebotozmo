@@ -262,6 +262,15 @@ class VacBot():
         self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
         self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
 
+        self.errorEvents = EventEmitter()
+        self.lifespanEvents = EventEmitter()
+        self.fanspeedEvents = EventEmitter()
+        self.cleanLogsEvents = EventEmitter()
+        self.waterEvents = EventEmitter()          
+        self.batteryEvents = EventEmitter()
+        self.statusEvents = EventEmitter()
+        self.statsEvents = EventEmitter()
+
     def connect_and_wait_until_ready(self):
         self.iotmq.connect_and_wait_until_ready()
         self.iotmq.schedule(30, self.send_ping)
@@ -280,6 +289,8 @@ class VacBot():
         if not error == '':
             _LOGGER.warning("*** error = " + error)
 
+        self.errorEvents.notify(event)            
+
     def _handle_life_span(self, event):
         response = event['body']['data'][0]
         type = response['type']
@@ -296,6 +307,8 @@ class VacBot():
        
         self.components[type] = lifespan
 
+        self.lifespanEvents.notify(event)
+
     def _handle_fan_speed(self, event):
         response = event['body']['data']
         speed = response['speed']
@@ -307,6 +320,8 @@ class VacBot():
       
         self.fan_speed = speed
 
+        self.fanspeedEvents.notify(self.fan_speed)
+
     def _handle_clean_logs(self, event):
         response = event.get('logs')
         self.lastCleanLogs = []
@@ -317,6 +332,8 @@ class VacBot():
             for cleanLog in response:
                 self.lastCleanLogs.append({'timestamp': cleanLog['ts'], 'imageUrl': cleanLog['imageUrl'],
                                            'type': cleanLog['type']})
+
+        self.cleanLogsEvents.notify(event=(self.lastCleanLogs, self.last_clean_image))
                                            
     def _handle_water_info(self, event):
         response = event['body']['data']
@@ -330,6 +347,8 @@ class VacBot():
         self.water_level = amount
         self.mop_attached = bool(response.get("enable"))
 
+        self.waterEvents.notify(event=(self.water_level, self.mop_attached))
+
     def _handle_clean_report(self, event):
         response = event['body']['data']
         if response['state'] == 'clean':
@@ -342,6 +361,8 @@ class VacBot():
                     self.vacuum_status = 'STATE_RETURNING'
             elif response['trigger'] == 'alert':
                 self.vacuum_status = 'STATE_ERROR'
+        
+        self.statusEvents.notify(self.vacuum_status)
 
     def _handle_map_trace(self, event):
         response = event['body']['data']
@@ -426,6 +447,8 @@ class VacBot():
         except ValueError:
             _LOGGER.warning("couldn't parse battery status " + response)
 
+        self.batteryEvents.notify(self.battery_status)
+
     def _handle_charge_state(self, event):
         response = event['body']
         status = 'none'
@@ -445,6 +468,8 @@ class VacBot():
         if status != 'none':
             self.vacuum_status = status
 
+        self.statusEvents.notify(self.vacuum_status)
+
     def _handle_stats(self, event):
         response = event['body']
 
@@ -462,6 +487,8 @@ class VacBot():
                 self.stats_type = response['data']['type']
         else:
             _LOGGER.error("Error in finding stats, status code = " + response['code']) #Log this so we can identify more errors    
+
+        self.statsEvents.notify(event)
 
     def _vacuum_address(self):
         return self.vacuum['did']
@@ -637,3 +664,30 @@ class VacBotCommand:
 
     def command_name(self):
         return self.__class__.__name__.lower()
+
+class EventEmitter(object):
+    """A very simple event emitting system."""
+    def __init__(self):
+        self._subscribers = []
+
+    def subscribe(self, callback):
+        listener = EventListener(self, callback)
+        self._subscribers.append(listener)
+        return listener
+
+    def unsubscribe(self, listener):
+        self._subscribers.remove(listener)
+
+    def notify(self, event):
+        for subscriber in self._subscribers:
+            subscriber.callback(event)
+
+
+class EventListener(object):
+    """Object that allows event consumers to easily unsubscribe from events."""
+    def __init__(self, emitter, callback):
+        self._emitter = emitter
+        self.callback = callback
+
+    def unsubscribe(self):
+        self._emitter.unsubscribe(self)
