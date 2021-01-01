@@ -557,16 +557,16 @@ class VacBot():
             _LOGGER.warning("*** Error condition: " + err.condition)
 
     def request_all_statuses(self):
-        if not self.thread_statuses.isAlive():
+        if not self.thread_statuses.is_alive():
             self.thread_statuses = threading.Thread(target=self.refresh_statuses, daemon=False, name="schedule_thread_statuses")
             self.thread_statuses.start()
 
         if self.live_map_enabled:
-            if not self.thread_livemap.isAlive():
+            if not self.thread_livemap.is_alive():
                 self.thread_livemap = threading.Thread(target=self.refresh_liveMap, daemon=False, name="schedule_thread_livemap")
                 self.thread_livemap.start()
                 
-        if not self.thread_components.isAlive():
+        if not self.thread_components.is_alive():
             self.thread_components = threading.Thread(target=self.refresh_components, daemon=False, name="schedule_thread_components")
             self.thread_components.start()
     
