@@ -81,7 +81,7 @@ class EcoVacsIOTMQ(ClientMQTT):
 
     def schedule(self, timer_seconds, timer_function):
         self.scheduler.enter(timer_seconds, 1, self._run_scheduled_func,(timer_seconds, timer_function))
-        if not self.scheduler_thread.isAlive():
+        if not self.scheduler_thread.is_alive():
             self.scheduler_thread.start()
         
     def wait_until_ready(self):
