@@ -326,15 +326,18 @@ class VacBot():
         response = event.get('logs')
         self.lastCleanLogs = []
 
-        # Ecovacs API is changing their API, this request may not working properly
-        if response is not None and len(response) >= 0:
-            self.last_clean_image = response[0]['imageUrl']
-            for cleanLog in response:
-                self.lastCleanLogs.append({'timestamp': cleanLog['ts'], 'imageUrl': cleanLog['imageUrl'],
+        try:
+            # Ecovacs API is changing their API, this request may not working properly
+            if response is not None and len(response) >= 0:
+                self.last_clean_image = response[0]['imageUrl']
+                for cleanLog in response:
+                    self.lastCleanLogs.append({'timestamp': cleanLog['ts'], 'imageUrl': cleanLog['imageUrl'],
                                            'type': cleanLog['type']})
 
-        self.cleanLogsEvents.notify(event=(self.lastCleanLogs, self.last_clean_image))
-                                           
+            self.cleanLogsEvents.notify(event=(self.lastCleanLogs, self.last_clean_image))
+        except:
+            _LOGGER.warning("No last clean image found")
+
     def _handle_water_info(self, event):
         response = event['body']['data']
         amount = response['amount']
@@ -417,7 +420,12 @@ class VacBot():
         response = event['body']['data']
         
         try:
-            mapid = response['info'][0]['mid']
+            for mapstatus in response['info']:
+                if mapstatus['using'] == 1:
+                    mapid = mapstatus['mid']
+                    
+                    _LOGGER.debug("Using Map: " + str(mapid))
+
             self.__map.rooms = []
             self.exc_command('getMapSet', {'mid': mapid,'type': 'ar'})
         except:
