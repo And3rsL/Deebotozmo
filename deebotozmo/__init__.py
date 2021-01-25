@@ -13,34 +13,39 @@ from sleekxmppfs import ClientXMPP, Callback, MatchXPath
 from sleekxmppfs.exceptions import XMPPError
 from .map import *
 from .constants import *
-from .ecovacsiotmq import *
+from .ecovacsjson import *
 
 _LOGGER = logging.getLogger(__name__)
 
 class EcoVacsAPI:
-    CLIENT_KEY = "eJUWrzRv34qFSaYk"
-    SECRET = "Cyu5jcR4zyK6QEPn1hdIGXB5QIDAQABMA0GC"
+    CLIENT_KEY = "1520391301804"
+    SECRET = "6c319b2a5cd3e66e39159c2e28f2fce9"
     PUBLIC_KEY = 'MIIB/TCCAWYCCQDJ7TMYJFzqYDANBgkqhkiG9w0BAQUFADBCMQswCQYDVQQGEwJjbjEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMCAXDTE3MDUwOTA1MTkxMFoYDzIxMTcwNDE1MDUxOTEwWjBCMQswCQYDVQQGEwJjbjEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDb8V0OYUGP3Fs63E1gJzJh+7iqeymjFUKJUqSD60nhWReZ+Fg3tZvKKqgNcgl7EGXp1yNifJKUNC/SedFG1IJRh5hBeDMGq0m0RQYDpf9l0umqYURpJ5fmfvH/gjfHe3Eg/NTLm7QEa0a0Il2t3Cyu5jcR4zyK6QEPn1hdIGXB5QIDAQABMA0GCSqGSIb3DQEBBQUAA4GBANhIMT0+IyJa9SU8AEyaWZZmT2KEYrjakuadOvlkn3vFdhpvNpnnXiL+cyWy2oU1Q9MAdCTiOPfXmAQt8zIvP2JC8j6yRTcxJCvBwORDyv/uBtXFxBPEC6MDfzU2gKAaHeeJUWrzRv34qFSaYkYta8canK+PSInylQTjJK9VqmjQ'
-    MAIN_URL_FORMAT = 'https://eco-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}'
-    MAIN_URL_CHINESE_FORMAT = 'https://gl-cn-api.ecovacs.cn/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}'
+    MAIN_URL_FORMAT = 'https://gl-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}'
     USER_URL_FORMAT = 'https://users-{continent}.ecouser.net:8000/user.do'
     PORTAL_URL_FORMAT = 'https://portal-{continent}.ecouser.net/api'
+    PORTAL_URL_FORMAT_CN = 'https://portal.ecouser.net/api/'
+
+    # New Auth Code Method
+    PORTAL_GLOBAL_AUTHCODE = 'https://gl-{country}-openapi.ecovacs.com/v1/global/auth/getAuthCode'
+    AUTH_CLIENT_KEY = "1520391491841"
+    AUTH_CLIENT_SECRET = "77ef58ce3afbe337da74aa8c5ab963a9"
 
     USERSAPI = 'users/user.do'
     IOTDEVMANAGERAPI = 'iot/devmanager.do' # IOT Device Manager - This provides control of "IOT" products via RestAPI
     PRODUCTAPI = 'pim/product' # Leaving this open, the only endpoint known currently is "Product IOT Map" -  pim/product/getProductIotMap - This provides a list of "IOT" products.  Not sure what this provides the app.
-        
+
     REALM = 'ecouser.net'
 
     def __init__(self, device_id, account_id, password_hash, country, continent, verify_ssl=True):
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self.meta = {
             'country': country,
-            'lang': 'en',
+            'lang': 'EN',
             'deviceId': device_id,
-            'appCode': 'i_eco_e',
-            'appVersion': '1.3.5',
-            'channel': 'c_googleplay',
+            'appCode': 'global_e',
+            'appVersion': '1.6.3',
+            'channel': 'google_play',
             'deviceType': '1'
         }
         
@@ -49,14 +54,22 @@ class EcoVacsAPI:
         self.resource = device_id[0:8]
         self.country = country
         self.continent = continent
-        login_info = self.__call_main_api('user/login',
-                                          ('account', self.encrypt(account_id)),
-                                          ('password', self.encrypt(password_hash)))
+
+        self.login_path = 'user/login'
+
+        if self.country.lower() == 'cn':
+            self.login_path = 'user/loginCheckMobile'
+   
+            
+        login_info = self.__call_main_api(self.login_path,
+                                          ('account', account_id),
+                                          ('password', password_hash))
         self.uid = login_info['uid']
         self.login_access_token = login_info['accessToken']
-        self.auth_code = self.__call_main_api('user/getAuthCode',
-                                              ('uid', self.uid),
+
+        self.auth_code = self.__call_auth_api(device_id, ('uid', self.uid),
                                               ('accessToken', self.login_access_token))['authCode']
+
         login_response = self.__call_login_by_it_token()
         self.user_access_token = login_response['token']
         if login_response['userId'] != self.uid:
@@ -78,17 +91,33 @@ class EcoVacsAPI:
         result['authSign'] = self.md5(sign_on_text)
         return result
 
+    def __signAuth(self, params):
+        result = params.copy()
+        result['authTimespan'] = int(time.time() * 1000)
+
+        paramsSignIn = result.copy()
+        paramsSignIn['openId'] = "global"
+
+        sign_on_text = EcoVacsAPI.AUTH_CLIENT_KEY + ''.join(
+            [k + '=' + str(paramsSignIn[k]) for k in sorted(paramsSignIn.keys())]) + EcoVacsAPI.AUTH_CLIENT_SECRET
+
+        result['authAppkey'] = EcoVacsAPI.AUTH_CLIENT_KEY
+        result['authSign'] = self.md5(sign_on_text)
+
+        return result
+
     def __call_main_api(self, function, *args):
         _LOGGER.debug("calling main api {} with {}".format(function, args))
         params = OrderedDict(args)
         params['requestId'] = self.md5(time.time())
 
         if self.country.lower() == 'cn':
-            url = (EcoVacsAPI.MAIN_URL_CHINESE_FORMAT + "/" + function).format(**self.meta)
+            url = (EcoVacsAPI.MAIN_URL_FORMAT.replace(".com",".cn") + "/" + function).format(**self.meta)
         else:
             url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
 
         api_response = requests.get(url, self.__sign(params), verify=self.verify_ssl)
+
         json = api_response.json()
         _LOGGER.debug("got {}".format(json))
         if json['code'] == '0000':
@@ -100,6 +129,32 @@ class EcoVacsAPI:
             _LOGGER.error("call to {} failed with {}".format(function, json))
             raise RuntimeError("failure code {} ({}) for call {} and parameters {}".format(
                 json['code'], json['msg'], function, args))
+
+    def __call_auth_api(self, device_id, *args):
+        _LOGGER.debug("calling auth api with {}".format(args))
+        params = OrderedDict(args)
+        params['bizType'] = 'ECOVACS_IOT'
+        params['deviceId'] = device_id
+
+        if self.country.lower() == 'cn':
+            url = (EcoVacsAPI.PORTAL_GLOBAL_AUTHCODE.replace(".com",".cn")).format(**self.meta)
+        else:
+            url = (EcoVacsAPI.PORTAL_GLOBAL_AUTHCODE).format(**self.meta)
+
+        api_response = requests.get(url, self.__signAuth(params), verify=self.verify_ssl)
+
+        json = api_response.json()
+        _LOGGER.debug("got {}".format(json))
+
+        if json['code'] == '0000':
+            return json['data']
+        elif json['code'] == '1005':
+            _LOGGER.warning("incorrect email or password")
+            raise ValueError("incorrect email or password")
+        else:
+            _LOGGER.error("call to {} failed with {}".format(json))
+            raise RuntimeError("failure code {} ({}) for call and parameters {}".format(
+                json['code'], json['msg'], args))
 
     def __call_user_api(self, function, args):
         _LOGGER.debug("calling user api {} with {}".format(function, args))
@@ -116,7 +171,8 @@ class EcoVacsAPI:
                 "failure {} ({}) for call {} and parameters {}".format(json['error'], json['errno'], function, params))
 
     def __call_portal_api(self, api, function, args, verify_ssl=True, **kwargs):      
-        
+        _LOGGER.debug("calling user api {} with {}".format(function, args))
+
         if api == self.USERSAPI:
             params = {'todo': function}
             params.update(args)
@@ -128,8 +184,11 @@ class EcoVacsAPI:
         if 'continent' in kwargs:
             continent = kwargs.get('continent')
 
-        url = (EcoVacsAPI.PORTAL_URL_FORMAT + "/" + api).format(continent=continent, **self.meta)        
-        
+        if self.country.lower() == 'cn':
+            url = (EcoVacsAPI.PORTAL_URL_FORMAT_CN + "/" + api).format(continent=continent, **self.meta)
+        else:
+            url = (EcoVacsAPI.PORTAL_URL_FORMAT + "/" + api).format(continent=continent, **self.meta)
+     
         response = requests.post(url, json=params, verify=verify_ssl)        
 
         json = response.json()
@@ -158,12 +217,23 @@ class EcoVacsAPI:
                 "failure {} ({}) for call {} and parameters {}".format(json['error'], json['errno'], function, params))
 
     def __call_login_by_it_token(self):
+        if self.country.lower() == 'cn':
+            org = 'ECOCN'
+            country = 'Chinese'
+        else:
+            org = 'ECOWW'
+            country = self.meta['country'].upper()
+
         return self.__call_portal_api(self.USERSAPI,'loginByItToken',
-                                    {'country': self.meta['country'].upper(),
-                                     'resource': self.resource,
-                                     'realm': EcoVacsAPI.REALM,
+                                    {'edition': 'ECOGLOBLE',
                                      'userId': self.uid,
-                                     'token': self.auth_code}
+                                     'token': self.auth_code,
+                                     'realm': EcoVacsAPI.REALM,
+                                     'resource': self.resource,
+                                     'org': org,
+                                     'last': '',
+                                     'country': country
+                                     }
                                     , verify_ssl=self.verify_ssl)
   
     def getdevices(self):
@@ -190,16 +260,15 @@ class EcoVacsAPI:
             }
         }, verify_ssl=self.verify_ssl)['data']
 
-    def SetIOTMQDevices(self, devices):
-        #Added for devices that utilize MQTT
+    def SetJSONDevices(self, devices):
         for device in devices:
             if device['company'] == 'eco-ng': #Check if the device is part of the list
-                device['iotmq'] = True
+                device['JSON'] = True
 
         return devices
        
     def devices(self):
-        return self.SetIOTMQDevices(self.getdevices())
+        return self.SetJSONDevices(self.getdevices())
 
     @staticmethod
     def md5(text):
@@ -215,7 +284,7 @@ class EcoVacsAPI:
         return str(b64encode(result), 'utf8')
 
 class VacBot():
-    def __init__(self, user, domain, resource, secret, vacuum, continent, live_map_enabled = True, show_rooms_color = False, verify_ssl=True):
+    def __init__(self, user, resource, secret, vacuum, country, continent, live_map_enabled = True, show_rooms_color = False, verify_ssl=True):
 
         self.vacuum = vacuum
 
@@ -244,10 +313,15 @@ class VacBot():
         self.last_clean_image = None
 
         #Set none for clients to start        
-        self.iotmq = None
+        self.json = None
         
-        self.iotmq = EcoVacsIOTMQ(user, domain, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT, verify_ssl=verify_ssl)
-        self.iotmq.subscribe_to_ctls(self._handle_ctl)
+
+        if country.lower() == 'cn':
+            self.json = EcoVacsJSON(user, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT_CN, verify_ssl=verify_ssl)
+        else:
+            self.json = EcoVacsJSON(user, resource, secret, continent, vacuum, EcoVacsAPI.REALM, EcoVacsAPI.PORTAL_URL_FORMAT, verify_ssl=verify_ssl)
+
+        self.json.subscribe_to_ctls(self._handle_ctl)
 
         self.live_map_enabled = live_map_enabled
 
@@ -270,10 +344,6 @@ class VacBot():
         self.batteryEvents = EventEmitter()
         self.statusEvents = EventEmitter()
         self.statsEvents = EventEmitter()
-
-    def connect_and_wait_until_ready(self):
-        self.iotmq.connect_and_wait_until_ready()
-        self.iotmq.schedule(30, self.send_ping)
 
     def _handle_ctl(self, ctl):
         method = '_handle_' + ctl['event']
@@ -501,30 +571,6 @@ class VacBot():
     def _vacuum_address(self):
         return self.vacuum['did']
 
-    def send_ping(self):
-        try:
-            if not self.iotmq.send_ping():
-                raise RuntimeError()                
-            else:
-                self.is_available = True
-        except XMPPError as err:
-            _LOGGER.warning("Ping did not reach VacBot. Will retry.")
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
-            self._failed_pings += 1
-            if self._failed_pings >= 4:
-                self.is_available = False
-
-        except RuntimeError as err:
-            _LOGGER.warning("Ping did not reach VacBot. Will retry.")
-            self._failed_pings += 1
-            if self._failed_pings >= 4:
-                self.is_available = False
-
-        else:
-            self._failed_pings = 0
-            self.is_available = True
-
     def refresh_components(self):
         try:
             _LOGGER.debug("[refresh_components] Begin")
@@ -581,10 +627,10 @@ class VacBot():
     def setScheduleUpdates(self, livemap_cycle = 15, status_cycle = 30, components_cycle = 60):
         # It will refresh all statuses very X seconds
         if self.live_map_enabled:
-            self.iotmq.schedule(livemap_cycle, self.refresh_liveMap)
+            self.json.schedule(livemap_cycle, self.refresh_liveMap)
 
-        self.iotmq.schedule(status_cycle, self.refresh_statuses)
-        self.iotmq.schedule(components_cycle, self.refresh_components)
+        self.json.schedule(status_cycle, self.refresh_statuses)
+        self.json.schedule(components_cycle, self.refresh_components)
 
     def getSavedRooms(self):
         return self.__map.rooms
@@ -654,11 +700,7 @@ class VacBot():
         self.send_command(VacBotCommand(action, params))
 
     def send_command(self, action):
-        #IOTMQ issues commands via RestAPI, and listens on MQTT for status updates
-        self.iotmq.send_command(action, self._vacuum_address())  #IOTMQ devices need the full action for additional parsing
-
-    def disconnect(self, wait=False):
-        self.iotmq._disconnect()
+        self.json.send_command(action, self._vacuum_address())
 
 class VacBotCommand:
     def __init__(self, name, args=None, **kwargs):

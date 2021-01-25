@@ -8,9 +8,6 @@ import logging
 
 from collections import OrderedDict
 from threading import Event
-from paho.mqtt.client import Client  as ClientMQTT
-from paho.mqtt import publish as MQTTPublish
-from paho.mqtt import subscribe as MQTTSubscribe
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,49 +27,24 @@ def str_to_bool_or_cert(s):
         raise ValueError("Cannot covert {} to a bool or certificate path".format(s))
 
 
-class EcoVacsIOTMQ(ClientMQTT):
-    def __init__(self, user, domain, resource, secret, continent, vacuum, realm, portal_url_format, verify_ssl=True):
-        ClientMQTT.__init__(self)
+class EcoVacsJSON():
+    def __init__(self, user, resource, secret, continent, vacuum, realm, portal_url_format, verify_ssl=True):
         self.ctl_subscribers = []        
         self.user = user
-        self.domain = str(domain).split(".")[0] #MQTT is using domain without tld extension
         self.resource = resource
         self.secret = secret
         self.continent = continent
         self.vacuum = vacuum
         self.scheduler = sched.scheduler(time.time, time.sleep)
-        self.scheduler_thread = threading.Thread(target=self.scheduler.run, daemon=True, name="mqtt_schedule_thread")
+        self.scheduler_thread = threading.Thread(target=self.scheduler.run, daemon=True, name="schedule_thread")
         self.verify_ssl = str_to_bool_or_cert(verify_ssl)
         self.realm = realm
         self.portal_url_format = portal_url_format
-        
-        self.hostname = ('mq-{}.ecouser.net'.format(self.continent))
-        self.port = 8883                
-
-        self._client_id = self.user + '@' + self.domain.split(".")[0] + '/' + self.resource        
-        self.username_pw_set(self.user + '@' + self.domain, secret)
-
-        self.ready_flag = Event()
-
-    def connect_and_wait_until_ready(self):        
-        self._on_log = self.on_log #This provides more logging than needed, even for debug
-        self._on_connect = self.on_connect        
-
-        #TODO: This is pretty insecure and accepts any cert, maybe actually check?
-        ssl_ctx = ssl.create_default_context()
-        ssl_ctx.check_hostname = False
-        ssl_ctx.verify_mode = ssl.CERT_NONE
-        self.tls_set_context(ssl_ctx)
-        self.tls_insecure_set(True)
-        self.connect(self.hostname, self.port)
-        self.loop_start()        
-        self.wait_until_ready()
 
     def subscribe_to_ctls(self, function):
         self.ctl_subscribers.append(function)   
 
     def _disconnect(self):
-        self.disconnect() #disconnect mqtt connection
         self.scheduler.empty() #Clear schedule queue  
 
     def _run_scheduled_func(self, timer_seconds, timer_function):
@@ -83,29 +55,6 @@ class EcoVacsIOTMQ(ClientMQTT):
         self.scheduler.enter(timer_seconds, 1, self._run_scheduled_func,(timer_seconds, timer_function))
         if not self.scheduler_thread.is_alive():
             self.scheduler_thread.start()
-        
-    def wait_until_ready(self):
-        self.ready_flag.wait()
-
-    def on_connect(self, client, userdata, flags, rc):        
-        if rc != 0:
-            _LOGGER.error("EcoVacsMQTT - error connecting with MQTT Return {}".format(rc))
-            raise RuntimeError("EcoVacsMQTT - error connecting with MQTT Return {}".format(rc))
-                 
-        else:
-            _LOGGER.debug("EcoVacsMQTT - Connected with result code "+str(rc))
-            _LOGGER.debug("EcoVacsMQTT - Subscribing to all")        
-
-            self.subscribe('iot/atr/+/' + self.vacuum['did'] + '/' + self.vacuum['class'] + '/' + self.vacuum['resource'] + '/+', qos=0)            
-            self.ready_flag.set()
-
-    def send_ping(self):
-        _LOGGER.debug("*** MQTT sending ping ***")
-        rc = self._send_simple_command(MQTTPublish.paho.PINGREQ)
-        if rc == MQTTPublish.paho.MQTT_ERR_SUCCESS:
-            return True         
-        else:
-            return False
 
     def send_command(self, action, recipient):
         if action.name.lower() == 'getcleanlogs':
