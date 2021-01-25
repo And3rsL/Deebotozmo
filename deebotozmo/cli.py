@@ -160,10 +160,17 @@ def stats():
     dologin()
     vacbot.refresh_statuses()
 
-    print("Stats Cid: " + vacbot.stats_cid)
-    print("Stats Area: " + str(vacbot.stats_area))
-    print("Stats Time: " + str(int(vacbot.stats_time/60)) + " minutes")
-    print("Stats Type: " + vacbot.stats_type)
+    if vacbot.stats_cid is not None:
+        print("Stats Cid: " + vacbot.stats_cid)
+    
+    if vacbot.stats_area is not None:
+        print("Stats Area: " + str(vacbot.stats_area))
+    
+    if vacbot.stats_time is not None:
+        print("Stats Time: " + str(int(vacbot.stats_time/60)) + " minutes")
+    
+    if vacbot.stats_type is not None:
+        print("Stats Type: " + vacbot.stats_type)
 
 @cli.command(help='Get robot components life span')
 def components():
