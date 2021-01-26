@@ -262,8 +262,24 @@ class EcoVacsAPI:
 
     def SetJSONDevices(self, devices):
         for device in devices:
-            if device['company'] == 'eco-ng': #Check if the device is part of the list
-                device['JSON'] = True
+            if device['class'] == 'bs40nz': # DEEBOT T8 AIVI
+                device['API_CLEANINFO'] = 'getCleanInfo_V2'
+                _LOGGER.debug('Found robot version DEEBOT T8 AIVI ')
+            elif device['class'] == 'a1nNMoAGAsH': # DEEBOT T8 MAX
+                device['API_CLEANINFO'] = 'getCleanInfo_V2'
+                _LOGGER.debug('Found robot version DEEBOT T8 MAX ')
+            elif device['class'] == 'vdehg6': # DEEBOT T8 AIVI +
+                device['API_CLEANINFO'] = 'getCleanInfo_V2'
+                _LOGGER.debug('Found robot version DEEBOT T8 AIVI +')
+            elif device['class'] == 'no61kx': # DEEBOT T8 POWER
+                device['API_CLEANINFO'] = 'getCleanInfo_V2'
+                _LOGGER.debug('Found robot version DEEBOT T8 POWER ')
+            elif device['class'] == 'yna5xi': # DEEBOT OZMO 950
+                device['API_CLEANINFO'] = 'getCleanInfo'
+                _LOGGER.debug('Found robot version DEEBOT OZMO 950 ')
+            else: # Others
+                device['API_CLEANINFO'] = 'getCleanInfo'
+                _LOGGER.debug('Found robot version OTHER -> ' + device['class'])
 
         return devices
        
@@ -586,7 +602,8 @@ class VacBot():
     def refresh_statuses(self):
         try:
             _LOGGER.debug("[refresh_statuses] Begin")
-            self.exc_command('getCleanInfo')
+
+            self.exc_command(self.vacuum['API_CLEANINFO'])
             self.exc_command('getChargeState')
             self.exc_command('getBattery')
             self.exc_command('getSpeed')
