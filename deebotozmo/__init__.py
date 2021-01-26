@@ -561,6 +561,9 @@ class VacBot():
 
         if status != 'none':
             self.vacuum_status = status
+            self.is_available = True
+        else:
+            self.is_available = False
 
         self.statusEvents.notify(self.vacuum_status)
 
