@@ -40,7 +40,7 @@ class EcoVacsJSON():
         self.verify_ssl = str_to_bool_or_cert(verify_ssl)
         self.realm = realm
         self.portal_url_format = portal_url_format
-
+        
     def subscribe_to_ctls(self, function):
         self.ctl_subscribers.append(function)   
 
@@ -122,7 +122,7 @@ class EcoVacsJSON():
         url = (self.portal_url_format + "/iot/devmanager.do?mid=" + params['toType'] + "&did=" + params['toId'] + "&td=" + params['td'] + "&u=" + params['auth']['userid'] + "&cv=1.67.3&t=a&av=1.3.1").format(continent=self.continent)
         
         try:  
-            with requests.post(url, headers=headers, json=params, timeout=20, verify=verify_ssl) as response:
+            with requests.post(url, headers=headers, json=params, timeout=60, verify=verify_ssl) as response:
                 if response.status_code == 502:
                     _LOGGER.info("Error calling API (502): Unfortunately the ecovacs api is unreliable. Retrying in a few moments")
                     _LOGGER.debug(f"URL was: {str(url)}")
@@ -150,7 +150,7 @@ class EcoVacsJSON():
         url = (self.portal_url_format + "/lg/log.do?td=" + params['td'] + "&u=" + params['auth']['userid'] + "&cv=1.67.3&t=a&av=1.3.1").format(continent=self.continent)
 
         try:
-            with requests.post(url, headers=headers, json=params, timeout=20, verify=verify_ssl) as response:
+            with requests.post(url, headers=headers, json=params, timeout=60, verify=verify_ssl) as response:
                 data = response.json()
                 if response.status_code != 200:
                     _LOGGER.warning("Error calling API " + str(url))

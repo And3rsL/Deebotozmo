@@ -116,7 +116,7 @@ class EcoVacsAPI:
         else:
             url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
 
-        api_response = requests.get(url, self.__sign(params), verify=self.verify_ssl)
+        api_response = requests.get(url, self.__sign(params), timeout=60, verify=self.verify_ssl)
 
         json = api_response.json()
         _LOGGER.debug("got {}".format(json))
@@ -141,7 +141,7 @@ class EcoVacsAPI:
         else:
             url = (EcoVacsAPI.PORTAL_GLOBAL_AUTHCODE).format(**self.meta)
 
-        api_response = requests.get(url, self.__signAuth(params), verify=self.verify_ssl)
+        api_response = requests.get(url, self.__signAuth(params), timeout=60, verify=self.verify_ssl)
 
         json = api_response.json()
         _LOGGER.debug("got {}".format(json))
@@ -160,7 +160,7 @@ class EcoVacsAPI:
         _LOGGER.debug("calling user api {} with {}".format(function, args))
         params = {'todo': function}
         params.update(args)
-        response = requests.post(EcoVacsAPI.USER_URL_FORMAT.format(continent=self.continent), json=params, verify=self.verify_ssl)
+        response = requests.post(EcoVacsAPI.USER_URL_FORMAT.format(continent=self.continent), json=params, timeout=60, verify=self.verify_ssl)
         json = response.json()
         _LOGGER.debug("got {}".format(json))
         if json['result'] == 'ok':
@@ -189,7 +189,7 @@ class EcoVacsAPI:
         else:
             url = (EcoVacsAPI.PORTAL_URL_FORMAT + "/" + api).format(continent=continent, **self.meta)
      
-        response = requests.post(url, json=params, verify=verify_ssl)        
+        response = requests.post(url, json=params, timeout=60, verify=verify_ssl)        
 
         json = response.json()
         _LOGGER.debug("got {}".format(json))
@@ -451,6 +451,8 @@ class VacBot():
             elif response['trigger'] == 'alert':
                 self.vacuum_status = 'STATE_ERROR'
         
+        self.is_available = True
+
         self.statusEvents.notify(self.vacuum_status)
 
     def _handle_map_trace(self, event):
@@ -546,6 +548,7 @@ class VacBot():
     def _handle_charge_state(self, event):
         response = event['body']
         status = 'none'
+
         if response['code'] == 0:
             if response['data']['isCharging'] == 1:
                 status = 'STATE_DOCKED'
@@ -562,8 +565,6 @@ class VacBot():
         if status != 'none':
             self.vacuum_status = status
             self.is_available = True
-        else:
-            self.is_available = False
 
         self.statusEvents.notify(self.vacuum_status)
 
