@@ -9,9 +9,9 @@ here = path.abspath(path.dirname(__file__))
 long_description = ""
 
 setup(
-    name="deebotozmo",
-    version="10.9.9",
-    description="a library for controlling certain robot vacuums [SUCKS FORK]",
+    name="deebotozmo-beta",
+    version="0.0.1",
+    description="a library for controlling certain robot vacuums - BETA",
     long_description=long_description,
     # Author details
     author="Andrea Liosi",
