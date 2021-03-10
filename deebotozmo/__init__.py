@@ -852,6 +852,10 @@ class VacBot:
         if self.live_map_enabled:
             self.json.scheduleLiveMap(liveMap_cycle, self.refresh_liveMap)
 
+    def disconnect(self):
+        _LOGGER.debug("vacbot disconnected schedule")
+        self.json.disconnect()
+
     def updateEverythingNOW(self):
         if self.live_map_enabled:
             self.refresh_liveMap(True)

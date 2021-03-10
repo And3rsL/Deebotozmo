@@ -10,7 +10,7 @@ long_description = ""
 
 setup(
     name="deebotozmo-beta",
-    version="0.0.1",
+    version="0.0.2",
     description="a library for controlling certain robot vacuums - BETA",
     long_description=long_description,
     # Author details

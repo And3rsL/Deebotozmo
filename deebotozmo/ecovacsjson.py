@@ -68,8 +68,9 @@ class EcoVacsJSON:
     def subscribe_to_ctls(self, function):
         self.ctl_subscribers.append(function)
 
-    def _disconnect(self):
-        self.scheduler.empty()  # Clear schedule queue
+    def disconnect(self):
+        list(map(self.scheduler.cancel, self.scheduler.queue))
+        list(map(self.schedulerLV.cancel, self.schedulerLV.queue))
 
     # Schedule Thread
     def _run_scheduled_func(self, timer_seconds, timer_function):
