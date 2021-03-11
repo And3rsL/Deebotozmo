@@ -37,7 +37,7 @@ class EcoVacsAPI:
     USERSAPI = "users/user.do"
     IOTDEVMANAGERAPI = "iot/devmanager.do"  # IOT Device Manager - This provides control of "IOT" products via RestAPI
     PRODUCTAPI = "pim/product"  # Leaving this open, the only endpoint known currently is "Product IOT Map" -  pim/product/getProductIotMap - This provides a list of "IOT" products.  Not sure what this provides the app.
-
+    APPAPI = "appsvr/app.do"
     REALM = "ecouser.net"
 
     def __init__(
@@ -120,7 +120,7 @@ class EcoVacsAPI:
         return result
 
     def __call_main_api(self, function, *args):
-        # _LOGGER.debug("calling main api {} with {}".format(function, args))
+        _LOGGER.debug("calling main api {} with {}".format(function, args))
         params = OrderedDict(args)
         params["requestId"] = self.md5(time.time())
 
@@ -136,7 +136,7 @@ class EcoVacsAPI:
         )
 
         json = api_response.json()
-        # _LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
         if json["code"] == "0000":
             return json["data"]
         elif json["code"] == "1005":
@@ -151,7 +151,7 @@ class EcoVacsAPI:
             )
 
     def __call_auth_api(self, device_id, *args):
-        # _LOGGER.debug("calling auth api with {}".format(args))
+        _LOGGER.debug("calling auth api with {}".format(args))
         params = OrderedDict(args)
         params["bizType"] = "ECOVACS_IOT"
         params["deviceId"] = device_id
@@ -168,7 +168,7 @@ class EcoVacsAPI:
         )
 
         json = api_response.json()
-        # _LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
 
         if json["code"] == "0000":
             return json["data"]
@@ -184,7 +184,7 @@ class EcoVacsAPI:
             )
 
     def __call_user_api(self, function, args):
-        # _LOGGER.debug("calling user api {} with {}".format(function, args))
+        _LOGGER.debug("calling user api {} with {}".format(function, args))
         params = {"todo": function}
         params.update(args)
         response = requests.post(
@@ -194,7 +194,7 @@ class EcoVacsAPI:
             verify=self.verify_ssl,
         )
         json = response.json()
-        # _LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
         if json["result"] == "ok":
             return json
         else:
@@ -206,9 +206,9 @@ class EcoVacsAPI:
             )
 
     def __call_portal_api(self, api, function, args, verify_ssl=True, **kwargs):
-        # _LOGGER.debug("calling user api {} with {}".format(function, args))
+        _LOGGER.debug("calling user api {} with {}".format(function, args))
 
-        if api == self.USERSAPI:
+        if api == self.USERSAPI or api == self.APPAPI:
             params = {"todo": function}
             params.update(args)
         else:
@@ -231,7 +231,7 @@ class EcoVacsAPI:
         response = requests.post(url, json=params, timeout=60, verify=verify_ssl)
 
         json = response.json()
-        # _LOGGER.debug("got {}".format(json))
+        _LOGGER.debug("got {}".format(json))
         if api == self.USERSAPI:
             if json["result"] == "ok":
                 return json
@@ -271,6 +271,9 @@ class EcoVacsAPI:
             if json["code"] == 0:
                 return json
 
+        if api.startswith(self.APPAPI):
+            if json["code"] == 0:
+                return json
         else:
             _LOGGER.error("call to {} failed with {}".format(function, json))
             raise RuntimeError(
@@ -305,8 +308,8 @@ class EcoVacsAPI:
 
     def getdevices(self):
         return self.__call_portal_api(
-            self.USERSAPI,
-            "GetDeviceList",
+            self.APPAPI,
+            "GetGlobalDeviceList",
             {
                 "userid": self.uid,
                 "auth": {
@@ -405,6 +408,9 @@ class VacBot:
         self.fan_speed = None
         self.water_level = None
         self.mop_attached: bool = False
+
+        self.fwversion = None
+        self.modelVersion = self.vacuum["deviceName"]
 
         # Populated by component Lifespan reports
         self.components = {}
@@ -552,6 +558,8 @@ class VacBot:
         self.waterEvents.notify(event=(self.water_level, self.mop_attached))
 
     def _handle_clean_report(self, event):
+        self.fwversion = event["header"]["fwVer"]
+
         response = event["body"]["data"]
         if response["state"] == "clean":
             if response["trigger"] == "app" or response["trigger"] == "sched":
