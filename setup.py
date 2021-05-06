@@ -45,7 +45,6 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        "sleekxmppfs>=1.3.4",
         "click>=6",
         "requests>=2.18",
         "pycryptodome>=3.4",

@@ -1,19 +1,11 @@
 import hashlib
-import logging
-import random
-import requests
-import stringcase
-import os
-import json
-import threading
+from base64 import b64decode, b64encode
+
 import urllib3
 
-from base64 import b64decode, b64encode
-from sleekxmppfs import ClientXMPP, Callback, MatchXPath
-from sleekxmppfs.exceptions import XMPPError
-from .map import *
 from .constants import *
 from .ecovacsjson import *
+from .map import *
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -759,85 +751,42 @@ class VacBot:
 
     ############### REFRESH ROUTINES ###############################
     def refresh_components(self):
-        try:
-            _LOGGER.debug("[refresh_components] Begin")
-            self.exc_command("getLifeSpan", [COMPONENT_TO_ECOVACS["brush"]])
-            self.exc_command("getLifeSpan", [COMPONENT_TO_ECOVACS["sideBrush"]])
-            self.exc_command("getLifeSpan", [COMPONENT_TO_ECOVACS["heap"]])
-        except XMPPError as err:
-            _LOGGER.warning(
-                "Component refresh requests failed to reach VacBot. Will try again later."
-            )
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
+        _LOGGER.debug("[refresh_components] Begin")
+        self.exc_command("getLifeSpan", [COMPONENT_TO_ECOVACS["brush"]])
+        self.exc_command("getLifeSpan", [COMPONENT_TO_ECOVACS["sideBrush"]])
+        self.exc_command("getLifeSpan", [COMPONENT_TO_ECOVACS["heap"]])
 
     def refresh_statuses(self):
-        try:
-            _LOGGER.debug("[refresh_statuses] Begin")
+        _LOGGER.debug("[refresh_statuses] Begin")
 
-            self.exc_command(self.vacuum["API_CLEANINFO"])
-            self.exc_command("getChargeState")
-            self.exc_command("getBattery")
-            self.exc_command("getSpeed")
-            self.exc_command("getWaterInfo")
-        except XMPPError as err:
-            _LOGGER.warning(
-                "Initial status requests failed to reach VacBot. Will try again on next ping."
-            )
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
+        self.exc_command(self.vacuum["API_CLEANINFO"])
+        self.exc_command("getChargeState")
+        self.exc_command("getBattery")
+        self.exc_command("getSpeed")
+        self.exc_command("getWaterInfo")
 
     def refresh_rooms(self):
-        try:
-            _LOGGER.debug("[refresh_rooms] Begin")
-            self.exc_command("getCachedMapInfo")
-            self.roomEvents.notify(None)
-
-        except XMPPError as err:
-            _LOGGER.warning(
-                "Initial rooms requests failed to reach VacBot. Will try again on next ping."
-            )
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
+        _LOGGER.debug("[refresh_rooms] Begin")
+        self.exc_command("getCachedMapInfo")
+        self.roomEvents.notify(None)
 
     def refresh_stats(self):
-        try:
-            _LOGGER.debug("[refresh_stats] Begin")
-            self.exc_command("getStats")
-        except XMPPError as err:
-            _LOGGER.warning(
-                "Initial Stats requests failed to reach VacBot. Will try again on next ping."
-            )
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
+        _LOGGER.debug("[refresh_stats] Begin")
+        self.exc_command("getStats")
 
     def refresh_cleanLogs(self):
-        try:
-            _LOGGER.debug("[refresh_cleanLogs] Begin")
-            self.exc_command("GetCleanLogs")
-        except XMPPError as err:
-            _LOGGER.warning(
-                "Initial CleanLogs requests failed to reach VacBot. Will try again on next ping."
-            )
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
+        _LOGGER.debug("[refresh_cleanLogs] Begin")
+        self.exc_command("GetCleanLogs")
 
     def refresh_liveMap(self, force=False):
-        try:
-            if self.vacuum_status == "STATE_CLEANING" or force == True:
-                _LOGGER.debug("[refresh_liveMap] Begin")
-                self.exc_command("getMapTrace", {"pointCount": 200, "traceStart": 0})
-                self.exc_command("getPos", ["chargePos", "deebotPos"])
-                self.exc_command("getMajorMap")
-                self.live_map = self.__map.GetBase64Map()
+        if self.vacuum_status == "STATE_CLEANING" or force == True:
+            _LOGGER.debug("[refresh_liveMap] Begin")
+            self.exc_command("getMapTrace", {"pointCount": 200, "traceStart": 0})
+            self.exc_command("getPos", ["chargePos", "deebotPos"])
+            self.exc_command("getMajorMap")
+            self.live_map = self.__map.GetBase64Map()
 
-                self.livemapEvents.notify(self.live_map)
-        except XMPPError as err:
-            _LOGGER.warning(
-                "Initial live map failed to reach VacBot. Will try again on next ping."
-            )
-            _LOGGER.warning("*** Error type: " + err.etype)
-            _LOGGER.warning("*** Error condition: " + err.condition)
+            self.livemapEvents.notify(self.live_map)
 
     ###################################################################
 
