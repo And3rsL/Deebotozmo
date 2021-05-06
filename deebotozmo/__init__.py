@@ -1,5 +1,4 @@
 import hashlib
-from base64 import b64decode, b64encode
 
 import urllib3
 
@@ -13,7 +12,6 @@ _LOGGER = logging.getLogger(__name__)
 class EcoVacsAPI:
     CLIENT_KEY = "1520391301804"
     SECRET = "6c319b2a5cd3e66e39159c2e28f2fce9"
-    PUBLIC_KEY = "MIIB/TCCAWYCCQDJ7TMYJFzqYDANBgkqhkiG9w0BAQUFADBCMQswCQYDVQQGEwJjbjEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMCAXDTE3MDUwOTA1MTkxMFoYDzIxMTcwNDE1MDUxOTEwWjBCMQswCQYDVQQGEwJjbjEVMBMGA1UEBwwMRGVmYXVsdCBDaXR5MRwwGgYDVQQKDBNEZWZhdWx0IENvbXBhbnkgTHRkMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDb8V0OYUGP3Fs63E1gJzJh+7iqeymjFUKJUqSD60nhWReZ+Fg3tZvKKqgNcgl7EGXp1yNifJKUNC/SedFG1IJRh5hBeDMGq0m0RQYDpf9l0umqYURpJ5fmfvH/gjfHe3Eg/NTLm7QEa0a0Il2t3Cyu5jcR4zyK6QEPn1hdIGXB5QIDAQABMA0GCSqGSIb3DQEBBQUAA4GBANhIMT0+IyJa9SU8AEyaWZZmT2KEYrjakuadOvlkn3vFdhpvNpnnXiL+cyWy2oU1Q9MAdCTiOPfXmAQt8zIvP2JC8j6yRTcxJCvBwORDyv/uBtXFxBPEC6MDfzU2gKAaHeeJUWrzRv34qFSaYkYta8canK+PSInylQTjJK9VqmjQ"
     MAIN_URL_FORMAT = "https://gl-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}"
     USER_URL_FORMAT = "https://users-{continent}.ecouser.net:8000/user.do"
     PORTAL_URL_FORMAT = "https://portal-{continent}.ecouser.net/api"
@@ -33,7 +31,7 @@ class EcoVacsAPI:
     REALM = "ecouser.net"
 
     def __init__(
-        self, device_id, account_id, password_hash, country, continent, verify_ssl=True
+            self, device_id, account_id, password_hash, country, continent, verify_ssl=True
     ):
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self.meta = {
@@ -82,9 +80,9 @@ class EcoVacsAPI:
         sign_on = self.meta.copy()
         sign_on.update(result)
         sign_on_text = (
-            EcoVacsAPI.CLIENT_KEY
-            + "".join([k + "=" + str(sign_on[k]) for k in sorted(sign_on.keys())])
-            + EcoVacsAPI.SECRET
+                EcoVacsAPI.CLIENT_KEY
+                + "".join([k + "=" + str(sign_on[k]) for k in sorted(sign_on.keys())])
+                + EcoVacsAPI.SECRET
         )
 
         result["authAppkey"] = EcoVacsAPI.CLIENT_KEY
@@ -99,11 +97,11 @@ class EcoVacsAPI:
         paramsSignIn["openId"] = "global"
 
         sign_on_text = (
-            EcoVacsAPI.AUTH_CLIENT_KEY
-            + "".join(
-                [k + "=" + str(paramsSignIn[k]) for k in sorted(paramsSignIn.keys())]
-            )
-            + EcoVacsAPI.AUTH_CLIENT_SECRET
+                EcoVacsAPI.AUTH_CLIENT_KEY
+                + "".join(
+            [k + "=" + str(paramsSignIn[k]) for k in sorted(paramsSignIn.keys())]
+        )
+                + EcoVacsAPI.AUTH_CLIENT_SECRET
         )
 
         result["authAppkey"] = EcoVacsAPI.AUTH_CLIENT_KEY
@@ -118,7 +116,7 @@ class EcoVacsAPI:
 
         if self.country.lower() == "cn":
             url = (
-                EcoVacsAPI.MAIN_URL_FORMAT.replace(".com", ".cn") + "/" + function
+                    EcoVacsAPI.MAIN_URL_FORMAT.replace(".com", ".cn") + "/" + function
             ).format(**self.meta)
         else:
             url = (EcoVacsAPI.MAIN_URL_FORMAT + "/" + function).format(**self.meta)
@@ -153,7 +151,7 @@ class EcoVacsAPI:
                 **self.meta
             )
         else:
-            url = (EcoVacsAPI.PORTAL_GLOBAL_AUTHCODE).format(**self.meta)
+            url = EcoVacsAPI.PORTAL_GLOBAL_AUTHCODE.format(**self.meta)
 
         api_response = requests.get(
             url, self.__signAuth(params), timeout=60, verify=self.verify_ssl
@@ -168,7 +166,7 @@ class EcoVacsAPI:
             _LOGGER.warning("incorrect email or password")
             raise ValueError("incorrect email or password")
         else:
-            _LOGGER.error("call to {} failed with {}".format(json))
+            _LOGGER.error("call to {} failed with {}".format(url, json))
             raise RuntimeError(
                 "failure code {} ({}) for call and parameters {}".format(
                     json["code"], json["msg"], args
@@ -229,9 +227,9 @@ class EcoVacsAPI:
                 return json
             elif json["result"] == "fail":
                 if (
-                    json["error"] == "set token error."
+                        json["error"] == "set token error."
                 ):  # If it is a set token error try again
-                    if not "set_token" in kwargs:
+                    if "set_token" not in kwargs:
                         _LOGGER.warning(
                             "loginByItToken set token error, trying again (2/3)"
                         )
@@ -362,29 +360,19 @@ class EcoVacsAPI:
     def md5(text):
         return hashlib.md5(bytes(str(text), "utf8")).hexdigest()
 
-    @staticmethod
-    def encrypt(text):
-        from Crypto.PublicKey import RSA
-        from Crypto.Cipher import PKCS1_v1_5
-
-        key = RSA.import_key(b64decode(EcoVacsAPI.PUBLIC_KEY))
-        cipher = PKCS1_v1_5.new(key)
-        result = cipher.encrypt(bytes(text, "utf8"))
-        return str(b64encode(result), "utf8")
-
 
 class VacBot:
     def __init__(
-        self,
-        user,
-        resource,
-        secret,
-        vacuum,
-        country,
-        continent,
-        live_map_enabled=True,
-        show_rooms_color=False,
-        verify_ssl=True,
+            self,
+            user,
+            resource,
+            secret,
+            vacuum,
+            country,
+            continent,
+            live_map_enabled=True,
+            show_rooms_color=False,
+            verify_ssl=True,
     ):
 
         self.vacuum = vacuum
@@ -471,12 +459,13 @@ class VacBot:
             getattr(self, method)(ctl)
 
     def _handle_error(self, event):
+        error = ""
         if "error" in event:
             error = event["error"]
         elif "errs" in event:
             error = event["errs"]
 
-        if not error == "":
+        if error != "":
             _LOGGER.warning("*** error = " + error)
 
         self.errorEvents.notify(event)
@@ -638,6 +627,7 @@ class VacBot:
         response = event["body"]["data"]
 
         try:
+            mapid = None
             for mapstatus in response["info"]:
                 if mapstatus["using"] == 1:
                     mapid = mapstatus["mid"]
@@ -700,15 +690,15 @@ class VacBot:
                 status = "STATE_DOCKED"
         else:
             if (
-                response["msg"] == "fail" and response["code"] == "30007"
+                    response["msg"] == "fail" and response["code"] == "30007"
             ):  # Already charging
                 status = "STATE_DOCKED"
             elif (
-                response["msg"] == "fail" and response["code"] == "5"
+                    response["msg"] == "fail" and response["code"] == "5"
             ):  # Busy with another command
                 status = "STATE_ERROR"
             elif (
-                response["msg"] == "fail" and response["code"] == "3"
+                    response["msg"] == "fail" and response["code"] == "3"
             ):  # Bot in stuck state, example dust bin out
                 status = "STATE_ERROR"
             else:
@@ -791,12 +781,12 @@ class VacBot:
     ###################################################################
 
     def setScheduleUpdates(
-        self,
-        status_cycle=10,
-        components_cycle=60,
-        stats_cycle=60,
-        rooms_cycle=60,
-        liveMap_cycle=5,
+            self,
+            status_cycle=10,
+            components_cycle=60,
+            stats_cycle=60,
+            rooms_cycle=60,
+            liveMap_cycle=5,
     ):
 
         self.updateEverythingNOW()
@@ -912,7 +902,7 @@ class VacBot:
         )
         self.refresh_statuses()
 
-    def exc_command(self, action, params=None, **kwargs):
+    def exc_command(self, action, params=None):
         self.send_command(VacBotCommand(action, params))
 
     def send_command(self, action):
@@ -920,7 +910,7 @@ class VacBot:
 
 
 class VacBotCommand:
-    def __init__(self, name, args=None, **kwargs):
+    def __init__(self, name, args=None):
         if args is None:
             args = {}
         self.name = name

@@ -1,26 +1,25 @@
-import sched
-import time
-import threading
-import ssl
 import datetime
-import requests
 import logging
-
+import os
+import sched
+import threading
+import time
 from collections import OrderedDict
-from threading import Event
+
+import requests
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def str_to_bool_or_cert(s):
-    if s == "True" or s == True:
+    if s == "True" or s is True:
         return True
-    elif s == "False" or s == False:
+    elif s == "False" or s is False:
         return False
     else:
-        if not s == None:
+        if s is not None:
             if os.path.exists(
-                s
+                    s
             ):  # User could provide a path to a CA Cert as well, which is useful for Bumper
                 if os.path.isfile(s):
                     return s
@@ -34,15 +33,15 @@ def str_to_bool_or_cert(s):
 
 class EcoVacsJSON:
     def __init__(
-        self,
-        user,
-        resource,
-        secret,
-        continent,
-        vacuum,
-        realm,
-        portal_url_format,
-        verify_ssl=True,
+            self,
+            user,
+            resource,
+            secret,
+            continent,
+            vacuum,
+            realm,
+            portal_url_format,
+            verify_ssl=True,
     ):
         self.ctl_subscribers = []
         self.user = user
@@ -177,21 +176,21 @@ class EcoVacsJSON:
             "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)",
         }
         url = (
-            self.portal_url_format
-            + "/iot/devmanager.do?mid="
-            + params["toType"]
-            + "&did="
-            + params["toId"]
-            + "&td="
-            + params["td"]
-            + "&u="
-            + params["auth"]["userid"]
-            + "&cv=1.67.3&t=a&av=1.3.1"
+                self.portal_url_format
+                + "/iot/devmanager.do?mid="
+                + params["toType"]
+                + "&did="
+                + params["toId"]
+                + "&td="
+                + params["td"]
+                + "&u="
+                + params["auth"]["userid"]
+                + "&cv=1.67.3&t=a&av=1.3.1"
         ).format(continent=self.continent)
 
         try:
             with requests.post(
-                url, headers=headers, json=params, timeout=60, verify=verify_ssl
+                    url, headers=headers, json=params, timeout=60, verify=verify_ssl
             ) as response:
                 if response.status_code == 502:
                     # _LOGGER.info("Error calling API (502): Unfortunately the ecovacs api is unreliable. Retrying in a few moments")
@@ -220,17 +219,17 @@ class EcoVacsJSON:
             "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 5.1.1; A5010 Build/LMY48Z)",
         }
         url = (
-            self.portal_url_format
-            + "/lg/log.do?td="
-            + params["td"]
-            + "&u="
-            + params["auth"]["userid"]
-            + "&cv=1.67.3&t=a&av=1.3.1"
+                self.portal_url_format
+                + "/lg/log.do?td="
+                + params["td"]
+                + "&u="
+                + params["auth"]["userid"]
+                + "&cv=1.67.3&t=a&av=1.3.1"
         ).format(continent=self.continent)
 
         try:
             with requests.post(
-                url, headers=headers, json=params, timeout=60, verify=verify_ssl
+                    url, headers=headers, json=params, timeout=60, verify=verify_ssl
             ) as response:
                 data = response.json()
                 if response.status_code != 200:
@@ -294,7 +293,7 @@ class EcoVacsJSON:
         else:
             if jsonstring["body"]["msg"] == "fail":
                 if (
-                    eventname == "charge"
+                        eventname == "charge"
                 ):  # So far only seen this with Charge, when already docked
                     jsonstring["event"] = "charge_state"
                 return

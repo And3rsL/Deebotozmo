@@ -25,13 +25,13 @@ COMPONENT_SIDE_BRUSH = 'sideBrush'
 COMPONENT_MAIN_BRUSH = 'brush'
 COMPONENT_FILTER = 'heap'
 
-CLEANING_STATES = {CLEAN_MODE_AUTO,CLEAN_MODE_CUSTOM_AREA, CLEAN_MODE_SPOT_AREA}
+CLEANING_STATES = {CLEAN_MODE_AUTO, CLEAN_MODE_CUSTOM_AREA, CLEAN_MODE_SPOT_AREA}
 CHARGING_STATES = {CHARGE_MODE_CHARGING}
 
 CLEAN_MODE_TO_ECOVACS = {
     CLEAN_MODE_AUTO: 'auto',
     CLEAN_MODE_SPOT_AREA: 'SpotArea',
-	CLEAN_MODE_CUSTOM_AREA: 'customArea'
+    CLEAN_MODE_CUSTOM_AREA: 'customArea'
 }
 
 CLEAN_ACTION_TO_ECOVACS = {
@@ -106,19 +106,19 @@ COMPONENT_FROM_ECOVACS = {
 }
 
 ROOMS_FROM_ECOVACS = {
-    0 : 'Default',
-    1 : 'Living Room',
-    2 : 'Dining Room',
-    3 : 'Bedroom',
-    4 : 'Study',
-    5 : 'Kitchen',
-    6 : 'Bathroom',
-    7 : 'Laundry',
-    8 : 'Lounge',
-    9 : 'Storeroom',
-    10 : 'Kids room',
-    11 : 'Sunroom',
-    12 : 'Corridor',
-    13 : 'Balcony',
-    14 : 'Gym'
+    0: 'Default',
+    1: 'Living Room',
+    2: 'Dining Room',
+    3: 'Bedroom',
+    4: 'Study',
+    5: 'Kitchen',
+    6: 'Bathroom',
+    7: 'Laundry',
+    8: 'Lounge',
+    9: 'Storeroom',
+    10: 'Kids room',
+    11: 'Sunroom',
+    12: 'Corridor',
+    13: 'Balcony',
+    14: 'Gym'
 }

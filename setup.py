@@ -1,4 +1,3 @@
-from codecs import open
 from os import path
 
 from setuptools import setup, find_packages
@@ -47,12 +46,11 @@ setup(
     install_requires=[
         "click>=6",
         "requests>=2.18",
-        "pycryptodome>=3.4",
         "paho-mqtt>=1.4",
         "numpy>=1.18.3",
         "Pillow>=7.1.2",
+        "urllib3>=1.26.4"
     ],
-    #'matplotlib>=3.2.1'
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # for example:
