@@ -1,10 +1,11 @@
 import logging
 import time
-from typing import Union, Optional
+from typing import Union, Optional, List
 
 import requests
 import urllib3
 
+from deebotozmo.models import Vacuum
 from deebotozmo.util import str_to_bool_or_cert, md5
 
 _LOGGER = logging.getLogger(__name__)
@@ -192,7 +193,7 @@ class EcovacsAPI:
             "resource": self.resource,
         }
 
-    def get_devices(self):
+    def get_devices(self) -> List[Vacuum]:
         data = {
             "userid": self.uid,
             "auth": self.get_request_auth(),
@@ -201,13 +202,16 @@ class EcovacsAPI:
         json = self.__call_portal_api(self.API_APPSVR_APP, data)
 
         if json["code"] == 0:
-            return json["devices"]
+            devices: List[Vacuum] = []
+            for device in json["devices"]:
+                devices.append(Vacuum(device))
+            return devices
         else:
             _LOGGER.error(f"call to {self.API_APPSVR_APP} failed with {json}")
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and parameters {data}")
 
-    def get_product_iot_map(self):
+    def get_product_iot_map(self) -> List[dict]:
         data = {
             "channel": "",
             "auth": self.get_request_auth(),
