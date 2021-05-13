@@ -1,5 +1,6 @@
 from deebotozmo import FAN_SPEED_TO_ECOVACS, FAN_SPEED_NORMAL, WATER_LEVEL_TO_ECOVACS, WATER_MEDIUM, \
-    CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, CLEAN_ACTION_RESUME, COMPONENT_TO_ECOVACS
+    CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, CLEAN_ACTION_RESUME, COMPONENT_MAIN_BRUSH, \
+    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER
 from deebotozmo.models import Vacuum
 
 
@@ -118,8 +119,8 @@ class GetCleanLogs(Command):
 
 class GetLifeSpan(Command):
 
-    def __init__(self, component: str):
-        super().__init__("getLifeSpan", [COMPONENT_TO_ECOVACS[component]])
+    def __init__(self):
+        super().__init__("getLifeSpan", [COMPONENT_MAIN_BRUSH, COMPONENT_SIDE_BRUSH, COMPONENT_FILTER])
 
 
 class GetCleanInfo(Command):

@@ -36,6 +36,7 @@ class Vacuum(dict):
     def get_class(self):
         return self["class"]
 
+
 class EventListener:
     """Object that allows event consumers to easily unsubscribe from events."""
 
