@@ -134,6 +134,10 @@ class VacBot:
             self._handle_charge_state(event_data)
         elif event_name == "lifespan":
             self._handle_life_span(event_data)
+        elif event_name == "cleanlogs":
+            self._handle_clean_logs(event_data)
+        elif event_name == "cleaninfo":
+            self._handle_clean_info(event_data)
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
@@ -232,3 +236,52 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not parse water info event with {event}")
 
+    def _handle_clean_logs(self, event):
+        response: Optional[List[dict]] = event.get("logs")
+
+        # Ecovacs API is changing their API, this request may not working properly
+        if response is not None and len(response) >= 0:
+            logs: List[CleanLogEntry] = []
+            for log in response:
+                logs.append(CleanLogEntry(
+                    timestamp= log.get("ts"),
+                    imageUrl=log.get("imageUrl"),
+                    type=log.get("type"),
+                    area=log.get("area"),
+                    stopReason=log.get("stopReason"),
+                    totalTime=log.get("last")
+                ))
+
+            self.cleanLogsEvents.notify(CleanLogEvent(logs))
+        else:
+            _LOGGER.warning(f"Could not parse clean logs event with {event}")
+
+    def _handle_clean_info(self, event):
+        response = event.get("body", {}).get("data", {})
+        status: Optional[str] = None
+        if response.get("state") == "clean":
+            if response.get("trigger") == "alert":
+                status = "STATE_ERROR"
+            elif response.get("trigger") in ["app","sched"]:
+                motion_state = response.get("cleanState", {}).get("motionState")
+                if motion_state == "working":
+                    status = "STATE_CLEANING"
+                elif motion_state == "pause":
+                    status = "STATE_PAUSED"
+                elif motion_state:
+                    status = "STATE_RETURNING"
+
+        if status:
+            self.vacuum_status = status
+            self.statusEvents.notify(StatusEvent(True, status))
+        else:
+            _LOGGER.warning(f"Could not parse clean info event with {event}")
+
+        # Todo handle this calls
+        # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
+        # if self.vacuum_status == "STATE_CLEANING":
+        #     self.refresh_stats()
+        #     self.refresh_components()
+        #
+        # if self.vacuum_status == "STATE_DOCKED":
+        #     self.refresh_cleanLogs()

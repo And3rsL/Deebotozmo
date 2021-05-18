@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 
 @dataclass
@@ -41,5 +41,21 @@ class LifeSpanEvent:
 
 @dataclass
 class WaterInfoEvent:
-    mop_attached: bool
+    mopAttached: bool
     amount: Optional[str]
+
+
+@dataclass
+class CleanLogEntry:
+    timestamp: Optional[int]
+    imageUrl: Optional[str]
+    type: Optional[str]
+    area: Optional[int]
+    stopReason: Optional[str]
+    totalTime: Optional[int]
+
+
+@dataclass
+class CleanLogEvent:
+    logs: List[CleanLogEntry]
+
