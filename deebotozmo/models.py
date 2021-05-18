@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import List
 
 
@@ -65,3 +66,9 @@ class EventEmitter:
     def notify(self, event):
         for subscriber in self._subscribers:
             subscriber.callback(event)
+
+
+@dataclass
+class Coordinate:
+    x: int
+    y: int

@@ -15,8 +15,8 @@ class VacBot:
             continent: str,
 
             country,
-            live_map_enabled=True,
-            show_rooms_color=False,
+            live_map_enabled: bool=True,
+            show_rooms_color: bool=False,
             verify_ssl=True,
     ):
         self.vacuum: Vacuum = vacuum
@@ -34,11 +34,7 @@ class VacBot:
 
         self.vacuum_status = None
 
-        # Map Components
-        self.__map = Map()
-        self.__map.draw_rooms = show_rooms_color
-
-        self.live_map_enabled = live_map_enabled
+        self._map: Optional[Map] = Map(show_rooms_color) if live_map_enabled else None
 
         self.errorEvents = EventEmitter()
         self.lifespanEvents = EventEmitter()
@@ -51,13 +47,9 @@ class VacBot:
         self.roomEvents = EventEmitter()
         self.livemapEvents = EventEmitter()
 
-    # todo better naming
-    def getSavedRooms(self):
-        return self.__map.rooms
-
-    # todo better naming
-    def getTypeRooms(self):
-        return ROOMS_FROM_ECOVACS
+    @property
+    def map(self) -> Optional[Map]:
+        return self._map
 
     def execute_command(self, command: Command):
         if command.name == CleanResume.name and self.vacuum_status != "STATE_PAUSED":
@@ -69,6 +61,8 @@ class VacBot:
         return response
 
     # ---------------------------- REFRESH ROUTINES ----------------------------
+
+    # todo add refresh map
 
     def refresh_components(self):
         _LOGGER.debug("[refresh_components] Begin")
@@ -138,6 +132,11 @@ class VacBot:
             self._handle_clean_logs(event_data)
         elif event_name == "cleaninfo":
             self._handle_clean_info(event_data)
+        elif "map" in event_name or event_name == "pos":
+            if self._map:
+                self._map.handle(event_name, event_data)
+            else:
+                _LOGGER.debug(f"Map disabled. Ignoring event: {event_name}")
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
