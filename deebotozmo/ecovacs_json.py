@@ -28,7 +28,7 @@ class EcovacsJSON:
     def send_command(self, command: Command, vacuum: Vacuum) -> dict:
         json, url = self._get_json_and_url(command, vacuum)
 
-        _LOGGER.debug(f"Calling IOT api with {json}")
+        _LOGGER.debug(f"Calling {url} with {json}")
 
         response_data = {}
         try:
@@ -58,7 +58,7 @@ class EcovacsJSON:
         json = {"auth": self._auth}
         url = self.portal_url
 
-        if command.name == GetCleanLogs.name:
+        if command.name == GetCleanLogs().name:
             json.update({
                 "td": command.name,
                 "did": vacuum.did,
