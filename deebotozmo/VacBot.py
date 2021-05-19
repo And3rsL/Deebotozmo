@@ -1,7 +1,13 @@
+import logging
+from typing import Union
+
 from deebotozmo import *
 from deebotozmo.commands import *
+from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, COMPONENT_FROM_ECOVACS, \
+    WATER_LEVEL_FROM_ECOVACS
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.events import *
+from deebotozmo.map import Map
 from deebotozmo.models import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,11 +19,9 @@ class VacBot:
             auth: dict,
             vacuum: Vacuum,
             continent: str,
-
-            country,
-            live_map_enabled: bool=True,
-            show_rooms_color: bool=False,
-            verify_ssl=True,
+            country: str,
+            live_map_enabled: bool = True,
+            verify_ssl: Union[bool, str] = True
     ):
         self.vacuum: Vacuum = vacuum
 
@@ -34,7 +38,7 @@ class VacBot:
 
         self.vacuum_status = None
 
-        self._map: Optional[Map] = Map(show_rooms_color) if live_map_enabled else None
+        self._map = Map(live_map_enabled, self.execute_command)
 
         self.errorEvents = EventEmitter()
         self.lifespanEvents = EventEmitter()
@@ -48,7 +52,7 @@ class VacBot:
         self.livemapEvents = EventEmitter()
 
     @property
-    def map(self) -> Optional[Map]:
+    def map(self) -> Map:
         return self._map
 
     def execute_command(self, command: Command):
@@ -133,10 +137,7 @@ class VacBot:
         elif event_name == "cleaninfo":
             self._handle_clean_info(event_data)
         elif "map" in event_name or event_name == "pos":
-            if self._map:
-                self._map.handle(event_name, event_data)
-            else:
-                _LOGGER.debug(f"Map disabled. Ignoring event: {event_name}")
+            self._map.handle(event_name, event_data)
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
@@ -243,7 +244,7 @@ class VacBot:
             logs: List[CleanLogEntry] = []
             for log in response:
                 logs.append(CleanLogEntry(
-                    timestamp= log.get("ts"),
+                    timestamp=log.get("ts"),
                     imageUrl=log.get("imageUrl"),
                     type=log.get("type"),
                     area=log.get("area"),
@@ -261,7 +262,7 @@ class VacBot:
         if response.get("state") == "clean":
             if response.get("trigger") == "alert":
                 status = "STATE_ERROR"
-            elif response.get("trigger") in ["app","sched"]:
+            elif response.get("trigger") in ["app", "sched"]:
                 motion_state = response.get("cleanState", {}).get("motionState")
                 if motion_state == "working":
                     status = "STATE_CLEANING"

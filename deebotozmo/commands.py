@@ -1,6 +1,6 @@
-from deebotozmo import FAN_SPEED_TO_ECOVACS, FAN_SPEED_NORMAL, WATER_LEVEL_TO_ECOVACS, WATER_MEDIUM, \
+from deebotozmo.constants import FAN_SPEED_TO_ECOVACS, FAN_SPEED_NORMAL, WATER_LEVEL_TO_ECOVACS, WATER_MEDIUM, \
     CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, CLEAN_ACTION_RESUME, COMPONENT_MAIN_BRUSH, \
-    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER
+    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER, MAP_TRACE_POINT_COUNT
 from deebotozmo.models import Vacuum
 
 
@@ -101,13 +101,13 @@ class CleanAbstractArea(Command):
 
 class CleanCustomArea(CleanAbstractArea):
 
-    def __init__(self, map_position: str, cleanings: int = 1):
+    def __init__(self, *, map_position: str, cleanings: int = 1):
         super().__init__(map_position, cleanings, "customArea")
 
 
 class CleanSpotArea(CleanAbstractArea):
 
-    def __init__(self, area: str, cleanings: int = 1):
+    def __init__(self, *, area: str, cleanings: int = 1):
         super().__init__(area, cleanings, "spotArea")
 
 
@@ -166,3 +166,42 @@ class GetStats(Command):
 
     def __init__(self):
         super().__init__("getStats")
+
+
+class GetMapTrace(Command):
+
+    def __init__(self, trace_start: int):
+        super().__init__("getMapTrace", {
+            "pointCount": MAP_TRACE_POINT_COUNT,
+            "traceStart": trace_start
+        })
+
+
+class GetMinorMap(Command):
+
+    def __init__(self, *, map_id: int, piece_index: int):
+        super().__init__("getMinorMap", {
+            "mid": map_id,
+            "type": "ol",
+            "pieceIndex": piece_index
+        })
+
+
+class GetMapSet(Command):
+
+    def __init__(self, map_id: int):
+        super().__init__("getMapSet", {
+            "mid": map_id,
+            "type": "ar"
+        })
+
+
+class GetMapSubSet(Command):
+
+    def __init__(self, *, map_id: int, map_set_id: int, map_type: str, map_subset_id: str):
+        super().__init__("getMapSubSet", {
+            "mid": map_id,
+            "msid": map_set_id,
+            "type": map_type,
+            "mssid": map_subset_id
+        })

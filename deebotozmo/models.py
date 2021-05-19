@@ -72,3 +72,10 @@ class EventEmitter:
 class Coordinate:
     x: int
     y: int
+
+
+@dataclass
+class Room:
+    subtype: str
+    id: int
+    values: str

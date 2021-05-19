@@ -3,13 +3,14 @@ import logging
 import lzma
 import struct
 from io import BytesIO
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
-from deebotozmo import ROOMS_FROM_ECOVACS
-from deebotozmo.models import Coordinate
+from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet
+from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT
+from deebotozmo.models import Coordinate, Room
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def _draw_position(position: Coordinate, png_str: str, im: Image, pixel_width: i
              icon.convert('RGBA'))
 
 
-def _calc_coordinate(value: Optional[int], pixel_width: int, offset: int):
+def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int):
     try:
         if value is not None:
             return (int(value) / pixel_width) + offset
@@ -60,53 +61,51 @@ class Map:
         "tracemap": "#FFFFFF"
     }
 
-    ROOM_COLORS = [
-        (238, 225, 235, 255),
-        (239, 236, 221, 255),
-        (228, 239, 223, 255),
-        (225, 234, 239, 255),
-        (238, 223, 216, 255),
-        (240, 228, 216, 255),
-        (233, 139, 157, 255),
-        (239, 200, 201, 255),
-        (201, 2019, 239, 255)
-    ]
-
     ROBOT_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="
     CHARGER_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAOCAYAAAAWo42rAAAAdUlEQVQoU2NkQAP/nzD8BwkxyjAwIkuhcEASRCmEKYKZhGwq3ER0ReiKSVOIyzRkU8EmwhUyKzAwSNyHyL9QZGD4+wDMBLmVEasimFHIiuEKpcHBhwmeQryBMJFohcjuw2s1SBKHZ8BWo/gauyshvobJEYoZAEOSPXnhzwZnAAAAAElFTkSuQmCC"
 
-    def __init__(self, draw_rooms: bool):
-        self._draw_rooms: bool = draw_rooms
+    def __init__(self, live_map_enabled: bool, execute_command: Callable[[Command], None]):
+        self._is_live_map_enabled = live_map_enabled
+        self._execute_command = execute_command
+
         self._robot_position: Optional[Coordinate] = None
         self._charger_position: Optional[Coordinate] = None
+        self._rooms: List[Room] = []
 
         self.buffer = np.zeros((64, 100, 100))
         self.mapPieces = np.empty(64, np.dtype('U100'))
         self.isMapUpdated = False
         self.base64Image = None
-        self.rooms = []
         self.traceValues = []
         self.draw_charger = False
         self.draw_robot = False
         self.resize_factor = 3
 
+    @property
+    def rooms(self) -> List[Room]:
+        return self._rooms
+
     # ---------------------------- EVENT HANDLING ----------------------------
 
     def handle(self, event_name: str, event_data: dict):
-        if event_name == "minormap":
-            self._handle_minor_map(event_data)
-        elif event_name == "majormap":
-            self._handle_major_map(event_data)
+        if event_name == "cachedmapinfo":
+            self._handle_cached_map_info(event_data)
         elif event_name == "mapset":
             self._handle_map_set(event_data)
         elif event_name == "mapsubset":
             self._handle_map_sub_set(event_data)
+        elif not self._is_live_map_enabled:
+            # above events must be processed always as they are needed to get room information's
+            _LOGGER.debug("Live map disabled. Skipping")
+            return
+        elif event_name == "minormap":
+            self._handle_minor_map(event_data)
+        elif event_name == "majormap":
+            self._handle_major_map(event_data)
         elif event_name == "pos":
             self._handle_position(event_data)
         elif event_name == "maptrace":
             self._handle_map_trace(event_data)
-        elif event_name == "cachedmapinfo":
-            self._handle_cached_map(event_data)
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
@@ -125,82 +124,73 @@ class Map:
         subtype = int(response["subtype"])
         value = response["value"]
 
-        self.rooms.append(
-            {
-                "subtype": ROOMS_FROM_ECOVACS[subtype],
-                "id": int(response["mssid"]),
-                "values": value,
-            }
+        self._rooms.append(
+            Room(
+                subtype=ROOMS_FROM_ECOVACS[subtype],
+                id=int(response["mssid"]),
+                values=value,
+            )
         )
 
     def _handle_map_trace(self, event):
         response = event["body"]["data"]
-        totalCount = int(response["totalCount"])
-        traceStart = int(response["traceStart"])
-        pointCount = 200
+        total_count = int(response["totalCount"])
+        trace_start = int(response["traceStart"])
 
-        # No trace value avaiable
+        # No trace value available
         if "traceValue" in response:
-            if traceStart == 0:
+            if trace_start == 0:
                 self.traceValues = []
 
             self._update_trace_points(response["traceValue"])
 
-            if (traceStart + pointCount) < totalCount:
-                self.exc_command(
-                    "getMapTrace",
-                    {"pointCount": pointCount, "traceStart": traceStart + pointCount},
-                )
+            trace_start += MAP_TRACE_POINT_COUNT
+            if trace_start < total_count:
+                self._execute_command(GetMapTrace(trace_start))
 
     def _handle_major_map(self, event):
-        _LOGGER.debug("_handle_major_map begin")
+        _LOGGER.debug("[_handle_major_map] begin")
         response = event["body"]["data"]
-
         values = response["value"].split(",")
 
         for i in range(64):
             if self._is_update_piece(i, values[i]):
-                _LOGGER.debug("MapPiece" + str(i) + " needs to be updated")
-                self.exc_command(
-                    "getMinorMap",
-                    {"mid": response["mid"], "type": "ol", "pieceIndex": i},
-                )
+                _LOGGER.debug(f"[_handle_major_map] MapPiece {i} needs to be updated")
+                self._execute_command(GetMinorMap(
+                    map_id=response["mid"],
+                    piece_index=i
+                ))
 
-    def _handle_cached_map(self, event):
+    def _handle_cached_map_info(self, event):
         response = event["body"]["data"]
 
         try:
-            mapid = None
-            for mapstatus in response["info"]:
-                if mapstatus["using"] == 1:
-                    mapid = mapstatus["mid"]
+            map_id = None
+            for map_status in response["info"]:
+                if map_status["using"] == 1:
+                    map_id = map_status["mid"]
+                    _LOGGER.debug(f"[_handle_cached_map] Using Map: {map_id}")
 
-                    # IF MAP CHANGED WE SHOULD REFRESH ROOMS
-                    if self.inuse_mapid != mapid:
-                        self.inuse_mapid = mapid
-                        self.refresh_rooms()
-
-                    _LOGGER.debug("Using Map: " + str(mapid))
-
-            self.rooms = []
-            self.exc_command("getMapSet", {"mid": mapid, "type": "ar"})
-        except:
-            _LOGGER.warning(
-                "MapID not found -- did you finish your first auto cleaning?"
-            )
+            self._rooms = []
+            self._execute_command(GetMapSet(map_id))
+        except Exception as e:
+            _LOGGER.debug("[_handle_cached_map] Exception thrown", e)
+            _LOGGER.warning("[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?")
 
     def _handle_map_set(self, event):
         response = event["body"]["data"]
 
-        mid = response["mid"]
-        msid = response["msid"]
-        typemap = response["type"]
+        map_id = response["mid"]
+        map_set_id = response["msid"]
+        map_type = response["type"]
 
-        for s in response["subsets"]:
-            self.exc_command(
-                "getMapSubSet",
-                {"mid": mid, "msid": msid, "type": typemap, "mssid": s["mssid"]},
-            )
+        for subset in response["subsets"]:
+            self._execute_command(GetMapSubSet(
+                map_id=map_id,
+                map_set_id=map_set_id,
+                map_type=map_type,
+                map_subset_id=subset["mssid"]
+            ))
 
     # ---------------------------- METHODS ----------------------------
 
@@ -238,39 +228,6 @@ class Map:
             self._charger_position = current_value
         else:
             self._robot_position = current_value
-
-    def _drawing_rooms(self, im: Image, draw: ImageDraw, pixel_width: int, offset: int):
-        num = 0
-        _LOGGER.debug("Draw rooms")
-
-        for room in self.rooms:
-            _LOGGER.debug(f"Draw room: {num}")
-            coords = room['values'].split(';')
-            list_cord = []
-            sum_x = 0
-            sum_y = 0
-
-            for cord in coords:
-                xy: List[int] = cord.split(',')
-
-                x = _calc_coordinate(xy[0], pixel_width, offset)
-                y = _calc_coordinate(xy[1], pixel_width, offset)
-
-                list_cord.append(x)
-                list_cord.append(y)
-
-                # Sum for center point
-                sum_x = sum_x + x
-                sum_y = sum_y + y
-
-            draw.line(list_cord, fill=(255, 0, 0), width=1)
-
-            center_x = sum_x / len(coords)
-            center_y = sum_y / len(coords)
-
-            ImageDraw.floodfill(im, xy=(center_x, center_y), value=Map.ROOM_COLORS[num % len(Map.ROOM_COLORS)])
-            draw.line(list_cord, fill=(0, 0, 0, 0), width=1)
-            num += 1
 
     def _is_update_piece(self, index: int, map_piece):
         _LOGGER.debug(f"[_is_update_piece] Check {index} {map_piece}")
@@ -317,9 +274,6 @@ class Map:
         im = Image.new("RGBA", (6400, 6400))
         draw = ImageDraw.Draw(im)
 
-        if self._draw_rooms:
-            self._drawing_rooms(im, draw, pixel_width, offset)
-
         _LOGGER.debug("[get_base64_map] Draw Map")
         image_x = 0
         image_y = 0
@@ -339,10 +293,10 @@ class Map:
                     if (point_x > 6400) or (point_y > 6400):
                         _LOGGER.error(f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}")
 
-                    type = self.buffer[i][x][y]
-                    if type in [0x01, 0x02, 0x03]:
+                    pixel_type = self.buffer[i][x][y]
+                    if pixel_type in [0x01, 0x02, 0x03]:
                         if im.getpixel((point_x, point_y)) == (0, 0, 0, 0):
-                            draw.point((point_x, point_y), fill=Map.COLORS[type])
+                            draw.point((point_x, point_y), fill=Map.COLORS[pixel_type])
 
         # Draw Trace Route
         if len(self.traceValues) > 0:

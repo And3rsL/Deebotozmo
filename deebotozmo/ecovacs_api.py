@@ -66,7 +66,8 @@ class EcovacsAPI:
             self.uid = login_response["userId"]
         _LOGGER.debug("EcovacsAPI connection complete")
 
-    def __get_signed_md5(self, data: dict) -> str:
+    @staticmethod
+    def __get_signed_md5(data: dict) -> str:
         sign_on_text = (
                 EcovacsAPI.CLIENT_KEY
                 + "".join([k + "=" + str(data[k]) for k in sorted(data.keys())])

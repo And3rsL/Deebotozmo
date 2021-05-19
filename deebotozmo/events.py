@@ -58,4 +58,3 @@ class CleanLogEntry:
 @dataclass
 class CleanLogEvent:
     logs: List[CleanLogEntry]
-
