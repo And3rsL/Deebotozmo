@@ -17,35 +17,6 @@ this.
 To get started, you'll need to have already set up an EcoVacs account
 using your smartphone.
 
-With that ready, step one is to log in:
-```
-    % deebotozmo createconfig
-    Ecovacs app email: [your email]
-    Ecovacs app password: [your password]
-    your two-letter country code: us
-    your two-letter continent code: na
-    Config saved.
-```
-
-That creates a config file in a platform-appropriate place. The password
-is hashed before saving, so it's reasonably safe. (If it doesn't appear
-to work for your continent, try "ww", their world-wide catchall.)
-
-With that set up, you could have it clean in auto mode for 10 minutes
-and return to its charger:
-
-```
-    % deebotozmo clean
-```
-
-To tell it to go plug in:
-
-```
-    % deebotozmo charge
-```
-
-## Library use
-
 You are welcome to try using this as a python library for other efforts.
 A simple usage might go something like this:
 
