@@ -8,7 +8,7 @@ class StatsEvent:
     cid: Optional[str]
     time: Optional[int]
     type: Optional[str]
-    content: Optional[str]
+    start: Optional[int]
 
 
 @dataclass

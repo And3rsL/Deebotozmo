@@ -3,7 +3,7 @@ import logging
 import lzma
 import struct
 from io import BytesIO
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Union
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
@@ -71,12 +71,12 @@ class Map:
         self._robot_position: Optional[Coordinate] = None
         self._charger_position: Optional[Coordinate] = None
         self._rooms: List[Room] = []
+        self._traceValues: List[int] = []
+        self._map_pieces = np.empty(64, np.dtype('U100'))
 
         self.buffer = np.zeros((64, 100, 100))
-        self.mapPieces = np.empty(64, np.dtype('U100'))
         self.isMapUpdated = False
         self.base64Image = None
-        self.traceValues = []
         self.draw_charger = False
         self.draw_robot = False
         self.resize_factor = 3
@@ -109,67 +109,60 @@ class Map:
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
-    def _handle_position(self, event):
-        response = event["body"]["data"]
+    def _handle_position(self, event_data: dict):
+        self._update_position(event_data.get("chargePos", {}), True)
+        self._update_position(event_data.get("deebotPos", {}), False)
 
-        self._update_position(response.get("chargePos", {}), True)
-        self._update_position(response.get("deebotPos", {}), False)
+    def _handle_minor_map(self, event_data: dict):
+        self._add_map_piece(event_data["pieceIndex"], event_data["pieceValue"])
 
-    def _handle_minor_map(self, event):
-        response = event["body"]["data"]
-        self._add_map_piece(response["pieceIndex"], response["pieceValue"])
-
-    def _handle_map_sub_set(self, event):
-        response = event["body"]["data"]
-        subtype = int(response["subtype"])
-        value = response["value"]
+    def _handle_map_sub_set(self, event_data: dict):
+        subtype = int(event_data["subtype"])
+        value = event_data["value"]
 
         self._rooms.append(
             Room(
                 subtype=ROOMS_FROM_ECOVACS[subtype],
-                id=int(response["mssid"]),
+                id=int(event_data["mssid"]),
                 values=value,
             )
         )
 
-    def _handle_map_trace(self, event):
-        response = event["body"]["data"]
-        total_count = int(response["totalCount"])
-        trace_start = int(response["traceStart"])
+    def _handle_map_trace(self, event_data: dict):
+        total_count = int(event_data["totalCount"])
+        trace_start = int(event_data["traceStart"])
 
         # No trace value available
-        if "traceValue" in response:
+        if "traceValue" in event_data:
             if trace_start == 0:
-                self.traceValues = []
+                self._traceValues = []
 
-            self._update_trace_points(response["traceValue"])
+            self._update_trace_points(event_data["traceValue"])
 
             trace_start += MAP_TRACE_POINT_COUNT
             if trace_start < total_count:
                 self._execute_command(GetMapTrace(trace_start))
 
-    def _handle_major_map(self, event):
+    def _handle_major_map(self, event_data: dict):
         _LOGGER.debug("[_handle_major_map] begin")
-        response = event["body"]["data"]
-        values = response["value"].split(",")
+        values = event_data["value"].split(",")
 
         for i in range(64):
             if self._is_update_piece(i, values[i]):
                 _LOGGER.debug(f"[_handle_major_map] MapPiece {i} needs to be updated")
                 self._execute_command(GetMinorMap(
-                    map_id=response["mid"],
+                    map_id=event_data["mid"],
                     piece_index=i
                 ))
 
-    def _handle_cached_map_info(self, event):
-        response = event["body"]["data"]
-
+    def _handle_cached_map_info(self, event_data: dict):
         try:
             map_id = None
-            for map_status in response["info"]:
+            for map_status in event_data["info"]:
                 if map_status["using"] == 1:
                     map_id = map_status["mid"]
                     _LOGGER.debug(f"[_handle_cached_map] Using Map: {map_id}")
+                    break
 
             self._rooms = []
             self._execute_command(GetMapSet(map_id))
@@ -177,14 +170,12 @@ class Map:
             _LOGGER.debug("[_handle_cached_map] Exception thrown", e)
             _LOGGER.warning("[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?")
 
-    def _handle_map_set(self, event):
-        response = event["body"]["data"]
+    def _handle_map_set(self, event_data: dict):
+        map_id = event_data["mid"]
+        map_set_id = event_data["msid"]
+        map_type = event_data["type"]
 
-        map_id = response["mid"]
-        map_set_id = response["msid"]
-        map_type = response["type"]
-
-        for subset in response["subsets"]:
+        for subset in event_data["subsets"]:
             self._execute_command(GetMapSubSet(
                 map_id=map_id,
                 map_set_id=map_set_id,
@@ -203,9 +194,12 @@ class Map:
         self.buffer[map_piece] = piece
         _LOGGER.debug("[AddMapPiece] Done")
 
-    def _update_position(self, new_values: dict, is_charger: bool):
+    def _update_position(self, new_values: Union[dict, list], is_charger: bool):
         current_value: Coordinate = self._charger_position if is_charger else self._robot_position
         name = "charger" if is_charger else "robot"
+        if isinstance(new_values, list):
+            new_values = new_values[0]
+
         x = new_values.get("x")
         y = new_values.get("y")
 
@@ -233,8 +227,8 @@ class Map:
         _LOGGER.debug(f"[_is_update_piece] Check {index} {map_piece}")
         value = f"{index}-{map_piece}"
 
-        if self.mapPieces[index] != value:
-            self.mapPieces[index] = value
+        if self._map_pieces[index] != value:
+            self._map_pieces[index] = value
 
             if str(map_piece) != '1295764014':
                 self.isMapUpdated = False
@@ -247,18 +241,17 @@ class Map:
     def _update_trace_points(self, data):
         _LOGGER.debug("[_update_trace_points] Begin")
         trace_points = _decompress_7z_base64_data(data)
-        h = "h" * 1
 
         for i in range(0, len(trace_points), 5):
-            byte_position_x = struct.unpack('<' + h, trace_points[i:i + 2])
-            byte_position_y = struct.unpack('<' + h, trace_points[i + 2:i + 4])
+            byte_position_x = struct.unpack("<h", trace_points[i:i + 2])
+            byte_position_y = struct.unpack("<h", trace_points[i + 2:i + 4])
 
             # Add To List
             position_x = (int(byte_position_x[0] / 5)) + 400
             position_y = (int(byte_position_y[0] / 5)) + 400
 
-            self.traceValues.append(position_x)
-            self.traceValues.append(position_y)
+            self._traceValues.append(position_x)
+            self._traceValues.append(position_y)
 
         _LOGGER.debug("[_update_trace_points] finish")
 
@@ -299,9 +292,9 @@ class Map:
                             draw.point((point_x, point_y), fill=Map.COLORS[pixel_type])
 
         # Draw Trace Route
-        if len(self.traceValues) > 0:
+        if len(self._traceValues) > 0:
             _LOGGER.debug("[get_base64_map] Draw Trace")
-            draw.line(self.traceValues, fill=Map.COLORS['tracemap'], width=1)
+            draw.line(self._traceValues, fill=Map.COLORS['tracemap'], width=1)
 
         del draw
 

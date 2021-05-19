@@ -1,5 +1,5 @@
-from deebotozmo.constants import FAN_SPEED_TO_ECOVACS, FAN_SPEED_NORMAL, WATER_LEVEL_TO_ECOVACS, WATER_MEDIUM, \
-    CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, CLEAN_ACTION_RESUME, COMPONENT_MAIN_BRUSH, \
+from deebotozmo.constants import FAN_SPEED_TO_ECOVACS, WATER_LEVEL_TO_ECOVACS, CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, \
+    CLEAN_ACTION_RESUME, COMPONENT_MAIN_BRUSH, \
     COMPONENT_SIDE_BRUSH, COMPONENT_FILTER, MAP_TRACE_POINT_COUNT
 from deebotozmo.models import Vacuum
 
@@ -25,7 +25,7 @@ class SetFanSpeed(Command):
 
     def __init__(self, speed: str):
         super().__init__("setSpeed", {
-            "speed": FAN_SPEED_TO_ECOVACS.get(speed, FAN_SPEED_NORMAL)
+            "speed": FAN_SPEED_TO_ECOVACS.get(speed, 0)
         })
 
 
@@ -33,7 +33,7 @@ class SetWaterLevel(Command):
 
     def __init__(self, amount: str):
         super().__init__("setWaterInfo", {
-            "amount": WATER_LEVEL_TO_ECOVACS.get(amount, WATER_MEDIUM),
+            "amount": WATER_LEVEL_TO_ECOVACS.get(amount, 2),
             "enable": 0
         })
 
@@ -127,7 +127,7 @@ class GetCleanInfo(Command):
 
     def __init__(self, vacuum: Vacuum):
         command_name = "getCleanInfo"
-        if vacuum.get_class in ["bs40nz", "a1nNMoAGAsH", "vdehg6", "no61kx"]:
+        if vacuum and vacuum.get_class in ["bs40nz", "a1nNMoAGAsH", "vdehg6", "no61kx"]:
             command_name = "getCleanInfo_V2"
         super().__init__(command_name)
 
@@ -170,7 +170,7 @@ class GetStats(Command):
 
 class GetMapTrace(Command):
 
-    def __init__(self, trace_start: int):
+    def __init__(self, trace_start: int = 0):
         super().__init__("getMapTrace", {
             "pointCount": MAP_TRACE_POINT_COUNT,
             "traceStart": trace_start
@@ -205,3 +205,15 @@ class GetMapSubSet(Command):
             "type": map_type,
             "mssid": map_subset_id
         })
+
+
+class GetPos(Command):
+
+    def __init__(self):
+        super().__init__("getPos", ["chargePos", "deebotPos"])
+
+
+class GetMajorMap(Command):
+
+    def __init__(self):
+        super().__init__("getMajorMap")

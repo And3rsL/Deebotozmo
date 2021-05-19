@@ -1,10 +1,10 @@
 import logging
 from typing import Union
 
-from deebotozmo import *
 from deebotozmo.commands import *
 from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, COMPONENT_FROM_ECOVACS, \
     WATER_LEVEL_FROM_ECOVACS
+from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.events import *
 from deebotozmo.map import Map
@@ -20,6 +20,7 @@ class VacBot:
             vacuum: Vacuum,
             continent: str,
             country: str,
+            *,
             live_map_enabled: bool = True,
             verify_ssl: Union[bool, str] = True
     ):
@@ -48,8 +49,6 @@ class VacBot:
         self.batteryEvents = EventEmitter()
         self.statusEvents = EventEmitter()
         self.statsEvents = EventEmitter()
-        self.roomEvents = EventEmitter()
-        self.livemapEvents = EventEmitter()
 
     @property
     def map(self) -> Map:
@@ -60,13 +59,15 @@ class VacBot:
             command = CleanStart()
 
         response = self.json.send_command(command, self.vacuum)
-        # self.handle(command.name, response)
-        # todo only for debug return response
-        return response
+        self.handle(command.name, response)
 
     # ---------------------------- REFRESH ROUTINES ----------------------------
 
-    # todo add refresh map
+    def refresh_map(self):
+        _LOGGER.debug("[refresh_map] Begin")
+        self.execute_command(GetMapTrace())
+        self.execute_command(GetPos())
+        self.execute_command(GetMajorMap())
 
     def refresh_components(self):
         _LOGGER.debug("[refresh_components] Begin")
@@ -89,7 +90,7 @@ class VacBot:
         self.execute_command(GetStats())
 
     def refresh_clean_logs(self):
-        _LOGGER.debug("[refresh_cleanLogs] Begin")
+        _LOGGER.debug("[refresh_clean_logs] Begin")
         self.execute_command(GetCleanLogs())
 
     def refresh_all(self):
@@ -101,8 +102,8 @@ class VacBot:
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    def handle(self, event_name: str, event_data: dict):
-        _LOGGER.debug(f"Handle {event_name} with {event_data}")
+    def handle(self, event_name: str, event: dict):
+        _LOGGER.debug(f"Handle {event_name}: {event}")
         event_name = event_name.lower()
 
         prefixes = [
@@ -114,52 +115,68 @@ class VacBot:
 
         for prefix in prefixes:
             if event_name.startswith(prefix):
-                event_name = event_data[len(prefix):]
+                event_name = event_name[len(prefix):]
 
         # OZMO T8 series and newer
         if event_name.endswith("_V2".lower()):
             event_name = event_name[:-3]
 
+        if event_name == "error":
+            self._handle_error(event)
+            return
+        elif event.get("ret") == "ok":
+            event_body = event.get("resp", {}).get("body", {})
+            event_data = event_body.get("data", {})
+        else:
+            _LOGGER.warning(f"Event {event_name} where ret != \"ok\": {event}")
+            return
+
         if event_name == "stats":
-            self._handle_stats(event_data)
+            self._handle_stats(event_body, event_data)
         elif event_name == "error":
-            self._handle_error(event_data)
+            self._handle_error(event)
         elif event_name == "speed":
             self._handle_fan_speed(event_data)
         elif event_name.startswith("battery"):
             self._handle_battery(event_data)
         elif event_name == "chargestate":
-            self._handle_charge_state(event_data)
+            self._handle_charge_state(event_body)
         elif event_name == "lifespan":
             self._handle_life_span(event_data)
         elif event_name == "cleanlogs":
-            self._handle_clean_logs(event_data)
+            self._handle_clean_logs(event)
         elif event_name == "cleaninfo":
             self._handle_clean_info(event_data)
+        elif event_name == "waterinfo":
+            self._handle_water_info(event_data)
         elif "map" in event_name or event_name == "pos":
             self._map.handle(event_name, event_data)
+        elif event_name.startswith("set"):
+            # ignore set commands for now
+            pass
+        elif event_name in ["playsound", "charge", "clean"]:
+            # ignore this events
+            pass
         else:
-            _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
+            _LOGGER.debug(f"Unknown event: {event_name} with {event}")
 
-    def _handle_stats(self, event):
-        code = event["body"]["code"]
+    def _handle_stats(self, event_body: dict, event_data: dict):
+        code = event_body.get("code")
         if code != 0:
             _LOGGER.error(f"Error in finding stats, status code={code}")  # Log this so we can identify more errors
             return
 
-        data: dict = event["body"]["data"]
-
         stats_event = StatsEvent(
-            data.get("area"),
-            data.get("cid"),
-            data.get("time"),
-            data.get("type"),
-            data.get("content")
+            event_data.get("area"),
+            event_data.get("cid"),
+            event_data.get("time"),
+            event_data.get("type"),
+            event_data.get("start")
         )
 
         self.statsEvents.notify(stats_event)
 
-    def _handle_error(self, event):
+    def _handle_error(self, event: dict):
         error = None
         if "error" in event:
             error = event["error"]
@@ -172,50 +189,42 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not process error event with received data: {event}")
 
-    def _handle_fan_speed(self, event):
-        response = event["body"]["data"]
-        speed = FAN_SPEED_FROM_ECOVACS.get(response.get("speed"))
+    def _handle_fan_speed(self, event_data: dict):
+        speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed"))
 
         if speed:
             self.fanspeedEvents.notify(FanSpeedEvent(speed))
         else:
-            _LOGGER.warning(f"Could not process fan speed event with received data: {event}")
+            _LOGGER.warning(f"Could not process fan speed event with received data: {event_data}")
 
-    def _handle_battery(self, event):
-        response = event["body"]
+    def _handle_battery(self, event_data: dict):
         try:
-            self.batteryEvents.notify(BatteryEvent(response["data"]["value"]))
+            self.batteryEvents.notify(BatteryEvent(event_data["value"]))
         except ValueError:
-            _LOGGER.warning("couldn't parse battery status " + response)
+            _LOGGER.warning(f"couldn't parse battery status: {event_data}")
 
-    def _handle_charge_state(self, event):
-        response = event["body"]
+    def _handle_charge_state(self, event_body: dict):
         status = None
 
-        if response["code"] == 0:
-            if response["data"]["isCharging"] == 1:
+        if event_body["code"] == 0:
+            if event_body["data"]["isCharging"] == 1:
                 status = STATE_DOCKED
         else:
-            if response["msg"] == "fail":
-                if response["code"] == "30007":  # Already charging
+            if event_body["msg"] == "fail":
+                if event_body["code"] == "30007":  # Already charging
                     status = STATE_DOCKED
-                elif response["code"] == "5":  # Busy with another command
+                elif event_body["code"] == "5":  # Busy with another command
                     status = STATE_ERROR
-                elif response["code"] == "3":  # Bot in stuck state, example dust bin out
+                elif event_body["code"] == "3":  # Bot in stuck state, example dust bin out
                     status = STATE_ERROR
 
         if status:
             self.vacuum_status = status
             self.statusEvents.notify(StatusEvent(True, status))
-        else:
-            # todo should we set here STATE_ERROR?
-            _LOGGER.error(f"Unknown charging status '{response.get('code')}'")
 
-    def _handle_life_span(self, event):
-        components = event["body"]["data"]
-
+    def _handle_life_span(self, event_data: dict):
         component: dict
-        for component in components:
+        for component in event_data:
             component_type = COMPONENT_FROM_ECOVACS.get(component.get("type"))
             left = component.get("left")
             total = component.get("total")
@@ -224,17 +233,16 @@ class VacBot:
                 percent = (int(left) / int(total)) * 100
                 self.lifespanEvents.notify(LifeSpanEvent(component_type, percent))
             else:
-                _LOGGER.warning(f"Could not parse life span event with {event}")
+                _LOGGER.warning(f"Could not parse life span event with {event_data}")
 
-    def _handle_water_info(self, event):
-        response = event["body"]["data"]
-        amount = response.get("amount")
-        mop_attached = bool(response.get("enable"))
+    def _handle_water_info(self, event_data: dict):
+        amount = event_data.get("amount")
+        mop_attached = bool(event_data.get("enable"))
 
-        if amount and mop_attached:
+        if amount:
             self.waterEvents.notify(WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount)))
         else:
-            _LOGGER.warning(f"Could not parse water info event with {event}")
+            _LOGGER.warning(f"Could not parse water info event with {event_data}")
 
     def _handle_clean_logs(self, event):
         response: Optional[List[dict]] = event.get("logs")
@@ -256,14 +264,13 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not parse clean logs event with {event}")
 
-    def _handle_clean_info(self, event):
-        response = event.get("body", {}).get("data", {})
+    def _handle_clean_info(self, event_data: dict):
         status: Optional[str] = None
-        if response.get("state") == "clean":
-            if response.get("trigger") == "alert":
+        if event_data.get("state") == "clean":
+            if event_data.get("trigger") == "alert":
                 status = "STATE_ERROR"
-            elif response.get("trigger") in ["app", "sched"]:
-                motion_state = response.get("cleanState", {}).get("motionState")
+            elif event_data.get("trigger") in ["app", "sched"]:
+                motion_state = event_data.get("cleanState", {}).get("motionState")
                 if motion_state == "working":
                     status = "STATE_CLEANING"
                 elif motion_state == "pause":
@@ -274,8 +281,6 @@ class VacBot:
         if status:
             self.vacuum_status = status
             self.statusEvents.notify(StatusEvent(True, status))
-        else:
-            _LOGGER.warning(f"Could not parse clean info event with {event}")
 
         # Todo handle this calls
         # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
