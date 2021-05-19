@@ -32,7 +32,7 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.8",
     ],
     # What does your project relate to?
     keywords="home automation vacuum robot",
@@ -54,9 +54,9 @@ setup(
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    extras_require={
-        "dev": ["nose", "requests-mock>=1.3"],
-    },
+    # extras_require={
+    #     "dev": ["nose", "requests-mock>=1.3"],
+    # },
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
@@ -66,9 +66,9 @@ setup(
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
-    entry_points={
-        "console_scripts": [
-            "deebotozmo=deebotozmo.cli:cli",
-        ],
-    },
+    # entry_points={
+    #     "console_scripts": [
+    #         "deebotozmo=deebotozmo.cli:cli",
+    #     ],
+    # },
 )
