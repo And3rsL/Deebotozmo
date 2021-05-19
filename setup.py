@@ -44,7 +44,6 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        "click>=6",
         "requests>=2.18",
         "paho-mqtt>=1.4",
         "numpy>=1.18.3",
