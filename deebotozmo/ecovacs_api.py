@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class EcovacsAPI:
     CLIENT_KEY = "1520391301804"
-    SECRET = "6c319b2a5cd3e66e39159c2e28f2fce9"
+    CLIENT_SECRET = "6c319b2a5cd3e66e39159c2e28f2fce9"
     MAIN_URL_FORMAT = "https://gl-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/{appVersion}/{channel}/{deviceType}"
     USER_URL_FORMAT = "https://users-{continent}.ecouser.net:8000/user.do"
     PORTAL_URL_FORMAT = "https://portal-{continent}.ecouser.net/api"
@@ -67,25 +67,25 @@ class EcovacsAPI:
         _LOGGER.debug("EcovacsAPI connection complete")
 
     @staticmethod
-    def __get_signed_md5(data: dict) -> str:
+    def __get_signed_md5(data: dict, key: str, secret: str) -> str:
         sign_on_text = (
-                EcovacsAPI.CLIENT_KEY
+                key
                 + "".join([k + "=" + str(data[k]) for k in sorted(data.keys())])
-                + EcovacsAPI.SECRET
+                + secret
         )
         return md5(sign_on_text)
 
     def __sign(self, params):
         result = {**params, "authTimespan": int(time.time() * 1000), "authTimeZone": "GMT-8"}
         sign_data = {**self.meta, **result}
-        result["authSign"] = self.__get_signed_md5(sign_data)
+        result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.CLIENT_KEY, EcovacsAPI.CLIENT_SECRET)
         result["authAppkey"] = EcovacsAPI.CLIENT_KEY
         return result
 
     def __sign_auth(self, params: dict) -> dict:
         result = {**params, "authTimespan": int(time.time() * 1000)}
         sign_data = {**result, "openId": "global"}
-        result["authSign"] = self.__get_signed_md5(sign_data)
+        result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.AUTH_CLIENT_KEY, EcovacsAPI.AUTH_CLIENT_SECRET)
         result["authAppkey"] = EcovacsAPI.AUTH_CLIENT_KEY
         return result
 
