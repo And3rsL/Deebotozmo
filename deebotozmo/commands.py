@@ -1,6 +1,6 @@
 from deebotozmo.constants import FAN_SPEED_TO_ECOVACS, WATER_LEVEL_TO_ECOVACS, CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, \
     CLEAN_ACTION_RESUME, COMPONENT_MAIN_BRUSH, \
-    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER, MAP_TRACE_POINT_COUNT
+    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER, MAP_TRACE_POINT_COUNT, CLEAN_ACTION_STOP
 from deebotozmo.models import Vacuum
 
 
@@ -85,6 +85,14 @@ class CleanResume(Command):
     def __init__(self):
         super().__init__("clean", {
             "act": CLEAN_ACTION_RESUME
+        })
+
+
+class CleanStop(Command):
+
+    def __init__(self):
+        super().__init__("clean", {
+            "act": CLEAN_ACTION_STOP
         })
 
 

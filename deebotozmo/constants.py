@@ -5,6 +5,7 @@ CLEAN_MODE_CUSTOM_AREA = 'customArea'
 CLEAN_ACTION_START = 'start'
 CLEAN_ACTION_PAUSE = 'pause'
 CLEAN_ACTION_RESUME = 'resume'
+CLEAN_ACTION_STOP = 'stop'
 
 FAN_SPEED_QUIET = 'quiet'
 FAN_SPEED_NORMAL = 'normal'
