@@ -2,7 +2,8 @@ import datetime
 import logging
 from typing import Union
 
-import requests
+import aiohttp
+from aiohttp import ClientResponseError
 
 from deebotozmo.commands import Command, GetCleanLogs
 from deebotozmo.models import Vacuum
@@ -17,42 +18,42 @@ class EcovacsJSON:
 
     def __init__(
             self,
+            session: aiohttp.ClientSession,
             auth: dict,
             portal_url: str,
             verify_ssl: Union[bool, str],
     ):
+        self._session = session
         self._auth = auth
         self.portal_url = portal_url
         self.verify_ssl = verify_ssl
 
-    def send_command(self, command: Command, vacuum: Vacuum) -> dict:
+    async def send_command(self, command: Command, vacuum: Vacuum) -> dict:
         json, url = self._get_json_and_url(command, vacuum)
 
         _LOGGER.debug(f"Calling {url} with {json}")
 
-        response_data = {}
         try:
-            with requests.post(
-                    url, headers=EcovacsJSON.REQUEST_HEADERS, json=json, timeout=60, verify=self.verify_ssl
-            ) as response:
-                if response.status_code == 502:
-                    _LOGGER.info("Error calling API (502): Unfortunately the ecovacs api is unreliable.")
-                    _LOGGER.debug(f"URL was: {str(url)}")
-                    return {}
-                elif response.status_code != 200:
-                    _LOGGER.warning(f"Error calling API ({response.status_code}): {str(url)}")
+            # todo use maybe async_timeout?
+            async with self._session.post(
+                    url, headers=EcovacsJSON.REQUEST_HEADERS, json=json, timeout=60, ssl=self.verify_ssl
+            ) as res:
+                res.raise_for_status()
+                if res.status != 200:
+                    _LOGGER.warning(f"Error calling API ({res.status}): {str(url)}")
                     return {}
 
-                response_data = response.json()
-                _LOGGER.debug(f"Got {response_data}")
-        except requests.exceptions.HTTPError as errh:
-            _LOGGER.debug("Http Error: " + str(errh))
-        except requests.exceptions.ConnectionError as errc:
-            _LOGGER.debug("Error Connecting: " + str(errc))
-        except requests.exceptions.Timeout as errt:
-            _LOGGER.debug("Timeout Error: " + str(errt))
+                json = await res.json()
+                _LOGGER.debug(f"Got {json}")
+                return json
+        except ClientResponseError as err:
+            if err.status == 502:
+                _LOGGER.info("Error calling API (502): Unfortunately the ecovacs api is unreliable. "
+                             f"URL was: {str(url)}")
+            else:
+                _LOGGER.warning(f"Error calling API ({err.status}): {str(url)}")
 
-        return response_data
+        return {}
 
     def _get_json_and_url(self, command: Command, vacuum: Vacuum) -> (dict, str):
         json = {"auth": self._auth}

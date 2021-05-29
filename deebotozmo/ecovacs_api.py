@@ -41,7 +41,7 @@ class EcovacsAPI:
     }
 
     def __init__(
-            self, web_session: aiohttp.ClientSession, device_id: str, account_id: str, password_hash: str,
+            self, session: aiohttp.ClientSession, device_id: str, account_id: str, password_hash: str,
             country: str, continent: str, verify_ssl: Union[bool, str] = True
     ):
         self.meta = {**EcovacsAPI.META,
@@ -49,7 +49,7 @@ class EcovacsAPI:
                      "deviceId": device_id,
                      }
 
-        self._web_session = web_session
+        self._session = session
         self.verify_ssl = str_to_bool_or_cert(verify_ssl)
 
         self.resource = device_id[0:8]
@@ -60,14 +60,14 @@ class EcovacsAPI:
         self._password_hash = password_hash
         self._login_information: Optional[EcovacsAPI.LoginInformation] = None
 
-    async def async_login(self):
+    async def login(self):
         _LOGGER.debug("Start login to EcovacsAPI")
-        login_info = await self.__async_call_login_api(self.account_id, self._password_hash)
+        login_info = await self.__call_login_api(self.account_id, self._password_hash)
         user_id = login_info["uid"]
 
-        auth_code = await self.__async_call_auth_api(login_info["accessToken"], user_id)
+        auth_code = await self.__call_auth_api(login_info["accessToken"], user_id)
 
-        login_response = await self.__async_call_login_by_it_token(user_id, auth_code)
+        login_response = await self.__call_login_by_it_token(user_id, auth_code)
         user_access_token = login_response["token"]
         if login_response["userId"] != user_id:
             _LOGGER.debug("Switching to shorter UID " + login_response["userId"])
@@ -76,9 +76,9 @@ class EcovacsAPI:
         self._login_information = EcovacsAPI.LoginInformation(user_access_token, user_id)
         _LOGGER.debug("Login to EcovacsAPI successfully")
 
-    async def async_get_request_auth(self) -> dict:
+    async def get_request_auth(self) -> dict:
         if self._login_information is None:
-            await self.async_login()
+            await self.login()
 
         return {
             "with": "users",
@@ -88,16 +88,16 @@ class EcovacsAPI:
             "resource": self.resource,
         }
 
-    async def async_get_devices(self) -> List[Vacuum]:
+    async def get_devices(self) -> List[Vacuum]:
         if self._login_information is None:
-            await self.async_login()
+            await self.login()
 
         data = {
             "userid": self._login_information.user_id,
-            "auth": await self.async_get_request_auth(),
+            "auth": await self.get_request_auth(),
             "todo": "GetGlobalDeviceList"
         }
-        json = await self.__async_call_portal_api(self.API_APPSVR_APP, data)
+        json = await self.__call_portal_api(self.API_APPSVR_APP, data)
 
         if json["code"] == 0:
             devices: List[Vacuum] = []
@@ -109,13 +109,13 @@ class EcovacsAPI:
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and parameters {data}")
 
-    async def async_get_product_iot_map(self) -> List[dict]:
+    async def get_product_iot_map(self) -> List[dict]:
         data = {
             "channel": "",
-            "auth": await self.async_get_request_auth(),
+            "auth": await self.get_request_auth(),
         }
         api = self.API_PIM_PRODUCT + "/getProductIotMap"
-        json = await self.__async_call_portal_api(api, data)
+        json = await self.__call_portal_api(api, data)
 
         if json["code"] == "0000":
             return json["data"]
@@ -133,26 +133,26 @@ class EcovacsAPI:
         )
         return md5(sign_on_text)
 
-    async def __async_sign(self, params):
+    def __sign(self, params):
         result = {**params, "authTimespan": int(time.time() * 1000), "authTimeZone": "GMT-8"}
         sign_data = {**self.meta, **result}
         result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.CLIENT_KEY, EcovacsAPI.CLIENT_SECRET)
         result["authAppkey"] = EcovacsAPI.CLIENT_KEY
         return result
 
-    async def __async_sign_auth(self, params: dict) -> dict:
+    def __sign_auth(self, params: dict) -> dict:
         result = {**params, "authTimespan": int(time.time() * 1000)}
         sign_data = {**result, "openId": "global"}
         result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.AUTH_CLIENT_KEY, EcovacsAPI.AUTH_CLIENT_SECRET)
         result["authAppkey"] = EcovacsAPI.AUTH_CLIENT_KEY
         return result
 
-    async def __async_do_auth_response(self, url: str, params: dict) -> dict:
+    async def __do_auth_response(self, url: str, params: dict) -> dict:
         if self.country.lower() == "cn":
             url = url.replace(".ecovacs.com", ".ecovacs.cn")
 
         # todo use maybe async_timeout?
-        async with self._web_session.get(
+        async with self._session.get(
                 url, params=params, timeout=60, ssl=self.verify_ssl
         ) as res:
             res.raise_for_status()
@@ -171,7 +171,7 @@ class EcovacsAPI:
                 _LOGGER.error(f"call to {url} failed with {json}")
                 raise RuntimeError(f"failure code {json['code']} ({json['msg']}) for call {url}")
 
-    async def __async_call_login_api(self, account_id: str, password_hash: str):
+    async def __call_login_api(self, account_id: str, password_hash: str):
         _LOGGER.debug(f"calling login api")
         params = {
             "account": account_id,
@@ -181,9 +181,9 @@ class EcovacsAPI:
 
         url = (EcovacsAPI.MAIN_URL_FORMAT + "/user/login").format(**self.meta)
 
-        return await self.__async_do_auth_response(url, await self.__async_sign(params))
+        return await self.__do_auth_response(url, self.__sign(params))
 
-    async def __async_call_auth_api(self, access_token: str, user_id: str):
+    async def __call_auth_api(self, access_token: str, user_id: str):
         _LOGGER.debug(f"calling auth api")
         params = {
             "uid": user_id,
@@ -194,10 +194,10 @@ class EcovacsAPI:
 
         url = EcovacsAPI.PORTAL_GLOBAL_AUTHCODE.format(**self.meta)
 
-        res = await self.__async_do_auth_response(url, await self.__async_sign_auth(params))
+        res = await self.__do_auth_response(url, self.__sign_auth(params))
         return res["authCode"]
 
-    async def __async_call_portal_api(self, api: str, args: dict, continent: Optional[str] = None):
+    async def __call_portal_api(self, api: str, args: dict, continent: Optional[str] = None):
         _LOGGER.debug(f"calling user api {api} with {args}")
         params = {**args}
 
@@ -212,7 +212,7 @@ class EcovacsAPI:
         url = (base_url + "/" + api).format(**format_data)
 
         # todo use maybe async_timeout?
-        async with self._web_session.post(
+        async with self._session.post(
                 url, json=params, timeout=60, ssl=self.verify_ssl
         ) as res:
             res.raise_for_status()
@@ -221,7 +221,7 @@ class EcovacsAPI:
             _LOGGER.debug("got {}".format(json))
             return json
 
-    async def __async_call_login_by_it_token(self, user_id: str, auth_code: str):
+    async def __call_login_by_it_token(self, user_id: str, auth_code: str):
         data = {
             "edition": "ECOGLOBLE",
             "userId": user_id,
@@ -241,7 +241,7 @@ class EcovacsAPI:
             })
 
         for c in range(3):
-            json = await self.__async_call_portal_api(self.API_USERS_USER, data)
+            json = await self.__call_portal_api(self.API_USERS_USER, data)
             if json["result"] == "ok":
                 return json
             elif json["result"] == "fail":
