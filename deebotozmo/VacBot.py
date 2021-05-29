@@ -1,5 +1,8 @@
+import asyncio
 import logging
 from typing import Union
+
+import aiohttp
 
 from deebotozmo.commands import *
 from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, COMPONENT_FROM_ECOVACS, \
@@ -16,6 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 class VacBot:
     def __init__(
             self,
+            session: aiohttp.ClientSession,
             auth: dict,
             vacuum: Vacuum,
             continent: str,
@@ -24,6 +28,7 @@ class VacBot:
             live_map_enabled: bool = True,
             verify_ssl: Union[bool, str] = True
     ):
+        self._session = session
         self.vacuum: Vacuum = vacuum
 
         portal_url = EcovacsAPI.PORTAL_URL_FORMAT.format(continent=continent)
@@ -32,6 +37,7 @@ class VacBot:
             portal_url = EcovacsAPI.PORTAL_URL_FORMAT_CN.format(continent=continent)
 
         self.json: EcovacsJSON = EcovacsJSON(
+            session,
             auth,
             portal_url,
             verify_ssl
@@ -54,55 +60,67 @@ class VacBot:
     def map(self) -> Map:
         return self._map
 
-    def execute_command(self, command: Command):
+    async def execute_command(self, command: Command):
         if command.name == CleanResume.name and self.vacuum_status != "STATE_PAUSED":
             command = CleanStart()
 
-        response = self.json.send_command(command, self.vacuum)
-        self.handle(command.name, response)
+        response = await self.json.send_command(command, self.vacuum)
+        await self.handle(command.name, response)
 
     # ---------------------------- REFRESH ROUTINES ----------------------------
 
-    def refresh_map(self):
+    async def refresh_map(self):
         _LOGGER.debug("[refresh_map] Begin")
-        self.execute_command(GetMapTrace())
-        self.execute_command(GetPos())
-        self.execute_command(GetMajorMap())
+        tasks = [
+            asyncio.create_task(self.execute_command(GetMapTrace())),
+            asyncio.create_task(self.execute_command(GetPos())),
+            asyncio.create_task(self.execute_command(GetMajorMap())),
+        ]
 
-    def refresh_components(self):
+        await asyncio.gather(*tasks)
+
+    async def refresh_components(self):
         _LOGGER.debug("[refresh_components] Begin")
-        self.execute_command(GetLifeSpan())
+        await self.execute_command(GetLifeSpan())
 
-    def refresh_statuses(self):
+    async def refresh_statuses(self):
         _LOGGER.debug("[refresh_statuses] Begin")
-        self.execute_command(GetCleanInfo(self.vacuum))
-        self.execute_command(GetChargeState())
-        self.execute_command(GetBattery())
-        self.execute_command(GetFanSpeed())
-        self.execute_command(GetWaterInfo())
+        tasks = [
+            asyncio.create_task(self.execute_command(GetCleanInfo(self.vacuum))),
+            asyncio.create_task(self.execute_command(GetChargeState())),
+            asyncio.create_task(self.execute_command(GetBattery())),
+            asyncio.create_task(self.execute_command(GetFanSpeed())),
+            asyncio.create_task(self.execute_command(GetWaterInfo()))
+        ]
 
-    def refresh_rooms(self):
+        await asyncio.gather(*tasks)
+
+    async def refresh_rooms(self):
         _LOGGER.debug("[refresh_rooms] Begin")
-        self.execute_command(GetCachedMapInfo())
+        await self.execute_command(GetCachedMapInfo())
 
-    def refresh_stats(self):
+    async def refresh_stats(self):
         _LOGGER.debug("[refresh_stats] Begin")
-        self.execute_command(GetStats())
+        await self.execute_command(GetStats())
 
-    def refresh_clean_logs(self):
+    async def refresh_clean_logs(self):
         _LOGGER.debug("[refresh_clean_logs] Begin")
-        self.execute_command(GetCleanLogs())
+        await self.execute_command(GetCleanLogs())
 
-    def refresh_all(self):
-        self.refresh_statuses()
-        self.refresh_stats()
-        self.refresh_rooms()
-        self.refresh_components()
-        self.refresh_clean_logs()
+    async def refresh_all(self):
+        tasks = [
+            asyncio.create_task(self.refresh_statuses()),
+            asyncio.create_task(self.refresh_stats()),
+            asyncio.create_task(self.refresh_rooms()),
+            asyncio.create_task(self.refresh_components()),
+            asyncio.create_task(self.refresh_clean_logs()),
+        ]
+
+        await asyncio.gather(*tasks)
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    def handle(self, event_name: str, event: dict):
+    async def handle(self, event_name: str, event: dict):
         _LOGGER.debug(f"Handle {event_name}: {event}")
         event_name = event_name.lower()
 
@@ -122,7 +140,7 @@ class VacBot:
             event_name = event_name[:-3]
 
         if event_name == "error":
-            self._handle_error(event)
+            await self._handle_error(event)
             return
         elif event.get("ret") == "ok":
             event_body = event.get("resp", {}).get("body", {})
@@ -132,25 +150,25 @@ class VacBot:
             return
 
         if event_name == "stats":
-            self._handle_stats(event_body, event_data)
+            await self._handle_stats(event_body, event_data)
         elif event_name == "error":
-            self._handle_error(event)
+            await self._handle_error(event)
         elif event_name == "speed":
-            self._handle_fan_speed(event_data)
+            await self._handle_fan_speed(event_data)
         elif event_name.startswith("battery"):
-            self._handle_battery(event_data)
+            await self._handle_battery(event_data)
         elif event_name == "chargestate":
-            self._handle_charge_state(event_body)
+            await self._handle_charge_state(event_body)
         elif event_name == "lifespan":
-            self._handle_life_span(event_data)
+            await self._handle_life_span(event_data)
         elif event_name == "cleanlogs":
-            self._handle_clean_logs(event)
+            await self._handle_clean_logs(event)
         elif event_name == "cleaninfo":
-            self._handle_clean_info(event_data)
+            await self._handle_clean_info(event_data)
         elif event_name == "waterinfo":
-            self._handle_water_info(event_data)
+            await self._handle_water_info(event_data)
         elif "map" in event_name or event_name == "pos":
-            self._map.handle(event_name, event_data)
+            await self._map.handle(event_name, event_data)
         elif event_name.startswith("set"):
             # ignore set commands for now
             pass
@@ -160,7 +178,7 @@ class VacBot:
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event}")
 
-    def _handle_stats(self, event_body: dict, event_data: dict):
+    async def _handle_stats(self, event_body: dict, event_data: dict):
         code = event_body.get("code")
         if code != 0:
             _LOGGER.error(f"Error in finding stats, status code={code}")  # Log this so we can identify more errors
@@ -176,7 +194,7 @@ class VacBot:
 
         self.statsEvents.notify(stats_event)
 
-    def _handle_error(self, event: dict):
+    async def _handle_error(self, event: dict):
         error = None
         if "error" in event:
             error = event["error"]
@@ -189,7 +207,7 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not process error event with received data: {event}")
 
-    def _handle_fan_speed(self, event_data: dict):
+    async def _handle_fan_speed(self, event_data: dict):
         speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed"))
 
         if speed:
@@ -197,13 +215,13 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not process fan speed event with received data: {event_data}")
 
-    def _handle_battery(self, event_data: dict):
+    async def _handle_battery(self, event_data: dict):
         try:
             self.batteryEvents.notify(BatteryEvent(event_data["value"]))
         except ValueError:
             _LOGGER.warning(f"couldn't parse battery status: {event_data}")
 
-    def _handle_charge_state(self, event_body: dict):
+    async def _handle_charge_state(self, event_body: dict):
         status = None
 
         if event_body["code"] == 0:
@@ -222,7 +240,7 @@ class VacBot:
             self.vacuum_status = status
             self.statusEvents.notify(StatusEvent(True, status))
 
-    def _handle_life_span(self, event_data: dict):
+    async def _handle_life_span(self, event_data: dict):
         component: dict
         for component in event_data:
             component_type = COMPONENT_FROM_ECOVACS.get(component.get("type"))
@@ -235,7 +253,7 @@ class VacBot:
             else:
                 _LOGGER.warning(f"Could not parse life span event with {event_data}")
 
-    def _handle_water_info(self, event_data: dict):
+    async def _handle_water_info(self, event_data: dict):
         amount = event_data.get("amount")
         mop_attached = bool(event_data.get("enable"))
 
@@ -244,7 +262,7 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not parse water info event with {event_data}")
 
-    def _handle_clean_logs(self, event):
+    async def _handle_clean_logs(self, event):
         response: Optional[List[dict]] = event.get("logs")
 
         # Ecovacs API is changing their API, this request may not working properly
@@ -264,7 +282,7 @@ class VacBot:
         else:
             _LOGGER.warning(f"Could not parse clean logs event with {event}")
 
-    def _handle_clean_info(self, event_data: dict):
+    async def _handle_clean_info(self, event_data: dict):
         status: Optional[str] = None
         if event_data.get("state") == "clean":
             if event_data.get("trigger") == "alert":
