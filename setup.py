@@ -44,11 +44,10 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        "requests>=2.18",
         "paho-mqtt>=1.4",
         "numpy>=1.18.3",
         "Pillow>=7.1.2",
-        "urllib3>=1.26.4"
+        "aiohttp>=3.7.4"
     ],
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

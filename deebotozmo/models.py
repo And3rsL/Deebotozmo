@@ -1,5 +1,6 @@
+import asyncio
 from dataclasses import dataclass
-from typing import List
+from typing import List, TypeVar, Generic, Callable, Awaitable
 
 
 class Vacuum(dict):
@@ -38,10 +39,13 @@ class Vacuum(dict):
         return self["class"]
 
 
-class EventListener:
+T = TypeVar('T')
+
+
+class EventListener(Generic[T]):
     """Object that allows event consumers to easily unsubscribe from events."""
 
-    def __init__(self, emitter, callback):
+    def __init__(self, emitter: "EventEmitter", callback: Callable[[T], Awaitable[None]]):
         self._emitter = emitter
         self.callback = callback
 
@@ -49,23 +53,23 @@ class EventListener:
         self._emitter.unsubscribe(self)
 
 
-class EventEmitter:
+class EventEmitter(Generic[T]):
     """A very simple event emitting system."""
 
     def __init__(self):
         self._subscribers: List[EventListener] = []
 
-    def subscribe(self, callback) -> EventListener:
+    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
         listener = EventListener(self, callback)
         self._subscribers.append(listener)
         return listener
 
-    def unsubscribe(self, listener):
+    def unsubscribe(self, listener: EventListener[T]):
         self._subscribers.remove(listener)
 
-    def notify(self, event):
+    def notify(self, event: T):
         for subscriber in self._subscribers:
-            subscriber.callback(event)
+            asyncio.create_task(subscriber.callback(event))
 
 
 @dataclass

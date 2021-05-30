@@ -1,5 +1,5 @@
-import asyncio
 import logging
+from asyncio import Task
 from typing import Union
 
 import aiohttp
@@ -47,14 +47,14 @@ class VacBot:
 
         self._map = Map(live_map_enabled, self.execute_command)
 
-        self.errorEvents = EventEmitter()
-        self.lifespanEvents = EventEmitter()
-        self.fanspeedEvents = EventEmitter()
-        self.cleanLogsEvents = EventEmitter()
-        self.waterEvents = EventEmitter()
-        self.batteryEvents = EventEmitter()
-        self.statusEvents = EventEmitter()
-        self.statsEvents = EventEmitter()
+        self.errorEvents: EventEmitter[ErrorEvent] = EventEmitter[ErrorEvent]()
+        self.lifespanEvents: EventEmitter[LifeSpanEvent] = EventEmitter[LifeSpanEvent]()
+        self.fanspeedEvents: EventEmitter[FanSpeedEvent] = EventEmitter[FanSpeedEvent]()
+        self.cleanLogsEvents: EventEmitter[CleanLogEvent] = EventEmitter[CleanLogEvent]()
+        self.waterEvents: EventEmitter[WaterInfoEvent] = EventEmitter[WaterInfoEvent]()
+        self.batteryEvents: EventEmitter[BatteryEvent] = EventEmitter[BatteryEvent]()
+        self.statusEvents: EventEmitter[StatusEvent] = EventEmitter[StatusEvent]()
+        self.statsEvents: EventEmitter[StatsEvent] = EventEmitter[StatsEvent]()
 
     @property
     def map(self) -> Map:
@@ -69,7 +69,7 @@ class VacBot:
 
     # ---------------------------- REFRESH ROUTINES ----------------------------
 
-    async def refresh_map(self):
+    async def refresh_map(self) -> List[Task]:
         _LOGGER.debug("[refresh_map] Begin")
         tasks = [
             asyncio.create_task(self.execute_command(GetMapTrace())),
@@ -77,13 +77,13 @@ class VacBot:
             asyncio.create_task(self.execute_command(GetMajorMap())),
         ]
 
-        await asyncio.gather(*tasks)
+        return tasks
 
-    async def refresh_components(self):
+    async def refresh_components(self) -> Task:
         _LOGGER.debug("[refresh_components] Begin")
-        await self.execute_command(GetLifeSpan())
+        return asyncio.create_task(self.execute_command(GetLifeSpan()))
 
-    async def refresh_statuses(self):
+    async def refresh_statuses(self) -> List[Task]:
         _LOGGER.debug("[refresh_statuses] Begin")
         tasks = [
             asyncio.create_task(self.execute_command(GetCleanInfo(self.vacuum))),
@@ -93,30 +93,30 @@ class VacBot:
             asyncio.create_task(self.execute_command(GetWaterInfo()))
         ]
 
-        await asyncio.gather(*tasks)
+        return tasks
 
-    async def refresh_rooms(self):
+    async def refresh_rooms(self) -> Task:
         _LOGGER.debug("[refresh_rooms] Begin")
-        await self.execute_command(GetCachedMapInfo())
+        return asyncio.create_task(self.execute_command(GetCachedMapInfo()))
 
-    async def refresh_stats(self):
+    async def refresh_stats(self) -> Task:
         _LOGGER.debug("[refresh_stats] Begin")
-        await self.execute_command(GetStats())
+        return asyncio.create_task(self.execute_command(GetStats()))
 
-    async def refresh_clean_logs(self):
+    async def refresh_clean_logs(self) -> Task:
         _LOGGER.debug("[refresh_clean_logs] Begin")
-        await self.execute_command(GetCleanLogs())
+        return asyncio.create_task(self.execute_command(GetCleanLogs()))
 
-    async def refresh_all(self):
+    async def refresh_all(self) -> List[Task]:
         tasks = [
-            asyncio.create_task(self.refresh_statuses()),
-            asyncio.create_task(self.refresh_stats()),
-            asyncio.create_task(self.refresh_rooms()),
-            asyncio.create_task(self.refresh_components()),
-            asyncio.create_task(self.refresh_clean_logs()),
+            * await self.refresh_statuses(),
+            await self.refresh_stats(),
+            await self.refresh_rooms(),
+            await self.refresh_components(),
+            await self.refresh_clean_logs(),
         ]
 
-        await asyncio.gather(*tasks)
+        return tasks
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
