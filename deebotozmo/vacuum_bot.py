@@ -16,7 +16,7 @@ from deebotozmo.models import *
 _LOGGER = logging.getLogger(__name__)
 
 
-class VacBot:
+class VacuumBot:
     def __init__(
             self,
             session: aiohttp.ClientSession,
@@ -44,6 +44,7 @@ class VacBot:
         )
 
         self.vacuum_status = None
+        self.fw_version: Optional[str] = None
 
         self._map = Map(live_map_enabled, self.execute_command)
 
@@ -144,10 +145,15 @@ class VacBot:
             return
         elif event.get("ret") == "ok":
             event_body = event.get("resp", {}).get("body", {})
+            event_header = event.get("resp", {}).get("header", {})
             event_data = event_body.get("data", {})
         else:
             _LOGGER.warning(f"Event {event_name} where ret != \"ok\": {event}")
             return
+
+        fw_version = event_header.get("fwVer")
+        if fw_version:
+            self.fw_version = fw_version
 
         if event_name == "stats":
             await self._handle_stats(event_body, event_data)

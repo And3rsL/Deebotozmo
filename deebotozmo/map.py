@@ -119,13 +119,11 @@ class Map:
 
     def _handle_map_sub_set(self, event_data: dict):
         subtype = int(event_data["subtype"])
-        value = event_data["value"]
-
         self._rooms.append(
             Room(
                 subtype=ROOMS_FROM_ECOVACS[subtype],
                 id=int(event_data["mssid"]),
-                values=value,
+                coordinates=event_data["value"],
             )
         )
 

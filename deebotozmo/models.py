@@ -82,4 +82,4 @@ class Coordinate:
 class Room:
     subtype: str
     id: int
-    values: str
+    coordinates: str
