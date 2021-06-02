@@ -99,6 +99,10 @@ class EventEmitter(Generic[T]):
         self._subscribers: List[EventListener] = []
         self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
 
+    @property
+    def has_subscribers(self) -> bool:
+        return len(self._subscribers) > 0
+
     def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
         listener = EventListener(self, callback)
         self._subscribers.append(listener)

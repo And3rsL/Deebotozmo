@@ -25,7 +25,6 @@ class VacuumBot:
             continent: str,
             country: str,
             *,
-            live_map_enabled: bool = True,
             verify_ssl: Union[bool, str] = True
     ):
         self._session = session
@@ -46,7 +45,7 @@ class VacuumBot:
         self.vacuum_status = None
         self.fw_version: Optional[str] = None
 
-        self._map = Map(live_map_enabled, self.execute_command)
+        self._map = Map(self.execute_command)
 
         self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
 
