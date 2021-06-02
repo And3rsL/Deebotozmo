@@ -225,3 +225,9 @@ class GetMajorMap(Command):
 
     def __init__(self):
         super().__init__("getMajorMap")
+
+
+class GetError(Command):
+
+    def __init__(self):
+        super().__init__("getError")

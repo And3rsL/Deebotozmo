@@ -48,7 +48,7 @@ class VacuumBot:
 
         self._map = Map(live_map_enabled, self.execute_command)
 
-        self.errorEvents: EventEmitter[ErrorEvent] = EventEmitter[ErrorEvent]()
+        self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
 
         self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
             get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command)

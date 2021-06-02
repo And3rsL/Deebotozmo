@@ -91,9 +91,9 @@ class EventListener(Generic[T]):
 class EventEmitter(Generic[T]):
     """A very simple event emitting system."""
 
-    def __init__(self, refresh_function: Optional[Callable[[], Awaitable[None]]] = None):
+    def __init__(self, refresh_function: Callable[[], Awaitable[None]]):
         self._subscribers: List[EventListener] = []
-        self._refresh_function: Optional[Callable[[], Awaitable[None]]] = refresh_function
+        self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
 
     def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
         listener = EventListener(self, callback)
@@ -108,7 +108,7 @@ class EventEmitter(Generic[T]):
             asyncio.create_task(subscriber.callback(event))
 
     async def refresh(self):
-        if len(self._subscribers) > 0 and self._refresh_function:
+        if len(self._subscribers) > 0:
             await self._refresh_function()
 
 
