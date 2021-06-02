@@ -9,7 +9,7 @@ from deebotozmo.models import Room
 @dataclass
 class StatsEvent:
     area: Optional[int]
-    cid: Optional[str]
+    clean_id: Optional[str]
     time: Optional[int]
     type: Optional[str]
     start: Optional[int]
@@ -56,7 +56,11 @@ class CleanLogEntry:
     type: Optional[str]
     area: Optional[int]
     stopReason: Optional[str]
-    totalTime: Optional[int]
+    # Stop reason
+    # 1 -> finished
+    # 2 -> manual stopped
+    # 3 -> finished with warnings (ex. a scheduled room was not cleaned)
+    totalTime: Optional[int]  # in seconds
 
 
 @dataclass
