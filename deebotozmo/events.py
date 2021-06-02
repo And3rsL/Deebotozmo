@@ -1,5 +1,9 @@
+import asyncio
+from asyncio import Task
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
+
+from deebotozmo.models import Room
 
 
 @dataclass
@@ -58,3 +62,80 @@ class CleanLogEntry:
 @dataclass
 class CleanLogEvent:
     logs: List[CleanLogEntry]
+
+
+@dataclass
+class RoomsEvent:
+    rooms: List[Room]
+
+
+@dataclass
+class MapEvent:
+    pass
+
+
+T = TypeVar('T')
+
+
+class EventListener(Generic[T]):
+    """Object that allows event consumers to easily unsubscribe from events."""
+
+    def __init__(self, emitter: "EventEmitter", callback: Callable[[T], Awaitable[None]]):
+        self._emitter = emitter
+        self.callback = callback
+
+    def unsubscribe(self):
+        self._emitter.unsubscribe(self)
+
+
+class EventEmitter(Generic[T]):
+    """A very simple event emitting system."""
+
+    def __init__(self, refresh_function: Optional[Callable[[], Awaitable[None]]] = None):
+        self._subscribers: List[EventListener] = []
+        self._refresh_function: Optional[Callable[[], Awaitable[None]]] = refresh_function
+
+    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
+        listener = EventListener(self, callback)
+        self._subscribers.append(listener)
+        return listener
+
+    def unsubscribe(self, listener: EventListener[T]):
+        self._subscribers.remove(listener)
+
+    def notify(self, event: T):
+        for subscriber in self._subscribers:
+            asyncio.create_task(subscriber.callback(event))
+
+    async def refresh(self):
+        if len(self._subscribers) > 0 and self._refresh_function:
+            await self._refresh_function()
+
+
+class PollingEventEmitter(EventEmitter[T]):
+
+    def __init__(self, refresh_interval: int, refresh_function: Callable[[], Awaitable[None]]):
+        super().__init__(refresh_function)
+        self._refresh_task: Optional[Task] = None
+        self._refresh_interval: int = refresh_interval
+
+    async def _refresh_interval_task(self):
+        while True:
+            await self._refresh_function()
+            await asyncio.sleep(self._refresh_interval)
+
+    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
+        listener = super(PollingEventEmitter, self).subscribe(callback)
+
+        if self._refresh_task is None:
+            self._refresh_task = asyncio.create_task(self._refresh_interval_task())
+
+        return listener
+
+    def unsubscribe(self, listener: EventListener[T]):
+        super().unsubscribe(listener)
+
+        if len(self._subscribers) == 0 and self._refresh_task is not None:
+            task = self._refresh_task
+            self._refresh_task = None
+            task.cancel()

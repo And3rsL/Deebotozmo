@@ -1,17 +1,17 @@
 import logging
-from asyncio import Task
 from typing import Union
 
 import aiohttp
 
 from deebotozmo.commands import *
-from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, COMPONENT_FROM_ECOVACS, \
-    WATER_LEVEL_FROM_ECOVACS
+from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, \
+    COMPONENT_FROM_ECOVACS, WATER_LEVEL_FROM_ECOVACS
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.events import *
 from deebotozmo.map import Map
 from deebotozmo.models import *
+from deebotozmo.util import get_PollingEventEmitter, get_EventEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,13 +49,28 @@ class VacuumBot:
         self._map = Map(live_map_enabled, self.execute_command)
 
         self.errorEvents: EventEmitter[ErrorEvent] = EventEmitter[ErrorEvent]()
-        self.lifespanEvents: EventEmitter[LifeSpanEvent] = EventEmitter[LifeSpanEvent]()
-        self.fanspeedEvents: EventEmitter[FanSpeedEvent] = EventEmitter[FanSpeedEvent]()
-        self.cleanLogsEvents: EventEmitter[CleanLogEvent] = EventEmitter[CleanLogEvent]()
-        self.waterEvents: EventEmitter[WaterInfoEvent] = EventEmitter[WaterInfoEvent]()
-        self.batteryEvents: EventEmitter[BatteryEvent] = EventEmitter[BatteryEvent]()
-        self.statusEvents: EventEmitter[StatusEvent] = EventEmitter[StatusEvent]()
-        self.statsEvents: EventEmitter[StatsEvent] = EventEmitter[StatsEvent]()
+
+        self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
+            get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command)
+
+        self.fanSpeedEvents: PollingEventEmitter[FanSpeedEvent] = \
+            get_PollingEventEmitter(FanSpeedEvent, 10, [GetFanSpeed()], self.execute_command)
+
+        self.cleanLogsEvents: EventEmitter[CleanLogEvent] = \
+            get_EventEmitter(CleanLogEvent, [GetCleanLogs()], self.execute_command)
+
+        self.waterEvents: PollingEventEmitter[WaterInfoEvent] = \
+            get_PollingEventEmitter(WaterInfoEvent, 10, [GetWaterInfo()], self.execute_command)
+
+        self.batteryEvents: PollingEventEmitter[BatteryEvent] = \
+            get_PollingEventEmitter(BatteryEvent, 10, [GetBattery()], self.execute_command)
+
+        self.statusEvents: EventEmitter[StatusEvent] = \
+            get_PollingEventEmitter(StatusEvent, 10, [GetChargeState(), GetCleanInfo(self.vacuum)],
+                                    self.execute_command)
+
+        self.statsEvents: PollingEventEmitter[StatsEvent] = \
+            get_PollingEventEmitter(StatsEvent, 60, [GetStats()], self.execute_command)
 
     @property
     def map(self) -> Map:
@@ -67,57 +82,6 @@ class VacuumBot:
 
         response = await self.json.send_command(command, self.vacuum)
         await self.handle(command.name, response)
-
-    # ---------------------------- REFRESH ROUTINES ----------------------------
-
-    async def refresh_map(self) -> List[Task]:
-        _LOGGER.debug("[refresh_map] Begin")
-        tasks = [
-            asyncio.create_task(self.execute_command(GetMapTrace())),
-            asyncio.create_task(self.execute_command(GetPos())),
-            asyncio.create_task(self.execute_command(GetMajorMap())),
-        ]
-
-        return tasks
-
-    async def refresh_components(self) -> Task:
-        _LOGGER.debug("[refresh_components] Begin")
-        return asyncio.create_task(self.execute_command(GetLifeSpan()))
-
-    async def refresh_statuses(self) -> List[Task]:
-        _LOGGER.debug("[refresh_statuses] Begin")
-        tasks = [
-            asyncio.create_task(self.execute_command(GetCleanInfo(self.vacuum))),
-            asyncio.create_task(self.execute_command(GetChargeState())),
-            asyncio.create_task(self.execute_command(GetBattery())),
-            asyncio.create_task(self.execute_command(GetFanSpeed())),
-            asyncio.create_task(self.execute_command(GetWaterInfo()))
-        ]
-
-        return tasks
-
-    async def refresh_rooms(self) -> Task:
-        _LOGGER.debug("[refresh_rooms] Begin")
-        return asyncio.create_task(self.execute_command(GetCachedMapInfo()))
-
-    async def refresh_stats(self) -> Task:
-        _LOGGER.debug("[refresh_stats] Begin")
-        return asyncio.create_task(self.execute_command(GetStats()))
-
-    async def refresh_clean_logs(self) -> Task:
-        _LOGGER.debug("[refresh_clean_logs] Begin")
-        return asyncio.create_task(self.execute_command(GetCleanLogs()))
-
-    async def refresh_all(self) -> List[Task]:
-        tasks = [
-            * await self.refresh_statuses(),
-            await self.refresh_stats(),
-            await self.refresh_rooms(),
-            await self.refresh_components(),
-            await self.refresh_clean_logs(),
-        ]
-
-        return tasks
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
@@ -217,7 +181,7 @@ class VacuumBot:
         speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed"))
 
         if speed:
-            self.fanspeedEvents.notify(FanSpeedEvent(speed))
+            self.fanSpeedEvents.notify(FanSpeedEvent(speed))
         else:
             _LOGGER.warning(f"Could not process fan speed event with received data: {event_data}")
 
@@ -306,11 +270,13 @@ class VacuumBot:
             self.vacuum_status = status
             self.statusEvents.notify(StatusEvent(True, status))
 
-        # Todo handle this calls
         # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
-        # if self.vacuum_status == "STATE_CLEANING":
-        #     self.refresh_stats()
-        #     self.refresh_components()
-        #
-        # if self.vacuum_status == "STATE_DOCKED":
-        #     self.refresh_cleanLogs()
+        if self.vacuum_status == "STATE_CLEANING":
+            tasks = [
+                asyncio.create_task(self.statsEvents.refresh()),
+                asyncio.create_task(self.lifespanEvents.refresh())
+            ]
+            await asyncio.gather(*tasks)
+
+        elif self.vacuum_status == "STATE_DOCKED":
+            await self.cleanLogsEvents.refresh()

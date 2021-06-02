@@ -9,9 +9,12 @@ from typing import Optional, List, Callable, Union, Awaitable
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
-from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet
+from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet, GetCachedMapInfo, \
+    GetMajorMap, GetPos
 from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT
+from deebotozmo.events import PollingEventEmitter, RoomsEvent, MapEvent
 from deebotozmo.models import Coordinate, Room
+from deebotozmo.util import get_PollingEventEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +84,21 @@ class Map:
         self.draw_charger = False
         self.draw_robot = False
         self.resize_factor = 3
+        self.roomsEvents: PollingEventEmitter[RoomsEvent] = \
+            get_PollingEventEmitter(RoomsEvent, 60, [GetCachedMapInfo()], self._execute_command)
+
+        async def refresh_map():
+            _LOGGER.debug("[refresh_map] Begin")
+            tasks = [
+                asyncio.create_task(self._execute_command(GetMapTrace())),
+                asyncio.create_task(self._execute_command(GetPos())),
+                asyncio.create_task(self._execute_command(GetMajorMap()))
+            ]
+            await asyncio.gather(*tasks)
+            self.mapEvents.notify(MapEvent())
+
+        self.mapEvents: PollingEventEmitter[MapEvent] = \
+            PollingEventEmitter[MapEvent](5, refresh_map)
 
     @property
     def rooms(self) -> List[Room]:
@@ -190,6 +208,7 @@ class Map:
 
         if tasks:
             await asyncio.gather(*tasks)
+            self.roomsEvents.notify(RoomsEvent(self._rooms))
 
     # ---------------------------- METHODS ----------------------------
 
