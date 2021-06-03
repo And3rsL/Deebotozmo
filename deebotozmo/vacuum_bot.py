@@ -52,19 +52,19 @@ class VacuumBot:
             get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command)
 
         self.fanSpeedEvents: PollingEventEmitter[FanSpeedEvent] = \
-            get_PollingEventEmitter(FanSpeedEvent, 10, [GetFanSpeed()], self.execute_command)
+            get_PollingEventEmitter(FanSpeedEvent, 60, [GetFanSpeed()], self.execute_command)
 
         self.cleanLogsEvents: EventEmitter[CleanLogEvent] = \
             get_EventEmitter(CleanLogEvent, [GetCleanLogs()], self.execute_command)
 
         self.waterEvents: PollingEventEmitter[WaterInfoEvent] = \
-            get_PollingEventEmitter(WaterInfoEvent, 10, [GetWaterInfo()], self.execute_command)
+            get_PollingEventEmitter(WaterInfoEvent, 60, [GetWaterInfo()], self.execute_command)
 
         self.batteryEvents: PollingEventEmitter[BatteryEvent] = \
-            get_PollingEventEmitter(BatteryEvent, 10, [GetBattery()], self.execute_command)
+            get_PollingEventEmitter(BatteryEvent, 60, [GetBattery()], self.execute_command)
 
         self.statusEvents: PollingEventEmitter[StatusEvent] = \
-            get_PollingEventEmitter(StatusEvent, 10, [GetChargeState(), GetCleanInfo(self.vacuum)],
+            get_PollingEventEmitter(StatusEvent, 15, [GetChargeState(), GetCleanInfo(self.vacuum)],
                                     self.execute_command)
 
         self.statsEvents: PollingEventEmitter[StatsEvent] = \
@@ -78,7 +78,9 @@ class VacuumBot:
         if command.name == CleanResume.name and self.vacuum_status != "STATE_PAUSED":
             command = CleanStart()
 
-        response = await self.json.send_command(command, self.vacuum)
+        async with asyncio.Semaphore(5):
+            response = await self.json.send_command(command, self.vacuum)
+
         await self.handle(command.name, response)
 
     # ---------------------------- EVENT HANDLING ----------------------------

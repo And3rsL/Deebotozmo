@@ -96,7 +96,7 @@ class Map:
             await asyncio.gather(*tasks)
             self.mapEvents.notify(MapEvent())
 
-        self.mapEvents: PollingEventEmitter[MapEvent] = PollingEventEmitter[MapEvent](5, refresh_map)
+        self.mapEvents: PollingEventEmitter[MapEvent] = PollingEventEmitter[MapEvent](10, refresh_map)
 
     @property
     def rooms(self) -> List[Room]:
