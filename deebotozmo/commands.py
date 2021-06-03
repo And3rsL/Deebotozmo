@@ -101,7 +101,7 @@ class CleanAbstractArea(Command):
     def __init__(self, area: str, cleanings: int, clean_type: str):
         super().__init__("clean", {
             "act": CLEAN_ACTION_START,
-            "content": area,
+            "content": str(area),  # must be a string
             "count": cleanings,
             "type": clean_type
         })
