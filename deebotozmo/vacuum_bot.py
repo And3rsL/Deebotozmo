@@ -216,7 +216,7 @@ class VacuumBot:
             total = component.get("total")
 
             if component_type and left and total:
-                percent = (int(left) / int(total)) * 100
+                percent = round((int(left) / int(total)) * 100, 2)
                 self.lifespanEvents.notify(LifeSpanEvent(component_type, percent))
             else:
                 _LOGGER.warning(f"Could not parse life span event with {event_data}")
