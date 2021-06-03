@@ -59,7 +59,7 @@ class Charge(Command):
 
     def __init__(self):
         super().__init__("charge", {
-            "act": "charging"
+            "act": "go"
         })
 
 
