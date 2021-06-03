@@ -1,4 +1,3 @@
-import logging
 from typing import Union
 
 import aiohttp
@@ -64,7 +63,7 @@ class VacuumBot:
         self.batteryEvents: PollingEventEmitter[BatteryEvent] = \
             get_PollingEventEmitter(BatteryEvent, 10, [GetBattery()], self.execute_command)
 
-        self.statusEvents: EventEmitter[StatusEvent] = \
+        self.statusEvents: PollingEventEmitter[StatusEvent] = \
             get_PollingEventEmitter(StatusEvent, 10, [GetChargeState(), GetCleanInfo(self.vacuum)],
                                     self.execute_command)
 

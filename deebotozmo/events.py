@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from asyncio import Task
 from dataclasses import dataclass
 from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
 
 from deebotozmo.models import Room
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -112,6 +115,7 @@ class EventEmitter(Generic[T]):
         self._subscribers.remove(listener)
 
     def notify(self, event: T):
+        _LOGGER.debug(f"Notify subscriber with {event}")
         for subscriber in self._subscribers:
             asyncio.create_task(subscriber.callback(event))
 
