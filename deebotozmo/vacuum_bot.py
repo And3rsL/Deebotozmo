@@ -214,11 +214,11 @@ class VacuumBot:
         component: dict
         for component in event_data:
             component_type = COMPONENT_FROM_ECOVACS.get(component.get("type"))
-            left = component.get("left")
-            total = component.get("total")
+            left = int(component.get("left", 0))
+            total = int(component.get("total", 0))
 
-            if component_type and left and total:
-                percent = round((int(left) / int(total)) * 100, 2)
+            if component_type and total > 0:
+                percent = round((left / total) * 100, 2)
                 self.lifespanEvents.notify(LifeSpanEvent(component_type, percent))
             else:
                 _LOGGER.warning(f"Could not parse life span event with {event_data}")
