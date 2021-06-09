@@ -272,11 +272,8 @@ class VacuumBot:
 
         # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
         if self.vacuum_status == "STATE_CLEANING":
-            tasks = [
-                asyncio.create_task(self.statsEvents.request_refresh()),
-                asyncio.create_task(self.lifespanEvents.request_refresh())
-            ]
-            await asyncio.gather(*tasks)
+            self.statsEvents.request_refresh()
+            self.lifespanEvents.request_refresh()
 
         elif self.vacuum_status == "STATE_DOCKED":
-            await self.cleanLogsEvents.request_refresh()
+            self.cleanLogsEvents.request_refresh()
