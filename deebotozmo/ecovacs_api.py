@@ -6,7 +6,7 @@ from typing import Union, Optional, List
 import aiohttp
 from aiohttp import hdrs
 
-from deebotozmo.models import Vacuum
+from deebotozmo.models import Vacuum, RequestAuth
 from deebotozmo.util import str_to_bool_or_cert, md5
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,17 +76,17 @@ class EcovacsAPI:
         self._login_information = EcovacsAPI.LoginInformation(user_access_token, user_id)
         _LOGGER.debug("Login to EcovacsAPI successfully")
 
-    async def get_request_auth(self) -> dict:
+    async def get_request_auth(self) -> RequestAuth:
         if self._login_information is None:
             await self.login()
 
-        return {
+        return RequestAuth({
             "with": "users",
             "userid": self._login_information.user_id,
             "realm": EcovacsAPI.REALM,
             "token": self._login_information.access_token,
             "resource": self.resource,
-        }
+        })
 
     async def get_devices(self) -> List[Vacuum]:
         if self._login_information is None:

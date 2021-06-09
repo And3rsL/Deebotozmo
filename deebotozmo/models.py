@@ -48,3 +48,22 @@ class Room:
     subtype: str
     id: int
     coordinates: str
+
+
+class RequestAuth(dict):
+
+    @property
+    def user_id(self):
+        return self["userid"]
+
+    @property
+    def realm(self):
+        return self["realm"]
+
+    @property
+    def token(self):
+        return self["token"]
+
+    @property
+    def resource(self):
+        return self["resource"]

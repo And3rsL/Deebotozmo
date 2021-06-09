@@ -6,7 +6,7 @@ import aiohttp
 from aiohttp import ClientResponseError
 
 from deebotozmo.commands import Command, GetCleanLogs
-from deebotozmo.models import Vacuum
+from deebotozmo.models import Vacuum, RequestAuth
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class EcovacsJSON:
     def __init__(
             self,
             session: aiohttp.ClientSession,
-            auth: dict,
+            auth: RequestAuth,
             portal_url: str,
             verify_ssl: Union[bool, str],
     ):

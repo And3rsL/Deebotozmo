@@ -44,7 +44,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        "paho-mqtt>=1.4",
+        "gmqtt>=0.6.9",
         "numpy>=1.18.3",
         "Pillow>=7.1.2",
         "aiohttp>=3.7.4"

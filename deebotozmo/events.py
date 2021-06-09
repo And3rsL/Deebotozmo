@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from asyncio import Task
 from dataclasses import dataclass
 from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
@@ -101,6 +102,7 @@ class EventEmitter(Generic[T]):
     def __init__(self, refresh_function: Callable[[], Awaitable[None]]):
         self._subscribers: List[EventListener] = []
         self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
+        self._last_notification_time = None
 
     @property
     def has_subscribers(self) -> bool:
@@ -109,6 +111,10 @@ class EventEmitter(Generic[T]):
     def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
         listener = EventListener(self, callback)
         self._subscribers.append(listener)
+
+        if not self._last_notification_time and len(self._subscribers) == 1:
+            self.request_refresh()
+
         return listener
 
     def unsubscribe(self, listener: EventListener[T]):
@@ -116,12 +122,13 @@ class EventEmitter(Generic[T]):
 
     def notify(self, event: T):
         _LOGGER.debug(f"Notify subscriber with {event}")
+        self._last_notification_time = time.time()
         for subscriber in self._subscribers:
             asyncio.create_task(subscriber.callback(event))
 
-    async def refresh(self):
+    def request_refresh(self):
         if len(self._subscribers) > 0:
-            await self._refresh_function()
+            asyncio.create_task(self._refresh_function())
 
 
 class PollingEventEmitter(EventEmitter[T]):

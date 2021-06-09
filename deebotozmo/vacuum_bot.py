@@ -19,13 +19,14 @@ class VacuumBot:
     def __init__(
             self,
             session: aiohttp.ClientSession,
-            auth: dict,
+            auth: RequestAuth,
             vacuum: Vacuum,
             continent: str,
             country: str,
             *,
             verify_ssl: Union[bool, str] = True
     ):
+        self._semaphore = asyncio.Semaphore(5)
         self._session = session
         self.vacuum: Vacuum = vacuum
 
@@ -51,24 +52,23 @@ class VacuumBot:
         self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
             get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command)
 
-        self.fanSpeedEvents: PollingEventEmitter[FanSpeedEvent] = \
-            get_PollingEventEmitter(FanSpeedEvent, 60, [GetFanSpeed()], self.execute_command)
+        self.fanSpeedEvents: EventEmitter[FanSpeedEvent] = \
+            get_EventEmitter(FanSpeedEvent, [GetFanSpeed()], self.execute_command)
 
         self.cleanLogsEvents: EventEmitter[CleanLogEvent] = \
             get_EventEmitter(CleanLogEvent, [GetCleanLogs()], self.execute_command)
 
-        self.waterEvents: PollingEventEmitter[WaterInfoEvent] = \
-            get_PollingEventEmitter(WaterInfoEvent, 60, [GetWaterInfo()], self.execute_command)
+        self.waterEvents: EventEmitter[WaterInfoEvent] = \
+            get_EventEmitter(WaterInfoEvent, [GetWaterInfo()], self.execute_command)
 
-        self.batteryEvents: PollingEventEmitter[BatteryEvent] = \
-            get_PollingEventEmitter(BatteryEvent, 60, [GetBattery()], self.execute_command)
+        self.batteryEvents: EventEmitter[BatteryEvent] = \
+            get_EventEmitter(BatteryEvent, [GetBattery()], self.execute_command)
 
-        self.statusEvents: PollingEventEmitter[StatusEvent] = \
-            get_PollingEventEmitter(StatusEvent, 15, [GetChargeState(), GetCleanInfo(self.vacuum)],
-                                    self.execute_command)
+        self.statusEvents: EventEmitter[StatusEvent] = \
+            get_EventEmitter(StatusEvent, [GetChargeState(), GetCleanInfo(self.vacuum)], self.execute_command)
 
-        self.statsEvents: PollingEventEmitter[StatsEvent] = \
-            get_PollingEventEmitter(StatsEvent, 60, [GetStats()], self.execute_command)
+        self.statsEvents: EventEmitter[StatsEvent] = \
+            get_EventEmitter(StatsEvent, [GetStats()], self.execute_command)
 
     @property
     def map(self) -> Map:
@@ -78,7 +78,7 @@ class VacuumBot:
         if command.name == CleanResume.name and self.vacuum_status != "STATE_PAUSED":
             command = CleanStart()
 
-        async with asyncio.Semaphore(5):
+        async with self._semaphore:
             response = await self.json.send_command(command, self.vacuum)
 
         await self.handle(command.name, response)
@@ -273,10 +273,10 @@ class VacuumBot:
         # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
         if self.vacuum_status == "STATE_CLEANING":
             tasks = [
-                asyncio.create_task(self.statsEvents.refresh()),
-                asyncio.create_task(self.lifespanEvents.refresh())
+                asyncio.create_task(self.statsEvents.request_refresh()),
+                asyncio.create_task(self.lifespanEvents.request_refresh())
             ]
             await asyncio.gather(*tasks)
 
         elif self.vacuum_status == "STATE_DOCKED":
-            await self.cleanLogsEvents.refresh()
+            await self.cleanLogsEvents.request_refresh()
