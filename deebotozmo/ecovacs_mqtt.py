@@ -22,12 +22,11 @@ class EcovacsMqtt:
 
     def __init__(self, auth: RequestAuth, continent: str):
         self._subscribers: MutableMapping[str, VacuumBot] = {}
-        self.domain = "ecouser"
-        self.hostname = f"mq-{continent}.ecouser.net"
-        self.port = 443
+        self._hostname = f"mq-{continent}.ecouser.net"
+        self._port = 443
 
-        client_id = f"{auth.user_id}@{self.domain}/{auth.resource}"
-        self.client = Client(client_id)
+        client_id = f"{auth.user_id}@ecouser/{auth.resource}"
+        self._client = Client(client_id)
 
         async def _on_message(client, topic: str, payload: bytes, qos, properties) -> int:
 
@@ -45,26 +44,26 @@ class EcovacsMqtt:
                 bot = self._subscribers.get(topic_split[3])
                 if bot:
                     data = json.loads(payload)
-                    await bot.handle(topic_split[2], data)
+                    await bot.handle(topic_split[2], data, False)
                 return _ON_MESSAGE_RETURN_SUCCESS
             except Exception as err:
                 _LOGGER.error("An exception occurred", err)
 
-        self.client.on_message = _on_message
-        self.client.set_auth_credentials(auth.user_id, auth.token)
+        self._client.on_message = _on_message
+        self._client.set_auth_credentials(auth.user_id, auth.token)
 
     async def initialize(self):
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
-        await self.client.connect(self.hostname, self.port, ssl=ssl_ctx, version=MQTTv311)
+        await self._client.connect(self._hostname, self._port, ssl=ssl_ctx, version=MQTTv311)
 
     async def subscribe(self, vacuum_bot: VacuumBot):
-        if not self.client.is_connected:
+        if not self._client.is_connected:
             await self.initialize()
 
         vacuum = vacuum_bot.vacuum
-        self.client.subscribe(_get_topic(vacuum))
+        self._client.subscribe(_get_topic(vacuum))
         self._subscribers[vacuum.did] = vacuum_bot
 
     def unsubscribe(self, vacuum_bot: VacuumBot):
@@ -72,4 +71,8 @@ class EcovacsMqtt:
         sub = self._subscribers.pop(vacuum.did, None)
 
         if sub:
-            self.client.unsubscribe(_get_topic(vacuum))
+            self._client.unsubscribe(_get_topic(vacuum))
+
+    def disconnect(self) -> None:
+        self._client.disconnect()
+        self._subscribers.clear()

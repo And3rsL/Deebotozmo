@@ -12,9 +12,9 @@ from PIL import Image, ImageDraw, ImageOps
 from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet, GetCachedMapInfo, \
     GetMajorMap, GetPos
 from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT
-from deebotozmo.events import PollingEventEmitter, RoomsEvent, MapEvent
+from deebotozmo.events import PollingEventEmitter, RoomsEvent, MapEvent, EventEmitter
 from deebotozmo.models import Coordinate, Room
-from deebotozmo.util import get_PollingEventEmitter
+from deebotozmo.util import get_EventEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +74,7 @@ class Map:
         self._robot_position: Optional[Coordinate] = None
         self._charger_position: Optional[Coordinate] = None
         self._rooms: List[Room] = []
+        self._amount_rooms: int = 0
         self._traceValues: List[int] = []
         self._map_pieces = np.empty(64, np.dtype('U100'))
 
@@ -83,8 +84,8 @@ class Map:
         self.draw_charger = False
         self.draw_robot = False
         self.resize_factor = 3
-        self.roomsEvents: PollingEventEmitter[RoomsEvent] = \
-            get_PollingEventEmitter(RoomsEvent, 60, [GetCachedMapInfo()], self._execute_command)
+        self.roomsEvents: EventEmitter[RoomsEvent] = \
+            get_EventEmitter(RoomsEvent, [GetCachedMapInfo()], self._execute_command)
 
         async def refresh_map():
             _LOGGER.debug("[refresh_map] Begin")
@@ -98,40 +99,75 @@ class Map:
 
         self.mapEvents: PollingEventEmitter[MapEvent] = PollingEventEmitter[MapEvent](10, refresh_map)
 
-    @property
-    def rooms(self) -> List[Room]:
-        return self._rooms
-
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    async def handle(self, event_name: str, event_data: dict):
+    async def handle(self, event_name: str, event_data: dict, requested: bool = True) -> None:
+        """
+        Handle the given map event
+        :param event_name: the name of the event or request
+        :param event: the data of it
+        :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
+        :return: None
+        """
+
         if event_name == "cachedmapinfo":
-            await self._handle_cached_map_info(event_data)
+            await self._handle_cached_map_info(event_data, requested)
         elif event_name == "mapset":
-            await self._handle_map_set(event_data)
+            await self._handle_map_set(event_data, requested)
         elif event_name == "mapsubset":
             self._handle_map_sub_set(event_data)
         elif not self.mapEvents.has_subscribers:
             # above events must be processed always as they are needed to get room information's
             _LOGGER.debug("No Map subscribers. Skipping map events")
             return
-        elif event_name == "minormap":
-            self._handle_minor_map(event_data)
-        elif event_name == "majormap":
-            await self._handle_major_map(event_data)
         elif event_name == "pos":
             self._handle_position(event_data)
         elif event_name == "maptrace":
-            await self._handle_map_trace(event_data)
+            await self._handle_map_trace(event_data, requested)
+        elif event_name == "majormap":
+            await self._handle_major_map(event_data, requested)
+        elif event_name == "minormap":
+            self._handle_minor_map(event_data)
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
-    def _handle_position(self, event_data: dict):
-        self._update_position(event_data.get("chargePos", {}), True)
-        self._update_position(event_data.get("deebotPos", {}), False)
+    async def _handle_cached_map_info(self, event_data: dict, requested: bool):
+        try:
+            map_id = None
+            for map_status in event_data["info"]:
+                if map_status["using"] == 1:
+                    map_id = map_status["mid"]
+                    _LOGGER.debug(f"[_handle_cached_map] Using Map: {map_id}")
+                    break
 
-    def _handle_minor_map(self, event_data: dict):
-        self._add_map_piece(event_data["pieceIndex"], event_data["pieceValue"])
+            if requested:
+                await self._execute_command(GetMapSet(map_id))
+        except Exception as e:
+            _LOGGER.debug("[_handle_cached_map] Exception thrown", e)
+            _LOGGER.warning("[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?")
+
+    async def _handle_map_set(self, event_data: dict, requested: bool):
+        map_id = event_data["mid"]
+        map_set_id = event_data["msid"]
+        map_type = event_data["type"]
+        subsets = event_data["subsets"]
+
+        self._rooms = []
+        self._amount_rooms = len(subsets) if subsets else 0
+
+        if requested:
+            tasks = []
+            for subset in subsets:
+                tasks.append(asyncio.create_task(
+                    self._execute_command(GetMapSubSet(
+                        map_id=map_id,
+                        map_set_id=map_set_id,
+                        map_type=map_type,
+                        map_subset_id=subset["mssid"]
+                    ))))
+
+            if tasks:
+                await asyncio.gather(*tasks)
 
     def _handle_map_sub_set(self, event_data: dict):
         subtype = int(event_data["subtype"])
@@ -143,7 +179,14 @@ class Map:
             )
         )
 
-    async def _handle_map_trace(self, event_data: dict):
+        if len(self._rooms) == self._amount_rooms:
+            self.roomsEvents.notify(RoomsEvent(self._rooms))
+
+    def _handle_position(self, event_data: dict):
+        self._update_position(event_data.get("chargePos", {}), True)
+        self._update_position(event_data.get("deebotPos", {}), False)
+
+    async def _handle_map_trace(self, event_data: dict, requested: bool):
         total_count = int(event_data["totalCount"])
         trace_start = int(event_data["traceStart"])
 
@@ -155,58 +198,28 @@ class Map:
             self._update_trace_points(event_data["traceValue"])
 
             trace_start += MAP_TRACE_POINT_COUNT
-            if trace_start < total_count:
+            if trace_start < total_count and requested:
                 await self._execute_command(GetMapTrace(trace_start))
 
-    async def _handle_major_map(self, event_data: dict):
+    async def _handle_major_map(self, event_data: dict, requested: bool):
         _LOGGER.debug("[_handle_major_map] begin")
         values = event_data["value"].split(",")
 
-        tasks = []
-        for i in range(64):
-            if self._is_update_piece(i, values[i]):
-                _LOGGER.debug(f"[_handle_major_map] MapPiece {i} needs to be updated")
-                tasks.append(asyncio.create_task(
-                    self._execute_command(GetMinorMap(
-                        map_id=event_data["mid"],
-                        piece_index=i
-                    ))))
-        if tasks:
-            await asyncio.gather(*tasks)
+        if requested:
+            tasks = []
+            for i in range(64):
+                if self._is_update_piece(i, values[i]):
+                    _LOGGER.debug(f"[_handle_major_map] MapPiece {i} needs to be updated")
+                    tasks.append(asyncio.create_task(
+                        self._execute_command(GetMinorMap(
+                            map_id=event_data["mid"],
+                            piece_index=i
+                        ))))
+            if tasks:
+                await asyncio.gather(*tasks)
 
-    async def _handle_cached_map_info(self, event_data: dict):
-        try:
-            map_id = None
-            for map_status in event_data["info"]:
-                if map_status["using"] == 1:
-                    map_id = map_status["mid"]
-                    _LOGGER.debug(f"[_handle_cached_map] Using Map: {map_id}")
-                    break
-
-            self._rooms = []
-            await self._execute_command(GetMapSet(map_id))
-        except Exception as e:
-            _LOGGER.debug("[_handle_cached_map] Exception thrown", e)
-            _LOGGER.warning("[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?")
-
-    async def _handle_map_set(self, event_data: dict):
-        map_id = event_data["mid"]
-        map_set_id = event_data["msid"]
-        map_type = event_data["type"]
-
-        tasks = []
-        for subset in event_data["subsets"]:
-            tasks.append(asyncio.create_task(
-                self._execute_command(GetMapSubSet(
-                    map_id=map_id,
-                    map_set_id=map_set_id,
-                    map_type=map_type,
-                    map_subset_id=subset["mssid"]
-                ))))
-
-        if tasks:
-            await asyncio.gather(*tasks)
-            self.roomsEvents.notify(RoomsEvent(self._rooms))
+    def _handle_minor_map(self, event_data: dict):
+        self._add_map_piece(event_data["pieceIndex"], event_data["pieceValue"])
 
     # ---------------------------- METHODS ----------------------------
 

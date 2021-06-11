@@ -49,6 +49,7 @@ class VacuumBot:
 
         self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
 
+        # todo still polling or when do we request it?
         self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
             get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command)
 
@@ -85,7 +86,15 @@ class VacuumBot:
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    async def handle(self, event_name: str, event: dict):
+    async def handle(self, event_name: str, event: dict, requested: bool = True) -> None:
+        """
+        Handle the given event
+        :param event_name: the name of the event or request
+        :param event: the data of it
+        :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
+        :return: None
+        """
+
         _LOGGER.debug(f"Handle {event_name}: {event}")
         event_name = event_name.lower()
 
@@ -121,8 +130,6 @@ class VacuumBot:
 
         if event_name == "stats":
             await self._handle_stats(event_body, event_data)
-        elif event_name == "error":
-            await self._handle_error(event)
         elif event_name == "speed":
             await self._handle_fan_speed(event_data)
         elif event_name.startswith("battery"):
@@ -138,7 +145,7 @@ class VacuumBot:
         elif event_name == "waterinfo":
             await self._handle_water_info(event_data)
         elif "map" in event_name or event_name == "pos":
-            await self._map.handle(event_name, event_data)
+            await self._map.handle(event_name, event_data, requested)
         elif event_name.startswith("set"):
             # ignore set commands for now
             pass
@@ -270,6 +277,7 @@ class VacuumBot:
             self.vacuum_status = status
             self.statusEvents.notify(StatusEvent(True, status))
 
+        # todo only request if the requested parameter is true?
         # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
         if self.vacuum_status == "STATE_CLEANING":
             self.statsEvents.request_refresh()
