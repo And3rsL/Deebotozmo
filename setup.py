@@ -45,9 +45,9 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
         "gmqtt==0.6.9",
-        "numpy==1.18.3",
-        "Pillow==7.1.2",
-        "aiohttp==3.7.4"
+        "numpy==1.20.3",
+        "Pillow==8.2.0",
+        "aiohttp==3.7.4.post0"
     ],
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
