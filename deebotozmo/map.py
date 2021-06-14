@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageOps
 from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet, GetCachedMapInfo, \
     GetMajorMap, GetPos
 from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT
-from deebotozmo.events import PollingEventEmitter, RoomsEvent, MapEvent, EventEmitter
+from deebotozmo.events import RoomsEvent, MapEvent, EventEmitter
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_EventEmitter
 
@@ -65,8 +65,10 @@ class Map:
         "tracemap": "#FFFFFF"
     }
 
-    ROBOT_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="
-    CHARGER_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAOCAYAAAAWo42rAAAAdUlEQVQoU2NkQAP/nzD8BwkxyjAwIkuhcEASRCmEKYKZhGwq3ER0ReiKSVOIyzRkU8EmwhUyKzAwSNyHyL9QZGD4+wDMBLmVEasimFHIiuEKpcHBhwmeQryBMJFohcjuw2s1SBKHZ8BWo/gauyshvobJEYoZAEOSPXnhzwZnAAAAAElFTkSuQmCC"
+    ROBOT_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="  # nopep8
+    CHARGER_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAOCAYAAAAWo42rAAAAdUlEQVQoU2NkQAP/nzD8BwkxyjAwIkuhcEASRCmEKYKZhGwq3ER0ReiKSVOIyzRkU8EmwhUyKzAwSNyHyL9QZGD4+wDMBLmVEasimFHIiuEKpcHBhwmeQryBMJFohcjuw2s1SBKHZ8BWo/gauyshvobJEYoZAEOSPXnhzwZnAAAAAElFTkSuQmCC"  # nopep8
+
+    RESIZE_FACTOR = 3
 
     def __init__(self, execute_command: Callable[[Command], Awaitable[None]]):
         self._execute_command = execute_command
@@ -77,13 +79,10 @@ class Map:
         self._amount_rooms: int = 0
         self._traceValues: List[int] = []
         self._map_pieces = np.empty(64, np.dtype('U100'))
+        self._is_map_up_to_date: bool = False
+        self._base64_image: Optional[bytes] = None
+        self._buffer = np.zeros((64, 100, 100))
 
-        self.buffer = np.zeros((64, 100, 100))
-        self.isMapUpdated = False
-        self.base64Image = None
-        self.draw_charger = False
-        self.draw_robot = False
-        self.resize_factor = 3
         self.roomsEvents: EventEmitter[RoomsEvent] = \
             get_EventEmitter(RoomsEvent, [GetCachedMapInfo()], self._execute_command)
 
@@ -97,7 +96,7 @@ class Map:
             await asyncio.gather(*tasks)
             self.mapEvents.notify(MapEvent())
 
-        self.mapEvents: PollingEventEmitter[MapEvent] = PollingEventEmitter[MapEvent](10, refresh_map)
+        self.mapEvents: EventEmitter[MapEvent] = EventEmitter[MapEvent](refresh_map)
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
@@ -105,7 +104,7 @@ class Map:
         """
         Handle the given map event
         :param event_name: the name of the event or request
-        :param event: the data of it
+        :param event_data: the data of it
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
         :return: None
         """
@@ -229,7 +228,7 @@ class Map:
         decoded = _decompress_7z_base64_data(b64)
         piece = np.reshape(list(decoded), (100, 100))
 
-        self.buffer[map_piece] = piece
+        self._buffer[map_piece] = piece
         _LOGGER.debug("[AddMapPiece] Done")
 
     def _update_position(self, new_values: Union[dict, list], is_charger: bool):
@@ -249,12 +248,11 @@ class Map:
             if (current_value.x != x) or (current_value.y != y):
                 _LOGGER.debug(f"Updating {name} position: {x}, {y}")
                 current_value = Coordinate(x=x, y=y)
-                self.isMapUpdated = False
+                self._is_map_up_to_date = False
         else:
             _LOGGER.debug(f"Setting {name} position: {x}, {y}")
             current_value = Coordinate(x=x, y=y)
-            self.isMapUpdated = False
-            self.draw_robot = True
+            self._is_map_up_to_date = False
 
         if is_charger:
             self._charger_position = current_value
@@ -269,7 +267,7 @@ class Map:
             self._map_pieces[index] = value
 
             if str(map_piece) != '1295764014':
-                self.isMapUpdated = False
+                self._is_map_up_to_date = False
                 return True
             else:
                 return False
@@ -293,10 +291,10 @@ class Map:
 
         _LOGGER.debug("[_update_trace_points] finish")
 
-    def get_base64_map(self):
-        if self.isMapUpdated:
+    def get_base64_map(self) -> bytes:
+        if self._is_map_up_to_date:
             _LOGGER.debug("[get_base64_map] No need to update")
-            return self.base64Image
+            return self._base64_image
 
         _LOGGER.debug("[get_base64_map] Begin")
 
@@ -324,7 +322,7 @@ class Map:
                     if (point_x > 6400) or (point_y > 6400):
                         _LOGGER.error(f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}")
 
-                    pixel_type = self.buffer[i][x][y]
+                    pixel_type = self._buffer[i][x][y]
                     if pixel_type in [0x01, 0x02, 0x03]:
                         if im.getpixel((point_x, point_y)) == (0, 0, 0, 0):
                             draw.point((point_x, point_y), fill=Map.COLORS[pixel_type])
@@ -336,11 +334,11 @@ class Map:
 
         del draw
 
-        if self.draw_robot:
+        if self._robot_position is not None:
             _LOGGER.debug("[get_base64_map] Draw robot")
             _draw_position(self._robot_position, Map.ROBOT_PNG, im, pixel_width, offset)
 
-        if self.draw_charger:
+        if self._charger_position is not None:
             _LOGGER.debug("[get_base64_map] Draw charge station")
             _draw_position(self._charger_position, Map.CHARGER_PNG, im, pixel_width, offset)
 
@@ -352,12 +350,12 @@ class Map:
         _LOGGER.debug("[get_base64_map] Flipping Image")
         cropped = ImageOps.flip(cropped)
 
-        _LOGGER.debug("[get_base64_map] Map current Size: X: " + str(cropped.size[0]) + ' Y: ' + str(cropped.size[1]))
+        _LOGGER.debug(f"[get_base64_map] Map current Size: X: {cropped.size[0]} Y: {cropped.size[1]}")
         if cropped.size[0] > 400 or cropped.size[1] > 400:
             _LOGGER.debug("[get_base64_map] Resize disabled.. map over 400")
         else:
-            _LOGGER.debug("[get_base64_map] Resize * " + str(self.resize_factor))
-            cropped = cropped.resize((cropped.size[0] * self.resize_factor, cropped.size[1] * self.resize_factor),
+            _LOGGER.debug(f"[get_base64_map] Resize * {Map.RESIZE_FACTOR}")
+            cropped = cropped.resize((cropped.size[0] * Map.RESIZE_FACTOR, cropped.size[1] * Map.RESIZE_FACTOR),
                                      Image.NEAREST)
 
         _LOGGER.debug("[get_base64_map] Saving to buffer")
@@ -365,8 +363,8 @@ class Map:
         cropped.save(buffered, format="PNG")
         del cropped
 
-        self.isMapUpdated = True
-        self.base64Image = base64.b64encode(buffered.getvalue())
+        self._is_map_up_to_date = True
+        self._base64_image = base64.b64encode(buffered.getvalue())
         _LOGGER.debug("[GetBase64Map] Finish")
 
-        return self.base64Image
+        return self._base64_image
