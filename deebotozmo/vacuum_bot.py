@@ -134,7 +134,7 @@ class VacuumBot:
             self.fw_version = fw_version
 
         if event_name == "stats":
-            await self._handle_stats(event_body, event_data)
+            await self._handle_stats(event_data)
         elif event_name == "error":
             await self._handle_error(event)
         elif event_name == "speed":
@@ -162,12 +162,7 @@ class VacuumBot:
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event}")
 
-    async def _handle_stats(self, event_body: dict, event_data: dict):
-        code = event_body.get("code")
-        if code != 0:
-            _LOGGER.error(f"Error in finding stats, status code={code}")  # Log this so we can identify more errors
-            return
-
+    async def _handle_stats(self, event_data: dict):
         stats_event = StatsEvent(
             event_data.get("area"),
             event_data.get("cid"),
@@ -279,6 +274,10 @@ class VacuumBot:
                     status = "STATE_PAUSED"
                 elif motion_state:
                     status = "STATE_RETURNING"
+
+        elif event_data.get("state") == "goCharging":
+            # todo create a enum for all values
+            status = "STATE_RETURNING"
 
         if status:
             self.vacuum_status = status
