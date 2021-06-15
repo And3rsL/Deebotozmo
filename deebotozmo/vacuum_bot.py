@@ -26,7 +26,7 @@ class VacuumBot:
             *,
             verify_ssl: Union[bool, str] = True
     ):
-        self._semaphore = asyncio.Semaphore(5)
+        self._semaphore = asyncio.Semaphore(3)
         self._session = session
         self.vacuum: Vacuum = vacuum
 
