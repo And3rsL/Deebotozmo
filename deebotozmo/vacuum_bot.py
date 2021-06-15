@@ -113,16 +113,21 @@ class VacuumBot:
         if event_name.endswith("_V2".lower()):
             event_name = event_name[:-3]
 
-        if event_name == "error":
-            await self._handle_error(event)
+        if requested:
+            if event.get("ret") == "ok":
+                event = event.get("resp", {})
+            else:
+                _LOGGER.warning(f"Event {event_name} where ret != \"ok\": {event}")
+                return
+
+        event_body = event.get("body", {})
+        event_header = event.get("header", {})
+
+        if not (event_body and event_header):
+            _LOGGER.warning(f"Invalid Event {event_name}: {event}")
             return
-        elif event.get("ret") == "ok":
-            event_body = event.get("resp", {}).get("body", {})
-            event_header = event.get("resp", {}).get("header", {})
-            event_data = event_body.get("data", {})
-        else:
-            _LOGGER.warning(f"Event {event_name} where ret != \"ok\": {event}")
-            return
+
+        event_data = event_body.get("data", {})
 
         fw_version = event_header.get("fwVer")
         if fw_version:
@@ -130,6 +135,8 @@ class VacuumBot:
 
         if event_name == "stats":
             await self._handle_stats(event_body, event_data)
+        elif event_name == "error":
+            await self._handle_error(event)
         elif event_name == "speed":
             await self._handle_fan_speed(event_data)
         elif event_name.startswith("battery"):
