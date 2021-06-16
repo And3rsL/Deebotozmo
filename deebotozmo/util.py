@@ -5,6 +5,7 @@ from typing import Union, TypeVar, Callable, Awaitable, Type
 
 from deebotozmo.commands import Command
 from deebotozmo.events import PollingEventEmitter, EventEmitter
+from deebotozmo.vacuum_bot import VacuumBot
 
 
 def str_to_bool_or_cert(s: Union[bool, str]) -> Union[bool, str]:
@@ -53,5 +54,7 @@ def get_EventEmitter(event_type: Type[T], commands: [Command],
 
 
 def get_PollingEventEmitter(event_type: Type[T], refresh_interval: int, commands: [Command],
-                            execute_command: Callable[[Command], Awaitable[None]]) -> PollingEventEmitter[T]:
-    return PollingEventEmitter[event_type](refresh_interval, get_refresh_function(commands, execute_command))
+                            execute_command: Callable[[Command], Awaitable[None]], vacuum_bot: VacuumBot) -> \
+        PollingEventEmitter[T]:
+    return PollingEventEmitter[event_type](refresh_interval, get_refresh_function(commands, execute_command),
+                                           vacuum_bot)

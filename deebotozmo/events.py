@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
 
 from deebotozmo.models import Room, VacuumState
+from deebotozmo.vacuum_bot import VacuumBot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,28 +134,44 @@ class EventEmitter(Generic[T]):
 
 class PollingEventEmitter(EventEmitter[T]):
 
-    def __init__(self, refresh_interval: int, refresh_function: Callable[[], Awaitable[None]]):
+    def __init__(self, refresh_interval: int, refresh_function: Callable[[], Awaitable[None]], vacuum_bot: VacuumBot):
         super().__init__(refresh_function)
         self._refresh_task: Optional[Task] = None
         self._refresh_interval: int = refresh_interval
+        self._state: Optional[VacuumState] = vacuum_bot.vacuum_status
+
+        async def on_status(event: StatusEvent):
+            self._state = event.state
+            if event.state == VacuumState.STATE_CLEANING:
+                self._start_refresh_task()
+            else:
+                self._stop_refresh_task()
+
+        vacuum_bot.statusEvents.subscribe(on_status)
 
     async def _refresh_interval_task(self):
         while True:
             await self._refresh_function()
             await asyncio.sleep(self._refresh_interval)
 
-    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
-        listener = super(PollingEventEmitter, self).subscribe(callback)
-
-        if self._refresh_task is None:
+    def _start_refresh_task(self):
+        if self._refresh_task is None and len(self._subscribers) != 0:
             self._refresh_task = asyncio.create_task(self._refresh_interval_task())
 
+    def _stop_refresh_task(self):
+        if self._refresh_task is not None:
+            task = self._refresh_task
+            self._refresh_task = None
+            task.cancel()
+
+    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
+        listener = super(PollingEventEmitter, self).subscribe(callback)
+        if self._state == VacuumState.STATE_CLEANING:
+            self._start_refresh_task()
         return listener
 
     def unsubscribe(self, listener: EventListener[T]):
         super().unsubscribe(listener)
 
-        if len(self._subscribers) == 0 and self._refresh_task is not None:
-            task = self._refresh_task
-            self._refresh_task = None
-            task.cancel()
+        if len(self._subscribers) == 0:
+            self._stop_refresh_task()

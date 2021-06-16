@@ -48,9 +48,8 @@ class VacuumBot:
 
         self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
 
-        # todo still polling or when do we request it?
         self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
-            get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command)
+            get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command, self)
 
         self.fanSpeedEvents: EventEmitter[FanSpeedEvent] = \
             get_EventEmitter(FanSpeedEvent, [GetFanSpeed()], self.execute_command)
@@ -288,10 +287,5 @@ class VacuumBot:
             self.statusEvents.notify(StatusEvent(True, status))
 
         # todo only request if the requested parameter is true?
-        # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
-        if self.vacuum_status == VacuumState.STATE_CLEANING:
-            self.statsEvents.request_refresh()
-            self.lifespanEvents.request_refresh()
-
-        elif self.vacuum_status == VacuumState.STATE_DOCKED:
+        if self.vacuum_status == VacuumState.STATE_DOCKED:
             self.cleanLogsEvents.request_refresh()
