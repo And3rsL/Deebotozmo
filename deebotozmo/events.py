@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
 
 from deebotozmo.models import Room, VacuumState
-from deebotozmo.vacuum_bot import VacuumBot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,7 +133,7 @@ class EventEmitter(Generic[T]):
 
 class PollingEventEmitter(EventEmitter[T]):
 
-    def __init__(self, refresh_interval: int, refresh_function: Callable[[], Awaitable[None]], vacuum_bot: VacuumBot):
+    def __init__(self, refresh_interval: int, refresh_function: Callable[[], Awaitable[None]], vacuum_bot: "VacuumBot"):
         super().__init__(refresh_function)
         self._refresh_task: Optional[Task] = None
         self._refresh_interval: int = refresh_interval

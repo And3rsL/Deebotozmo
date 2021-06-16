@@ -1,4 +1,6 @@
-from typing import Union
+import asyncio
+import logging
+from typing import Union, Optional, List
 
 import aiohttp
 
@@ -6,7 +8,8 @@ from deebotozmo.commands import *
 from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, COMPONENT_FROM_ECOVACS, WATER_LEVEL_FROM_ECOVACS
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
-from deebotozmo.events import *
+from deebotozmo.events import EventEmitter, ErrorEvent, PollingEventEmitter, LifeSpanEvent, FanSpeedEvent, \
+    CleanLogEvent, WaterInfoEvent, BatteryEvent, StatusEvent, StatsEvent, CleanLogEntry
 from deebotozmo.map import Map
 from deebotozmo.models import *
 from deebotozmo.util import get_PollingEventEmitter, get_EventEmitter
@@ -46,10 +49,10 @@ class VacuumBot:
 
         self._map = Map(self.execute_command)
 
-        self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
+        self.statusEvents: EventEmitter[StatusEvent] = \
+            get_EventEmitter(StatusEvent, [GetChargeState(), GetCleanInfo(self.vacuum)], self.execute_command)
 
-        self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
-            get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command, self)
+        self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
 
         self.fanSpeedEvents: EventEmitter[FanSpeedEvent] = \
             get_EventEmitter(FanSpeedEvent, [GetFanSpeed()], self.execute_command)
@@ -63,11 +66,11 @@ class VacuumBot:
         self.batteryEvents: EventEmitter[BatteryEvent] = \
             get_EventEmitter(BatteryEvent, [GetBattery()], self.execute_command)
 
-        self.statusEvents: EventEmitter[StatusEvent] = \
-            get_EventEmitter(StatusEvent, [GetChargeState(), GetCleanInfo(self.vacuum)], self.execute_command)
-
         self.statsEvents: EventEmitter[StatsEvent] = \
             get_EventEmitter(StatsEvent, [GetStats()], self.execute_command)
+
+        self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
+            get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command, self)
 
     @property
     def map(self) -> Map:
