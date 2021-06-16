@@ -1,10 +1,9 @@
+import aiohttp
 import logging
 import time
+from aiohttp import hdrs
 from dataclasses import dataclass
 from typing import Union, Optional, List
-
-import aiohttp
-from aiohttp import hdrs
 
 from deebotozmo.models import Vacuum, RequestAuth
 from deebotozmo.util import str_to_bool_or_cert, md5
@@ -41,8 +40,8 @@ class EcovacsAPI:
     }
 
     def __init__(
-            self, session: aiohttp.ClientSession, device_id: str, account_id: str, password_hash: str,
-            country: str, continent: str, verify_ssl: Union[bool, str] = True
+            self, session: aiohttp.ClientSession, device_id: str, account_id: str, password_hash: str, *,
+            continent: str, country: str, verify_ssl: Union[bool, str] = True
     ):
         self.meta = {**EcovacsAPI.META,
                      "country": country,

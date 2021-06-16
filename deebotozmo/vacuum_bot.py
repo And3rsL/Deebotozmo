@@ -1,6 +1,5 @@
-from typing import Union
-
 import aiohttp
+from typing import Union
 
 from deebotozmo.commands import *
 from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, \
@@ -21,9 +20,9 @@ class VacuumBot:
             session: aiohttp.ClientSession,
             auth: RequestAuth,
             vacuum: Vacuum,
+            *,
             continent: str,
             country: str,
-            *,
             verify_ssl: Union[bool, str] = True
     ):
         self._semaphore = asyncio.Semaphore(3)
@@ -33,7 +32,7 @@ class VacuumBot:
         portal_url = EcovacsAPI.PORTAL_URL_FORMAT.format(continent=continent)
 
         if country.lower() == "cn":
-            portal_url = EcovacsAPI.PORTAL_URL_FORMAT_CN.format(continent=continent)
+            portal_url = EcovacsAPI.PORTAL_URL_FORMAT_CN
 
         self.json: EcovacsJSON = EcovacsJSON(
             session,

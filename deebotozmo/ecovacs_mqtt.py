@@ -1,10 +1,9 @@
 import json
 import logging
 import ssl
-from typing import MutableMapping
-
 from gmqtt import Client
 from gmqtt.mqtt.constants import MQTTv311
+from typing import MutableMapping
 
 from deebotozmo.models import Vacuum, RequestAuth
 from deebotozmo.vacuum_bot import VacuumBot
@@ -20,7 +19,7 @@ def _get_topic(vacuum: Vacuum) -> str:
 
 class EcovacsMqtt:
 
-    def __init__(self, auth: RequestAuth, continent: str):
+    def __init__(self, auth: RequestAuth, *, continent: str):
         self._subscribers: MutableMapping[str, VacuumBot] = {}
         self._hostname = f"mq-{continent}.ecouser.net"
         self._port = 443
