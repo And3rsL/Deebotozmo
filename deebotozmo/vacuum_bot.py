@@ -1,9 +1,9 @@
-import aiohttp
 from typing import Union
 
+import aiohttp
+
 from deebotozmo.commands import *
-from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, STATE_DOCKED, STATE_ERROR, \
-    COMPONENT_FROM_ECOVACS, WATER_LEVEL_FROM_ECOVACS
+from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, COMPONENT_FROM_ECOVACS, WATER_LEVEL_FROM_ECOVACS
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.events import *
@@ -41,7 +41,7 @@ class VacuumBot:
             verify_ssl
         )
 
-        self.vacuum_status = None
+        self.vacuum_status: Optional[VacuumState] = None
         self.fw_version: Optional[str] = None
 
         self._map = Map(self.execute_command)
@@ -141,7 +141,10 @@ class VacuumBot:
         elif event_name.startswith("battery"):
             await self._handle_battery(event_data)
         elif event_name == "chargestate":
-            await self._handle_charge_state(event_body)
+            if requested:
+                await self._handle_charge_state_requested(event_body)
+            else:
+                await self._handle_charge_state(event_data)
         elif event_name == "lifespan":
             await self._handle_life_span(event_data)
         elif event_name == "cleanlogs":
@@ -199,24 +202,27 @@ class VacuumBot:
         except ValueError:
             _LOGGER.warning(f"couldn't parse battery status: {event_data}")
 
-    async def _handle_charge_state(self, event_body: dict):
-        status = None
-
+    async def _handle_charge_state_requested(self, event_body: dict):
         if event_body["code"] == 0:
-            if event_body["data"]["isCharging"] == 1:
-                status = STATE_DOCKED
+            await self._handle_charge_state(event_body.get("data", {}))
         else:
+            status: Optional[VacuumState] = None
             if event_body["msg"] == "fail":
                 if event_body["code"] == "30007":  # Already charging
-                    status = STATE_DOCKED
+                    status = VacuumState.STATE_DOCKED
                 elif event_body["code"] == "5":  # Busy with another command
-                    status = STATE_ERROR
+                    status = VacuumState.STATE_ERROR
                 elif event_body["code"] == "3":  # Bot in stuck state, example dust bin out
-                    status = STATE_ERROR
+                    status = VacuumState.STATE_ERROR
 
-        if status:
-            self.vacuum_status = status
-            self.statusEvents.notify(StatusEvent(True, status))
+            if status:
+                self.vacuum_status = status
+                self.statusEvents.notify(StatusEvent(True, status))
+
+    async def _handle_charge_state(self, event_data: dict):
+        if event_data.get("isCharging") == 1:
+            self.vacuum_status = VacuumState.STATE_DOCKED
+            self.statusEvents.notify(StatusEvent(True, self.vacuum_status))
 
     async def _handle_life_span(self, event_data: dict):
         component: dict
@@ -261,22 +267,21 @@ class VacuumBot:
             _LOGGER.warning(f"Could not parse clean logs event with {event}")
 
     async def _handle_clean_info(self, event_data: dict):
-        status: Optional[str] = None
+        status: Optional[VacuumState] = None
         if event_data.get("state") == "clean":
             if event_data.get("trigger") == "alert":
-                status = "STATE_ERROR"
+                status = VacuumState.STATE_ERROR
             elif event_data.get("trigger") in ["app", "sched"]:
                 motion_state = event_data.get("cleanState", {}).get("motionState")
                 if motion_state == "working":
-                    status = "STATE_CLEANING"
+                    status = VacuumState.STATE_CLEANING
                 elif motion_state == "pause":
-                    status = "STATE_PAUSED"
+                    status = VacuumState.STATE_PAUSED
                 elif motion_state:
-                    status = "STATE_RETURNING"
+                    status = VacuumState.STATE_RETURNING
 
         elif event_data.get("state") == "goCharging":
-            # todo create a enum for all values
-            status = "STATE_RETURNING"
+            status = VacuumState.STATE_RETURNING
 
         if status:
             self.vacuum_status = status
@@ -284,9 +289,9 @@ class VacuumBot:
 
         # todo only request if the requested parameter is true?
         # if STATE_CLEANING we should update stats and components, otherwise just the standard slow update
-        if self.vacuum_status == "STATE_CLEANING":
+        if self.vacuum_status == VacuumState.STATE_CLEANING:
             self.statsEvents.request_refresh()
             self.lifespanEvents.request_refresh()
 
-        elif self.vacuum_status == "STATE_DOCKED":
+        elif self.vacuum_status == VacuumState.STATE_DOCKED:
             self.cleanLogsEvents.request_refresh()

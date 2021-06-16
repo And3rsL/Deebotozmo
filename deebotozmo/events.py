@@ -5,7 +5,7 @@ from asyncio import Task
 from dataclasses import dataclass
 from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
 
-from deebotozmo.models import Room
+from deebotozmo.models import Room, VacuumState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class BatteryEvent:
 @dataclass
 class StatusEvent:
     available: bool
-    state: str
+    state: VacuumState
 
 
 @dataclass

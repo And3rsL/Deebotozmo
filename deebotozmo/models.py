@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 
 
 class Vacuum(dict):
@@ -67,3 +68,12 @@ class RequestAuth(dict):
     @property
     def resource(self):
         return self["resource"]
+
+
+class VacuumState(Enum):
+    STATE_IDLE = 1
+    STATE_CLEANING = 2
+    STATE_RETURNING = 3
+    STATE_DOCKED = 4
+    STATE_ERROR = 5
+    STATE_PAUSED = 6
