@@ -1,4 +1,3 @@
-from codecs import open
 from os import path
 
 from setuptools import setup, find_packages
@@ -10,7 +9,7 @@ long_description = ""
 
 setup(
     name="deebotozmo",
-    version="1.8.0",
+    version="0.0.0",
     description="a library for controlling certain robot vacuums",
     long_description=long_description,
     # Author details
