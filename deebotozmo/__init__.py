@@ -354,6 +354,9 @@ class EcoVacsAPI:
             elif device["class"] == "no61kx":  # DEEBOT T8 POWER
                 device["API_CLEANINFO"] = "getCleanInfo_V2"
                 _LOGGER.debug("Found robot version DEEBOT T8 POWER ")
+            elif device["class"] == "a7lhb1":  # DEEBOT N9+
+                device["API_CLEANINFO"] = "getCleanInfo_V2" 
+                _LOGGER.debug("Found robot version DEEBOT N9 +")
             elif device["class"] == "yna5xi":  # DEEBOT OZMO 950
                 device["API_CLEANINFO"] = "getCleanInfo"
                 _LOGGER.debug("Found robot version DEEBOT OZMO 950 ")
