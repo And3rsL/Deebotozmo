@@ -137,7 +137,7 @@ class VacuumBot:
         if event_name == "stats":
             await self._handle_stats(event_data)
         elif event_name == "error":
-            await self._handle_error(event)
+            await self._handle_error(event, event_data)
         elif event_name == "speed":
             await self._handle_fan_speed(event_data)
         elif event_name.startswith("battery"):
@@ -177,16 +177,25 @@ class VacuumBot:
 
         self.statsEvents.notify(stats_event)
 
-    async def _handle_error(self, event: dict):
-        error = None
+    async def _handle_error(self, event: dict, event_data: dict):
+        error: Optional[int] = None
         if "error" in event:
             error = event["error"]
         elif "errs" in event:
             error = event["errs"]
+        elif "code" in event_data:
+            codes = event_data.get("code", [])
+            if codes:
+                # the last error code
+                error = codes[-1]
 
         if error:
-            _LOGGER.warning("*** error = " + error)
-            self.errorEvents.notify(ErrorEvent(error, ERROR_CODES.get(error)))
+            description = ERROR_CODES.get(error)
+            if error != 0:
+                _LOGGER.warning(f"Bot in error-state: code={error}, description={description}")
+                self.vacuum_status = VacuumState.STATE_ERROR
+                self.statusEvents.notify(StatusEvent(True, self.vacuum_status))
+            self.errorEvents.notify(ErrorEvent(error, description))
         else:
             _LOGGER.warning(f"Could not process error event with received data: {event}")
 
@@ -273,13 +282,14 @@ class VacuumBot:
         if event_data.get("state") == "clean":
             if event_data.get("trigger") == "alert":
                 status = VacuumState.STATE_ERROR
-            elif event_data.get("trigger") in ["app", "sched"]:
+            else:
                 motion_state = event_data.get("cleanState", {}).get("motionState")
                 if motion_state == "working":
                     status = VacuumState.STATE_CLEANING
                 elif motion_state == "pause":
                     status = VacuumState.STATE_PAUSED
                 elif motion_state:
+                    # todo get the correct value and match on them
                     status = VacuumState.STATE_RETURNING
 
         elif event_data.get("state") == "goCharging":
