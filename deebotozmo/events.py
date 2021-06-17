@@ -121,10 +121,13 @@ class EventEmitter(Generic[T]):
         self._subscribers.remove(listener)
 
     def notify(self, event: T):
-        _LOGGER.debug(f"Notify subscriber with {event}")
         self._last_notification_time = time.time()
-        for subscriber in self._subscribers:
-            asyncio.create_task(subscriber.callback(event))
+        if self._subscribers:
+            _LOGGER.debug(f"Notify subscribers with {event}")
+            for subscriber in self._subscribers:
+                asyncio.create_task(subscriber.callback(event))
+        else:
+            _LOGGER.debug(f"No subscribers... Discharging {event}")
 
     def request_refresh(self):
         if len(self._subscribers) > 0:

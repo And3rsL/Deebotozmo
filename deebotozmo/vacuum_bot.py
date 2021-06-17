@@ -288,8 +288,7 @@ class VacuumBot:
                     status = VacuumState.STATE_CLEANING
                 elif motion_state == "pause":
                     status = VacuumState.STATE_PAUSED
-                elif motion_state:
-                    # todo get the correct value and match on them
+                elif motion_state == "goCharging":
                     status = VacuumState.STATE_RETURNING
 
         elif event_data.get("state") == "goCharging":
@@ -299,6 +298,5 @@ class VacuumBot:
             self.vacuum_status = status
             self.statusEvents.notify(StatusEvent(True, status))
 
-        # todo only request if the requested parameter is true?
         if self.vacuum_status == VacuumState.STATE_DOCKED:
             self.cleanLogsEvents.request_refresh()
