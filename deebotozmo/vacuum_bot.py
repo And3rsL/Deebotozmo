@@ -189,7 +189,7 @@ class VacuumBot:
                 # the last error code
                 error = codes[-1]
 
-        if error:
+        if error is not None:
             description = ERROR_CODES.get(error)
             if error != 0:
                 _LOGGER.warning(f"Bot in error-state: code={error}, description={description}")
