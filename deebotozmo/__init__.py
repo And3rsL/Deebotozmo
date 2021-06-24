@@ -963,6 +963,11 @@ class VacBot:
         )
         self.refresh_statuses()
 
+    def SetTrueDetect(self, enable):
+        _LOGGER.debug("[Command] setTrueDetect enable=" + str(int(enable)))
+        self.exc_command('setTrueDetect', { 'enable': int(enable) })
+        self.refresh_statuses()
+
     def exc_command(self, action, params=None, **kwargs):
         self.send_command(VacBotCommand(action, params))
 

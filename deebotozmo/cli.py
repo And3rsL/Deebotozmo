@@ -116,7 +116,13 @@ def setfanspeed(speed):
 def setwaterLevel(level):
     dologin()
     vacbot.SetWaterLevel(level)
-    
+
+@cli.command(help='Set TrueDetect Obstacle Avoidance')
+@click.argument('enable', type=bool, required=True)
+def settruedetect(enable):
+    dologin()
+    vacbot.SetTrueDetect(enable);
+
 @cli.command(help='Returns to charger')
 def charge():
     dologin()
