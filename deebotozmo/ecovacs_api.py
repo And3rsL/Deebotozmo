@@ -52,7 +52,7 @@ class EcovacsAPI:
         self._session = session
         self._verify_ssl = str_to_bool_or_cert(verify_ssl)
 
-        self._resource = device_id[0:8]
+        self._resource = device_id
         self._country = country
         self._continent = continent
 
