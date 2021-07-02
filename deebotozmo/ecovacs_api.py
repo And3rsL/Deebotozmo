@@ -44,25 +44,25 @@ class EcovacsAPI:
             self, session: aiohttp.ClientSession, device_id: str, account_id: str, password_hash: str, *,
             continent: str, country: str, verify_ssl: Union[bool, str] = True
     ):
-        self.meta = {**EcovacsAPI.META,
-                     "country": country,
-                     "deviceId": device_id,
-                     }
+        self._meta = {**EcovacsAPI.META,
+                      "country": country,
+                      "deviceId": device_id,
+                      }
 
         self._session = session
-        self.verify_ssl = str_to_bool_or_cert(verify_ssl)
+        self._verify_ssl = str_to_bool_or_cert(verify_ssl)
 
-        self.resource = device_id[0:8]
-        self.country = country
-        self.continent = continent
+        self._resource = device_id[0:8]
+        self._country = country
+        self._continent = continent
 
-        self.account_id = account_id
+        self._account_id = account_id
         self._password_hash = password_hash
         self._login_information: Optional[EcovacsAPI.LoginInformation] = None
 
     async def login(self):
         _LOGGER.debug("Start login to EcovacsAPI")
-        login_info = await self.__call_login_api(self.account_id, self._password_hash)
+        login_info = await self.__call_login_api(self._account_id, self._password_hash)
         user_id = login_info["uid"]
 
         auth_code = await self.__call_auth_api(login_info["accessToken"], user_id)
@@ -85,7 +85,7 @@ class EcovacsAPI:
             "userid": self._login_information.user_id,
             "realm": EcovacsAPI.REALM,
             "token": self._login_information.access_token,
-            "resource": self.resource,
+            "resource": self._resource,
         })
 
     async def get_devices(self) -> List[Vacuum]:
@@ -135,7 +135,7 @@ class EcovacsAPI:
 
     def __sign(self, params):
         result = {**params, "authTimespan": int(time.time() * 1000), "authTimeZone": "GMT-8"}
-        sign_data = {**self.meta, **result}
+        sign_data = {**self._meta, **result}
         result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.CLIENT_KEY, EcovacsAPI.CLIENT_SECRET)
         result["authAppkey"] = EcovacsAPI.CLIENT_KEY
         return result
@@ -148,12 +148,12 @@ class EcovacsAPI:
         return result
 
     async def __do_auth_response(self, url: str, params: dict) -> dict:
-        if self.country.lower() == "cn":
+        if self._country.lower() == "cn":
             url = url.replace(".ecovacs.com", ".ecovacs.cn")
 
         # todo use maybe async_timeout?
         async with self._session.get(
-                url, params=params, timeout=60, ssl=self.verify_ssl
+                url, params=params, timeout=60, ssl=self._verify_ssl
         ) as res:
             res.raise_for_status()
 
@@ -179,9 +179,9 @@ class EcovacsAPI:
             "requestId": md5(time.time())
         }
 
-        url = (EcovacsAPI.MAIN_URL_FORMAT + "/user/login").format(**self.meta)
+        url = (EcovacsAPI.MAIN_URL_FORMAT + "/user/login").format(**self._meta)
 
-        if self.country.lower() == "cn":
+        if self._country.lower() == "cn":
             url += "CheckMobile"
 
         return await self.__do_auth_response(url, self.__sign(params))
@@ -192,10 +192,10 @@ class EcovacsAPI:
             "uid": user_id,
             "accessToken": access_token,
             "bizType": "ECOVACS_IOT",
-            "deviceId": self.meta["deviceId"]
+            "deviceId": self._meta["deviceId"]
         }
 
-        url = EcovacsAPI.PORTAL_GLOBAL_AUTHCODE.format(**self.meta)
+        url = EcovacsAPI.PORTAL_GLOBAL_AUTHCODE.format(**self._meta)
 
         res = await self.__do_auth_response(url, self.__sign_auth(params))
         return res["authCode"]
@@ -205,10 +205,10 @@ class EcovacsAPI:
         params = {**args}
 
         base_url = EcovacsAPI.PORTAL_URL_FORMAT
-        if self.country.lower() == "cn":
+        if self._country.lower() == "cn":
             base_url = EcovacsAPI.PORTAL_URL_FORMAT
 
-        format_data = {**self.meta, "continent": self.continent}
+        format_data = {**self._meta, "continent": self._continent}
         if continent is not None:
             format_data["continent"] = continent
 
@@ -216,7 +216,7 @@ class EcovacsAPI:
 
         # todo use maybe async_timeout?
         async with self._session.post(
-                url, json=params, timeout=60, ssl=self.verify_ssl
+                url, json=params, timeout=60, ssl=self._verify_ssl
         ) as res:
             res.raise_for_status()
 
@@ -230,14 +230,14 @@ class EcovacsAPI:
             "userId": user_id,
             "token": auth_code,
             "realm": EcovacsAPI.REALM,
-            "resource": self.resource,
+            "resource": self._resource,
             "org": "ECOWW",
             "last": "",
-            "country": self.meta["country"].upper(),
+            "country": self._meta["country"].upper(),
             "todo": "loginByItToken"
         }
 
-        if self.country.lower() == "cn":
+        if self._country.lower() == "cn":
             data.update({
                 "org": "ECOCN",
                 "country": "Chinese"
