@@ -1,9 +1,10 @@
-import aiohttp
 import logging
 import time
-from aiohttp import hdrs
 from dataclasses import dataclass
 from typing import Union, Optional, List
+
+import aiohttp
+from aiohttp import hdrs
 
 from deebotozmo.models import Vacuum, RequestAuth
 from deebotozmo.util import str_to_bool_or_cert, md5
@@ -179,6 +180,9 @@ class EcovacsAPI:
         }
 
         url = (EcovacsAPI.MAIN_URL_FORMAT + "/user/login").format(**self.meta)
+
+        if self.country.lower() == "cn":
+            url += "CheckMobile"
 
         return await self.__do_auth_response(url, self.__sign(params))
 
