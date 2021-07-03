@@ -206,7 +206,7 @@ class EcovacsAPI:
 
         base_url = EcovacsAPI.PORTAL_URL_FORMAT
         if self._country.lower() == "cn":
-            base_url = EcovacsAPI.PORTAL_URL_FORMAT
+            base_url = EcovacsAPI.PORTAL_URL_FORMAT_CN
 
         format_data = {**self._meta, "continent": self._continent}
         if continent is not None:
