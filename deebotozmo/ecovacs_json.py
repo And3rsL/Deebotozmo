@@ -70,10 +70,10 @@ class EcovacsJSON:
         else:
             payload = {
                 "header": {
-                    "pri": "2",
+                    "pri": "1",
                     "ts": datetime.datetime.now().timestamp(),
-                    "tmz": 480,
-                    "ver": "0.0.22"
+                    "tzm": 480,
+                    "ver": "0.0.50"
                 }
             }
 
