@@ -102,7 +102,10 @@ class EcovacsAPI:
         if json["code"] == 0:
             devices: List[Vacuum] = []
             for device in json["devices"]:
-                devices.append(Vacuum(device))
+                if device.get("company") == "eco-ng":
+                    devices.append(Vacuum(device))
+                else:
+                    _LOGGER.debug(f"Skipping device as it is not supported: {device}")
             return devices
         else:
             _LOGGER.error(f"call to {self.API_APPSVR_APP} failed with {json}")
