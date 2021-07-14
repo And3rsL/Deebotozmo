@@ -85,6 +85,27 @@ class VacuumBot:
 
         await self.handle(command.name, response)
 
+    def set_status(self, *, available: bool = True, status: Optional[VacuumState] = None):
+        self.statusEvents.notify(StatusEvent(available, status))
+
+        last_status = self.vacuum_status
+        self.vacuum_status = status
+
+        if not available:
+            self.vacuum_status = None
+
+        if last_status is None and available:
+            # bot was unavailable
+            if status is None:
+                self.statusEvents.request_refresh()
+            self.errorEvents.request_refresh()
+            self.fanSpeedEvents.request_refresh()
+            self.cleanLogsEvents.request_refresh()
+            self.waterEvents.request_refresh()
+            self.batteryEvents.request_refresh()
+            self.statsEvents.request_refresh()
+            self.lifespanEvents.request_refresh()
+
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(self, event_name: str, event: dict, requested: bool = True) -> None:
@@ -193,8 +214,7 @@ class VacuumBot:
             description = ERROR_CODES.get(error)
             if error != 0:
                 _LOGGER.warning(f"Bot in error-state: code={error}, description={description}")
-                self.vacuum_status = VacuumState.STATE_ERROR
-                self.statusEvents.notify(StatusEvent(True, self.vacuum_status))
+                self.set_status(status=VacuumState.STATE_ERROR)
             self.errorEvents.notify(ErrorEvent(error, description))
         else:
             _LOGGER.warning(f"Could not process error event with received data: {event}")
@@ -227,13 +247,11 @@ class VacuumBot:
                     status = VacuumState.STATE_ERROR
 
             if status:
-                self.vacuum_status = status
-                self.statusEvents.notify(StatusEvent(True, status))
+                self.set_status(status=status)
 
     async def _handle_charge_state(self, event_data: dict):
         if event_data.get("isCharging") == 1:
-            self.vacuum_status = VacuumState.STATE_DOCKED
-            self.statusEvents.notify(StatusEvent(True, self.vacuum_status))
+            self.set_status(status=VacuumState.STATE_DOCKED)
 
     async def _handle_life_span(self, event_data: dict):
         component: dict
@@ -295,8 +313,7 @@ class VacuumBot:
             status = VacuumState.STATE_RETURNING
 
         if status:
-            self.vacuum_status = status
-            self.statusEvents.notify(StatusEvent(True, status))
+            self.set_status(status=status)
 
         if self.vacuum_status == VacuumState.STATE_DOCKED:
             self.cleanLogsEvents.request_refresh()

@@ -38,7 +38,7 @@ class BatteryEvent:
 @dataclass
 class StatusEvent:
     available: bool
-    state: VacuumState
+    state: Optional[VacuumState]
 
 
 @dataclass
