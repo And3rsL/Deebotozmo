@@ -103,6 +103,7 @@ class EventEmitter(Generic[T]):
         self._subscribers: List[EventListener] = []
         self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
         self._last_notification_time = None
+        self._semaphore = asyncio.Semaphore(1)
 
     @property
     def has_subscribers(self) -> bool:
@@ -129,9 +130,17 @@ class EventEmitter(Generic[T]):
         else:
             _LOGGER.debug(f"No subscribers... Discharging {event}")
 
+    async def _call_refresh_function(self):
+        if self._semaphore.locked():
+            _LOGGER.debug("Already refresh function running. Skipping...")
+            return
+
+        async with self._semaphore:
+            await self._refresh_function()
+
     def request_refresh(self):
         if len(self._subscribers) > 0:
-            asyncio.create_task(self._refresh_function())
+            asyncio.create_task(self._call_refresh_function())
 
 
 class PollingEventEmitter(EventEmitter[T]):
@@ -153,7 +162,7 @@ class PollingEventEmitter(EventEmitter[T]):
 
     async def _refresh_interval_task(self):
         while True:
-            await self._refresh_function()
+            await self._call_refresh_function()
             await asyncio.sleep(self._refresh_interval)
 
     def _start_refresh_task(self):
