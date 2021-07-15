@@ -44,7 +44,7 @@ class VacuumBot:
             verify_ssl
         )
 
-        self.vacuum_status: Optional[VacuumState] = None
+        self.status: StatusEvent = StatusEvent(False, None)
         self.fw_version: Optional[str] = None
 
         self._map = Map(self.execute_command)
@@ -77,7 +77,7 @@ class VacuumBot:
         return self._map
 
     async def execute_command(self, command: Command):
-        if command.name == CleanResume.name and self.vacuum_status != "STATE_PAUSED":
+        if command.name == CleanResume.name and self.status.state != "STATE_PAUSED":
             command = CleanStart()
 
         async with self._semaphore:
@@ -85,20 +85,28 @@ class VacuumBot:
 
         await self.handle(command.name, response)
 
-    def set_status(self, *, available: bool = True, status: Optional[VacuumState] = None):
-        self.statusEvents.notify(StatusEvent(available, status))
+    def set_available(self, available: bool):
+        status = StatusEvent(available, self.status.state)
+        self._set_status(status)
 
-        last_status = self.vacuum_status
+    def _set_state(self, state: VacuumState):
+        self._set_status(StatusEvent(True, state))
 
-        if not available:
-            self.vacuum_status = None
-        elif status is not None:
-            self.vacuum_status = status
+    def _set_status(self, status: StatusEvent):
+        _LOGGER.debug(f"Calling _set_status with {status}")
 
-        if last_status is None and available:
+        last_status = self.status
+
+        if self.status == status:
+            _LOGGER.debug("Status still the same... Skipping")
+            return
+        else:
+            self.status = status
+            self.statusEvents.notify(status)
+
+        if (not last_status.available) and status.available:
             # bot was unavailable
-            if status is None:
-                self.statusEvents.request_refresh()
+            self.statusEvents.request_refresh()
             self.errorEvents.request_refresh()
             self.fanSpeedEvents.request_refresh()
             self.cleanLogsEvents.request_refresh()
@@ -215,7 +223,7 @@ class VacuumBot:
             description = ERROR_CODES.get(error)
             if error != 0:
                 _LOGGER.warning(f"Bot in error-state: code={error}, description={description}")
-                self.set_status(status=VacuumState.STATE_ERROR)
+                self._set_state(VacuumState.STATE_ERROR)
             self.errorEvents.notify(ErrorEvent(error, description))
         else:
             _LOGGER.warning(f"Could not process error event with received data: {event}")
@@ -248,11 +256,11 @@ class VacuumBot:
                     status = VacuumState.STATE_ERROR
 
             if status:
-                self.set_status(status=status)
+                self._set_state(status)
 
     async def _handle_charge_state(self, event_data: dict):
         if event_data.get("isCharging") == 1:
-            self.set_status(status=VacuumState.STATE_DOCKED)
+            self._set_state(VacuumState.STATE_DOCKED)
 
     async def _handle_life_span(self, event_data: dict):
         component: dict
@@ -314,7 +322,7 @@ class VacuumBot:
             status = VacuumState.STATE_RETURNING
 
         if status:
-            self.set_status(status=status)
+            self._set_state(status)
 
-        if self.vacuum_status == VacuumState.STATE_DOCKED:
+        if self.status.state == VacuumState.STATE_DOCKED:
             self.cleanLogsEvents.request_refresh()
