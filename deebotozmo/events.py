@@ -149,10 +149,10 @@ class PollingEventEmitter(EventEmitter[T]):
         super().__init__(refresh_function)
         self._refresh_task: Optional[Task] = None
         self._refresh_interval: int = refresh_interval
-        self._state: Optional[VacuumState] = vacuum_bot.vacuum_status
+        self._status: Optional[VacuumState] = vacuum_bot.status
 
         async def on_status(event: StatusEvent):
-            self._state = event.state
+            self._status = event.state
             if event.state == VacuumState.STATE_CLEANING:
                 self._start_refresh_task()
             else:
@@ -177,7 +177,7 @@ class PollingEventEmitter(EventEmitter[T]):
 
     def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
         listener = super(PollingEventEmitter, self).subscribe(callback)
-        if self._state == VacuumState.STATE_CLEANING:
+        if self._status == VacuumState.STATE_CLEANING:
             self._start_refresh_task()
         return listener
 
