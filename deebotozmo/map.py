@@ -142,7 +142,7 @@ class Map:
             if requested:
                 await self._execute_command(GetMapSet(map_id))
         except Exception as e:
-            _LOGGER.debug("[_handle_cached_map] Exception thrown", e)
+            _LOGGER.debug("[_handle_cached_map] Exception thrown", e, exc_info=True)
             _LOGGER.warning("[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?")
 
     async def _handle_map_set(self, event_data: dict, requested: bool):

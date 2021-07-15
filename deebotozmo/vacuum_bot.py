@@ -240,7 +240,7 @@ class VacuumBot:
         try:
             self.batteryEvents.notify(BatteryEvent(event_data["value"]))
         except ValueError:
-            _LOGGER.warning(f"couldn't parse battery status: {event_data}")
+            _LOGGER.warning(f"Couldn't parse battery status: {event_data}")
 
     async def _handle_charge_state_requested(self, event_body: dict):
         if event_body["code"] == 0:

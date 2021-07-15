@@ -1,9 +1,10 @@
 import json
 import logging
 import ssl
+from typing import MutableMapping
+
 from gmqtt import Client
 from gmqtt.mqtt.constants import MQTTv311
-from typing import MutableMapping
 
 from deebotozmo.models import Vacuum, RequestAuth
 from deebotozmo.vacuum_bot import VacuumBot
@@ -46,7 +47,7 @@ class EcovacsMqtt:
                     await bot.handle(topic_split[2], data, False)
                 return _ON_MESSAGE_RETURN_SUCCESS
             except Exception as err:
-                _LOGGER.error("An exception occurred", err)
+                _LOGGER.error("An exception occurred", err, exc_info=True)
 
         self._client.on_message = _on_message
         self._client.set_auth_credentials(auth.user_id, auth.token)
