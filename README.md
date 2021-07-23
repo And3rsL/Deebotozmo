@@ -20,20 +20,41 @@ using your smartphone.
 You are welcome to try using this as a python library for other efforts.
 A simple usage might go something like this:
 
-```
-import deebotozmo
+```python
+async def main():
+    async with aiohttp.ClientSession() as session:
+        logging.basicConfig(level=logging.DEBUG)
+        api = EcovacsAPI(session, device_id, email, password_hash, continent=continent, country=country,
+                         verify_ssl=False)
+        await api.login()
 
-config = ...
+        devices_ = await api.get_devices()
 
-api = EcoVacsAPI(config['device_id'], config['email'], config['password_hash'],
-                         config['country'], config['continent'])
-my_vac = api.devices()[0]
-vacbot = VacBot(api.uid, api.REALM, api.resource, api.user_access_token, my_vac, config['continent'])
-vacbot.connect_and_wait_until_ready()
+        auth = await api.get_request_auth()
+        bot = VacuumBot(session, auth, devices_[0], continent=continent, country=country, verify_ssl=False)
 
-vacbot.Clean()  # start cleaning
-time.sleep(900)      # clean for 15 minutes
-vacbot.Charge() # return to the charger
+        mqtt = EcovacsMqtt(auth, continent=continent)
+        await mqtt.subscribe(bot)
+
+        async def on_battery(event: BatteryEvent):
+            # Do stuff on battery event
+            if event.value == 100:
+
+        # Battery full
+
+        # Subscribe for events (more events available)
+        bot.batteryEvents.subscribe(on_battery)
+
+        # Execute commands
+        await bot.execute_command(CleanStart())
+        await asyncio.sleep(900)  # Wait for...
+        await bot.execute_command(Charge())
+
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+    loop.run_forever()
 ```
 
 ## Thanks
