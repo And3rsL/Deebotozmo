@@ -182,8 +182,11 @@ class Map:
             self.roomsEvents.notify(RoomsEvent(self._rooms))
 
     def _handle_position(self, event_data: dict):
-        self._update_position(event_data.get("chargePos", {}), True)
-        self._update_position(event_data.get("deebotPos", {}), False)
+        if "chargePos" in event_data:
+            self._update_position(event_data["chargePos"], True)
+
+        if "deebotPos" in event_data:
+            self._update_position(event_data["deebotPos"], False)
 
     async def _handle_map_trace(self, event_data: dict, requested: bool):
         total_count = int(event_data["totalCount"])
@@ -241,7 +244,7 @@ class Map:
         y = new_values.get("y")
 
         if x is None or y is None:
-            _LOGGER.warning("Could not pars position event")
+            _LOGGER.warning(f"Could not parse position event for {name}")
             return
 
         if current_value:
