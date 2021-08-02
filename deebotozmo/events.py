@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 from asyncio import Task
 from dataclasses import dataclass
 from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
@@ -102,8 +101,8 @@ class EventEmitter(Generic[T]):
     def __init__(self, refresh_function: Callable[[], Awaitable[None]]):
         self._subscribers: List[EventListener] = []
         self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
-        self._last_notification_time = None
         self._semaphore = asyncio.Semaphore(1)
+        self._last_event: Optional[T] = None
 
     @property
     def has_subscribers(self) -> bool:
@@ -113,7 +112,11 @@ class EventEmitter(Generic[T]):
         listener = EventListener(self, callback)
         self._subscribers.append(listener)
 
-        if not self._last_notification_time and len(self._subscribers) == 1:
+        if self._last_event:
+            # Notify subscriber directly with the last event
+            asyncio.create_task(listener.callback(self._last_event))
+        elif len(self._subscribers) == 1:
+            # first subscriber therefore do refresh
             self.request_refresh()
 
         return listener
@@ -122,7 +125,11 @@ class EventEmitter(Generic[T]):
         self._subscribers.remove(listener)
 
     def notify(self, event: T):
-        self._last_notification_time = time.time()
+        if event == self._last_event:
+            _LOGGER.debug(f"Event is the same! Skipping ({event})")
+            return
+
+        self._last_event = event
         if self._subscribers:
             _LOGGER.debug(f"Notify subscribers with {event}")
             for subscriber in self._subscribers:

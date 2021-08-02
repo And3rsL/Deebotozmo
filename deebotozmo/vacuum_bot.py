@@ -100,9 +100,9 @@ class VacuumBot:
         if self.status == status:
             _LOGGER.debug("Status still the same... Skipping")
             return
-        else:
-            self.status = status
-            self.statusEvents.notify(status)
+
+        self.status = status
+        self.statusEvents.notify(status)
 
         if (not last_status.available) and status.available:
             # bot was unavailable
