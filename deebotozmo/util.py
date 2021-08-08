@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import hashlib
 import os
 from typing import Union, TypeVar, Callable, Awaitable, Type
@@ -57,3 +58,12 @@ def get_PollingEventEmitter(event_type: Type[T], refresh_interval: int, commands
         PollingEventEmitter[T]:
     return PollingEventEmitter[event_type](refresh_interval, get_refresh_function(commands, execute_command),
                                            vacuum_bot)
+
+
+def sanitize_data(data: dict):
+    sanitized_data = copy.deepcopy(data)
+    for s in ["auth", "token", "userId", "userid", "accessToken", "uid"]:
+        if s in sanitized_data:
+            sanitized_data[s] = "[REMOVED]"
+
+    return sanitized_data

@@ -1,4 +1,3 @@
-import copy
 import logging
 import time
 from dataclasses import dataclass
@@ -8,18 +7,9 @@ import aiohttp
 from aiohttp import hdrs
 
 from deebotozmo.models import Vacuum, RequestAuth
-from deebotozmo.util import str_to_bool_or_cert, md5
+from deebotozmo.util import str_to_bool_or_cert, md5, sanitize_data
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _sanitize_data(data: dict):
-    sanitized_data = copy.deepcopy(data)
-    for s in ["auth", "token", "userId", "userid", "accessToken", "uid"]:
-        if s in sanitized_data:
-            sanitized_data[s] = "[REMOVED]"
-
-    return sanitized_data
 
 
 class EcovacsAPI:
@@ -121,7 +111,7 @@ class EcovacsAPI:
             _LOGGER.error(f"call to {self.API_APPSVR_APP} failed with {json}")
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and "
-                f"parameters {_sanitize_data(data)}")
+                f"parameters {sanitize_data(data)}")
 
     async def get_product_iot_map(self) -> List[dict]:
         data = {
@@ -136,7 +126,7 @@ class EcovacsAPI:
         else:
             _LOGGER.error(f"call to {api} failed with {json}")
             raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {_sanitize_data(data)}")
+                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {sanitize_data(data)}")
 
     @staticmethod
     def __get_signed_md5(data: dict, key: str, secret: str) -> str:
@@ -215,7 +205,7 @@ class EcovacsAPI:
         return res["authCode"]
 
     async def __call_portal_api(self, api: str, args: dict, continent: Optional[str] = None):
-        _LOGGER.debug(f"calling user api {api} with {_sanitize_data(args)}")
+        _LOGGER.debug(f"calling user api {api} with {sanitize_data(args)}")
         params = {**args}
 
         base_url = EcovacsAPI.PORTAL_URL_FORMAT
@@ -271,7 +261,7 @@ class EcovacsAPI:
             _LOGGER.error(f"call to {self.API_USERS_USER} failed with {json}")
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_USERS_USER} and "
-                f"parameters {_sanitize_data(data)}")
+                f"parameters {sanitize_data(data)}")
 
     @dataclass
     class LoginInformation:

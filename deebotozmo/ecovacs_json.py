@@ -7,6 +7,7 @@ from aiohttp import ClientResponseError
 
 from deebotozmo.commands import Command, GetCleanLogs
 from deebotozmo.models import Vacuum, RequestAuth
+from deebotozmo.util import sanitize_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class EcovacsJSON:
     async def send_command(self, command: Command, vacuum: Vacuum) -> dict:
         json, base_url, url_with_params = self._get_json_and_url(command, vacuum)
 
-        _LOGGER.debug(f"Calling {base_url} with {json}")
+        _LOGGER.debug(f"Calling {base_url} with {sanitize_data(json)}")
 
         try:
             # todo use maybe async_timeout?
