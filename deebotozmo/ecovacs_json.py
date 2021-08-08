@@ -29,18 +29,18 @@ class EcovacsJSON:
         self.verify_ssl = verify_ssl
 
     async def send_command(self, command: Command, vacuum: Vacuum) -> dict:
-        json, url = self._get_json_and_url(command, vacuum)
+        json, base_url, url_with_params = self._get_json_and_url(command, vacuum)
 
-        _LOGGER.debug(f"Calling {url} with {json}")
+        _LOGGER.debug(f"Calling {base_url} with {json}")
 
         try:
             # todo use maybe async_timeout?
             async with self._session.post(
-                    url, headers=EcovacsJSON.REQUEST_HEADERS, json=json, timeout=60, ssl=self.verify_ssl
+                    url_with_params, headers=EcovacsJSON.REQUEST_HEADERS, json=json, timeout=60, ssl=self.verify_ssl
             ) as res:
                 res.raise_for_status()
                 if res.status != 200:
-                    _LOGGER.warning(f"Error calling API ({res.status}): {str(url)}")
+                    _LOGGER.warning(f"Error calling API ({res.status}): {base_url}")
                     return {}
 
                 json = await res.json()
@@ -49,15 +49,16 @@ class EcovacsJSON:
         except ClientResponseError as err:
             if err.status == 502:
                 _LOGGER.info("Error calling API (502): Unfortunately the ecovacs api is unreliable. "
-                             f"URL was: {str(url)}")
+                             f"URL was: {base_url}")
             else:
-                _LOGGER.warning(f"Error calling API ({err.status}): {str(url)}")
+                _LOGGER.warning(f"Error calling API ({err.status}): {base_url}")
 
         return {}
 
-    def _get_json_and_url(self, command: Command, vacuum: Vacuum) -> (dict, str):
+    def _get_json_and_url(self, command: Command, vacuum: Vacuum) -> (dict, str, str):
         json = {"auth": self._auth}
-        url = self.portal_url
+        base_url = self.portal_url
+        params = "?"
 
         if command.name == GetCleanLogs().name:
             json.update({
@@ -66,7 +67,7 @@ class EcovacsJSON:
                 "resource": vacuum.resource,
             })
 
-            url += f"/lg/log.do?"
+            base_url += f"/lg/log.do"
         else:
             payload = {
                 "header": {
@@ -92,7 +93,8 @@ class EcovacsJSON:
                 "toType": vacuum.get_class,
             })
 
-            url += f"/iot/devmanager.do?mid={json['toType']}&did={json['toId']}&"
+            base_url += f"/iot/devmanager.do"
+            params += "mid={json['toType']}&did={json['toId']}&"
 
-        url += f"td={json.get('td')}&u={json['auth']['userid']}&cv=1.67.3&t=a&av=1.3.1"
-        return json, url
+        params += f"td={json.get('td')}&u={json['auth']['userid']}&cv=1.67.3&t=a&av=1.3.1"
+        return json, base_url, base_url + params

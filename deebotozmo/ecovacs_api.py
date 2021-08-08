@@ -1,3 +1,4 @@
+import copy
 import logging
 import time
 from dataclasses import dataclass
@@ -10,6 +11,15 @@ from deebotozmo.models import Vacuum, RequestAuth
 from deebotozmo.util import str_to_bool_or_cert, md5
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _sanitize_data(data: dict):
+    sanitized_data = copy.deepcopy(data)
+    for s in ["auth", "token", "userId", "userid", "accessToken", "uid"]:
+        if s in sanitized_data:
+            sanitized_data[s] = "[REMOVED]"
+
+    return sanitized_data
 
 
 class EcovacsAPI:
@@ -70,7 +80,7 @@ class EcovacsAPI:
         login_response = await self.__call_login_by_it_token(user_id, auth_code)
         user_access_token = login_response["token"]
         if login_response["userId"] != user_id:
-            _LOGGER.debug("Switching to shorter UID " + login_response["userId"])
+            _LOGGER.debug("Switching to shorter UID")
             user_id = login_response["userId"]
 
         self._login_information = EcovacsAPI.LoginInformation(user_access_token, user_id)
@@ -110,7 +120,8 @@ class EcovacsAPI:
         else:
             _LOGGER.error(f"call to {self.API_APPSVR_APP} failed with {json}")
             raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and parameters {data}")
+                f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and "
+                f"parameters {_sanitize_data(data)}")
 
     async def get_product_iot_map(self) -> List[dict]:
         data = {
@@ -125,7 +136,7 @@ class EcovacsAPI:
         else:
             _LOGGER.error(f"call to {api} failed with {json}")
             raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {data}")
+                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {_sanitize_data(data)}")
 
     @staticmethod
     def __get_signed_md5(data: dict, key: str, secret: str) -> str:
@@ -204,7 +215,7 @@ class EcovacsAPI:
         return res["authCode"]
 
     async def __call_portal_api(self, api: str, args: dict, continent: Optional[str] = None):
-        _LOGGER.debug(f"calling user api {api} with {args}")
+        _LOGGER.debug(f"calling user api {api} with {_sanitize_data(args)}")
         params = {**args}
 
         base_url = EcovacsAPI.PORTAL_URL_FORMAT
@@ -259,7 +270,8 @@ class EcovacsAPI:
 
             _LOGGER.error(f"call to {self.API_USERS_USER} failed with {json}")
             raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {self.API_USERS_USER} and parameters {data}")
+                f"failure {json['error']} ({json['errno']}) for call {self.API_USERS_USER} and "
+                f"parameters {_sanitize_data(data)}")
 
     @dataclass
     class LoginInformation:
