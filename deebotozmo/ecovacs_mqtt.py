@@ -20,16 +20,17 @@ def _get_topic(vacuum: Vacuum) -> str:
 
 class EcovacsMqtt:
 
-    def __init__(self, auth: RequestAuth, *, continent: str):
+    def __init__(self, auth: RequestAuth, *, continent: str, country: str):
         self._subscribers: MutableMapping[str, VacuumBot] = {}
-        self._hostname = f"mq-{continent}.ecouser.net"
         self._port = 443
+        self._hostname = f"mq-{continent}.ecouser.net"
+        if country.lower() == "cn":
+            self._hostname = "mq.ecouser.net"
 
         client_id = f"{auth.user_id}@ecouser/{auth.resource}"
         self._client = Client(client_id)
 
         async def _on_message(client, topic: str, payload: bytes, qos, properties) -> int:
-
             try:
                 _LOGGER.debug(f"Got message: topic={topic}; payload={payload};")
                 topic_split = topic.split("/")
