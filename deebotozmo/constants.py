@@ -1,3 +1,20 @@
+from enum import Enum, unique
+
+
+class _BaseEnum(Enum):
+    @classmethod
+    def has_value(cls, value):
+        return value in cls._value2member_map_
+
+
+@unique
+class MapSetType(str, _BaseEnum):
+    ROOMS = "ar"
+    VIRTUAL_WALLS = "vw"
+    NO_MOP_ZONES = "mw"
+
+
+# todo refactor below
 CLEAN_MODE_AUTO = 'auto'
 CLEAN_MODE_SPOT_AREA = 'spotArea'
 CLEAN_MODE_CUSTOM_AREA = 'customArea'

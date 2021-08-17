@@ -1,6 +1,6 @@
 from deebotozmo.constants import FAN_SPEED_TO_ECOVACS, WATER_LEVEL_TO_ECOVACS, CLEAN_ACTION_START, CLEAN_ACTION_PAUSE, \
     CLEAN_ACTION_RESUME, COMPONENT_MAIN_BRUSH, \
-    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER, MAP_TRACE_POINT_COUNT, CLEAN_ACTION_STOP
+    COMPONENT_SIDE_BRUSH, COMPONENT_FILTER, MAP_TRACE_POINT_COUNT, CLEAN_ACTION_STOP, MapSetType
 from deebotozmo.models import Vacuum
 
 
@@ -193,7 +193,7 @@ class GetMapTrace(Command):
 
 class GetMinorMap(Command):
 
-    def __init__(self, *, map_id: int, piece_index: int):
+    def __init__(self, *, map_id: str, piece_index: int):
         super().__init__("getMinorMap", {
             "mid": map_id,
             "type": "ol",
@@ -203,20 +203,20 @@ class GetMinorMap(Command):
 
 class GetMapSet(Command):
 
-    def __init__(self, map_id: int):
+    def __init__(self, map_id: str, map_type: MapSetType = MapSetType.ROOMS):
         super().__init__("getMapSet", {
             "mid": map_id,
-            "type": "ar"
+            "type": map_type.value
         })
 
 
 class GetMapSubSet(Command):
 
-    def __init__(self, *, map_id: int, map_set_id: int, map_type: str, map_subset_id: str):
+    def __init__(self, *, map_id: str, map_set_id: str, map_type: MapSetType, map_subset_id: str):
         super().__init__("getMapSubSet", {
             "mid": map_id,
             "msid": map_set_id,
-            "type": map_type,
+            "type": map_type.value,
             "mssid": map_subset_id
         })
 

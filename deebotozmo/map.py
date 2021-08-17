@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet, GetCachedMapInfo, \
     GetMajorMap, GetPos
-from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT
+from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT, MapSetType
 from deebotozmo.events import RoomsEvent, MapEvent, EventEmitter
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_EventEmitter
@@ -148,7 +148,10 @@ class Map:
     async def _handle_map_set(self, event_data: dict, requested: bool):
         map_id = event_data["mid"]
         map_set_id = event_data["msid"]
-        map_type = event_data["type"]
+        if not MapSetType.has_value(event_data["type"]):
+            _LOGGER.debug(f"[_handle_map_set] unknown type: {event_data['type']}")
+            return
+        map_type = MapSetType(event_data["type"])
         subsets = event_data["subsets"]
 
         self._rooms = []
@@ -272,10 +275,8 @@ class Map:
             if str(map_piece) != '1295764014':
                 self._is_map_up_to_date = False
                 return True
-            else:
-                return False
 
-        _LOGGER.debug("[_is_update_piece] No need to update")
+        return False
 
     def _update_trace_points(self, data):
         _LOGGER.debug("[_update_trace_points] Begin")
