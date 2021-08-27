@@ -82,6 +82,7 @@ class Map:
         self._is_map_up_to_date: bool = False
         self._base64_image: Optional[bytes] = None
         self._buffer = np.zeros((64, 100, 100))
+        self._last_requested_width: Optional[int] = None
 
         self.roomsEvents: EventEmitter[RoomsEvent] = \
             get_EventEmitter(RoomsEvent, [GetCachedMapInfo()], self._execute_command)
@@ -294,8 +295,8 @@ class Map:
 
         _LOGGER.debug("[_update_trace_points] finish")
 
-    def get_base64_map(self) -> bytes:
-        if self._is_map_up_to_date:
+    def get_base64_map(self, width: Optional[int] = None) -> bytes:
+        if self._is_map_up_to_date and width == self._last_requested_width:
             _LOGGER.debug("[get_base64_map] No need to update")
             return self._base64_image
 
@@ -354,12 +355,20 @@ class Map:
         cropped = ImageOps.flip(cropped)
 
         _LOGGER.debug(f"[get_base64_map] Map current Size: X: {cropped.size[0]} Y: {cropped.size[1]}")
-        if cropped.size[0] > 400 or cropped.size[1] > 400:
-            _LOGGER.debug("[get_base64_map] Resize disabled.. map over 400")
+
+        resize_factor = Map.RESIZE_FACTOR
+        if width is not None and width > 0:
+            resize_factor = width / cropped.size[0]
+
+        if width is None and (cropped.size[0] > 400 or cropped.size[1] > 400):
+            _LOGGER.debug("[get_base64_map] Resize disabled.. map over 400 and image width was passed")
         else:
-            _LOGGER.debug(f"[get_base64_map] Resize * {Map.RESIZE_FACTOR}")
-            cropped = cropped.resize((cropped.size[0] * Map.RESIZE_FACTOR, cropped.size[1] * Map.RESIZE_FACTOR),
-                                     Image.NEAREST)
+            if width:
+                _LOGGER.debug(
+                    f"[get_base64_map] Resize based on the requested width: {width} and calculated factor {resize_factor}")
+            else:
+                _LOGGER.debug(f"[get_base64_map] Resize factor: {resize_factor}")
+            cropped = cropped.resize((cropped.size[0] * resize_factor, cropped.size[1] * resize_factor), Image.NEAREST)
 
         _LOGGER.debug("[get_base64_map] Saving to buffer")
         buffered = BytesIO()
@@ -367,6 +376,7 @@ class Map:
         del cropped
 
         self._is_map_up_to_date = True
+        self._last_requested_width = width
         self._base64_image = base64.b64encode(buffered.getvalue())
         _LOGGER.debug("[GetBase64Map] Finish")
 
