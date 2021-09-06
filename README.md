@@ -20,41 +20,64 @@ using your smartphone.
 You are welcome to try using this as a python library for other efforts.
 A simple usage might go something like this:
 
-```python
+```import asyncio
+import aiohttp
+import logging
+
+from deebotozmo.ecovacs_api import EcovacsAPI
+from deebotozmo.ecovacs_mqtt import EcovacsMqtt
+from deebotozmo.events import BatteryEvent
+from deebotozmo.vacuum_bot import VacuumBot
+from deebotozmo.ecovacs_json import EcovacsJSON
+from deebotozmo.commands import *
+
+device_id 		= "3a000000000000000000000000000000"
+email			= "yourmail@deebotozmo.com"
+password_hash 	= "b6000000000000000000000000000000"
+continent		= "eu"
+country			= "de"
+
+
 async def main():
-    async with aiohttp.ClientSession() as session:
-        logging.basicConfig(level=logging.DEBUG)
-        api = EcovacsAPI(session, device_id, email, password_hash, continent=continent, country=country,
-                         verify_ssl=False)
-        await api.login()
+	async with aiohttp.ClientSession() as session:
+		logging.basicConfig(level=logging.DEBUG)
+		api = EcovacsAPI(session, device_id, email, password_hash, continent=continent, country=country, verify_ssl=False)
+		await api.login()
 
-        devices_ = await api.get_devices()
+		devices_ = await api.get_devices()
 
-        auth = await api.get_request_auth()
-        bot = VacuumBot(session, auth, devices_[0], continent=continent, country=country, verify_ssl=False)
+		auth = await api.get_request_auth()
+		bot = VacuumBot(session, auth, devices_[0], continent="eu", country="de", verify_ssl=False)
 
-        mqtt = EcovacsMqtt(auth, continent=continent)
-        await mqtt.subscribe(bot)
+		mqtt = EcovacsMqtt(auth, continent="eu")
+		await mqtt.subscribe(bot)
 
-        async def on_battery(event: BatteryEvent):
-            # Do stuff on battery event
-            if event.value == 100:
+		async def on_battery(event: BatteryEvent):
+			# Do stuff on battery event
+			if event.value == 100:
 
-        # Battery full
+				# Battery full
 
-        # Subscribe for events (more events available)
-        bot.batteryEvents.subscribe(on_battery)
+				# Subscribe for events (more events available)
+				bot.batteryEvents.subscribe(on_battery)
 
-        # Execute commands
-        await bot.execute_command(CleanStart())
-        await asyncio.sleep(900)  # Wait for...
-        await bot.execute_command(Charge())
+				# Execute commands
+		await bot.execute_command(CleanStart())
+		await asyncio.sleep(900)  # Wait for...
+		await bot.execute_command(Charge())
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    loop.run_forever()
+	loop = asyncio.get_event_loop()
+	loop.create_task(main())
+	loop.run_forever()
+```
+
+Save this to say cli.py and push it to /usr/local/lib/python{version}/dist-packages/deebotozmo.
+After that start it
+
+```
+python3 /usr/local/lib/python3.7/dist-packages/deebotozmo/cli.py
 ```
 
 ## Thanks
