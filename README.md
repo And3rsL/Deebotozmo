@@ -34,7 +34,7 @@ from deebotozmo.util import md5
 
 device_id 		= "3a000000000000000000000000000000"
 email			= "yourmail@deebotozmo.com"
-password_hash 	= "b6000000000000000000000000000000"
+password_hash = md5("yourPassword")
 continent		= "eu"
 country			= "de"
 
