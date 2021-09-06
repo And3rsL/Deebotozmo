@@ -74,10 +74,10 @@ if __name__ == '__main__':
 ```
 
 Save this to say cli.py and push it to /usr/local/lib/python{version}/dist-packages/deebotozmo.
-After that start it
+After that start it.
 
 ```
-python3 /usr/local/lib/python3.7/dist-packages/deebotozmo/cli.py
+python3 /usr/local/lib/python{version}/dist-packages/deebotozmo/cli.py
 ```
 
 ## Thanks
