@@ -30,6 +30,7 @@ from deebotozmo.events import BatteryEvent
 from deebotozmo.vacuum_bot import VacuumBot
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.commands import *
+from deebotozmo.util import md5
 
 device_id 		= "3a000000000000000000000000000000"
 email			= "yourmail@deebotozmo.com"
