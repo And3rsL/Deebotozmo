@@ -3,25 +3,30 @@
 import asyncio
 import base64
 import configparser
-from dataclasses import dataclass, asdict
-from deebotozmo.models import VacuumState
 import itertools
 import json
 import logging
 import os
 import platform
+import sys
 import time
+from dataclasses import asdict
 from functools import wraps
 
 import aiohttp
 import click
+
 from deebotozmo.commands import (Charge, CleanCustomArea, CleanPause,
-                                 CleanResume, CleanSpotArea, CleanStart, GetBattery, GetChargeState, GetCleanInfo,
-                                 GetCleanLogs, GetFanSpeed, GetMajorMap, GetMapTrace,
-                                 GetPos, GetStats, GetWaterInfo, PlaySound, SetFanSpeed, SetWaterLevel)
+                                 CleanResume, CleanSpotArea, CleanStart,
+                                 GetBattery, GetCleanLogs, GetFanSpeed,
+                                 GetLifeSpan, GetMajorMap, GetMapTrace, GetPos,
+                                 GetStats, GetWaterInfo, PlaySound,
+                                 SetFanSpeed, SetWaterLevel)
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_mqtt import EcovacsMqtt
-from deebotozmo.events import BatteryEvent, FanSpeedEvent, MapEvent, CleanLogEvent, StatusEvent, WaterInfoEvent
+from deebotozmo.events import (BatteryEvent, CleanLogEvent, FanSpeedEvent,
+                               LifeSpanEvent, MapEvent, StatsEvent,
+                               WaterInfoEvent)
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
@@ -236,34 +241,45 @@ async def statuses():
     await vacbot.goodbye()
 
 @cli.command(help='Get stats')
-def stats():
-    dologin()
-    vacbot.refresh_statuses()
+@coro
+async def stats():
+    vacbot = dologin()
+    await vacbot.run()
 
-    if vacbot.stats_cid is not None:
-        print("Stats Cid: " + vacbot.stats_cid)
+    lock = asyncio.Lock()
+    await lock.acquire()
+    async def on_stats_event(event: StatsEvent):
+        print("Stats Cid: " + str(event.clean_id))
+        print("Stats Area: " + str(event.area))
+        print("Stats Time: " + str(int(event.time / 60)) + " minutes")
+        print("Stats Type: " + str(event.type))
+        lock.release()
+    listener = vacbot.bot.statsEvents.subscribe(on_stats_event)
+    await vacbot.bot.execute_command(GetStats())
+    await lock.acquire()
+    vacbot.bot.statsEvents.unsubscribe(listener)
+    await vacbot.goodbye()
 
-    if vacbot.stats_area is not None:
-        print("Stats Area: " + str(vacbot.stats_area))
-
-    if vacbot.stats_time is not None:
-        print("Stats Time: " + str(int(vacbot.stats_time / 60)) + " minutes")
-
-    if vacbot.stats_type is not None:
-        print("Stats Type: " + vacbot.stats_type)
-
-
+# Needs a lock but the lifespan event is emitted
+# for every component, so it wouldn't work
 @cli.command(help='Get robot components life span')
-def components():
-    dologin()
-    vacbot.refresh_components()
+@coro
+async def components():
+    vacbot = dologin()
+    await vacbot.run()
 
-    for component in vacbot.components:
-        print(component + ': ' + str(vacbot.components[component]) + '%')
-
+    async def on_lifespan_event(event: LifeSpanEvent):
+        print(str(event.type) + ": " + str(event.percent) + "%")
+    listener = vacbot.bot.lifespanEvents.subscribe(on_lifespan_event)
+    await vacbot.bot.execute_command(GetLifeSpan())
+    vacbot.bot.lifespanEvents.unsubscribe(listener)
+    await vacbot.goodbye()
 
 @cli.command(help='Get saved rooms')
-def getrooms():
+@coro
+async def getrooms():
+    print ("Not supported, no clue how to make it work.")
+    return
     dologin()
     vacbot.refresh_statuses()
 
@@ -298,7 +314,7 @@ class dologin:
 
     async def run(self):
         if not config_file_exists():
-            click.echo("Not logged in. Do 'click setconfig' first.")
+            click.echo("Not logged in. Do '%s createconfig' first." % (os.path.basename(sys.argv[0]),))
             exit(1)
 
         config = read_config()
