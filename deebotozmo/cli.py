@@ -18,14 +18,10 @@ import click
 
 from deebotozmo.commands import (Charge, CleanCustomArea, CleanPause,
                                  CleanResume, CleanSpotArea, CleanStart,
-                                 GetBattery, GetCleanLogs, GetFanSpeed,
-                                 GetLifeSpan, GetMajorMap, GetMapTrace, GetPos,
-                                 GetStats, GetWaterInfo, PlaySound,
-                                 SetFanSpeed, SetWaterLevel)
+                                 PlaySound, SetFanSpeed, SetWaterLevel)
 from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.ecovacs_mqtt import EcovacsMqtt
 from deebotozmo.events import (BatteryEvent, CleanLogEvent, FanSpeedEvent,
-                               LifeSpanEvent, MapEvent, StatsEvent,
+                               LifeSpanEvent, MapEvent, RoomsEvent, StatsEvent,
                                WaterInfoEvent)
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
@@ -81,7 +77,7 @@ def cli(debug):
 async def CreateConfig(email, password, country_code, continent_code, verify_ssl):
     if config_file_exists() and not click.confirm('overwrite existing config?'):
         click.echo("Skipping setconfig.")
-        exit(0)
+        sys.exit(0)
     config = {}
     password_hash = md5(password)
     device_id = md5(str(time.time()))
@@ -91,7 +87,7 @@ async def CreateConfig(email, password, country_code, continent_code, verify_ssl
                        country=country_code, verify_ssl=verify_ssl)
         except ValueError as e:
             click.echo(e.args[0])
-            exit(1)
+            sys.exit(1)
     config['email'] = email
     config['password_hash'] = password_hash
     config['device_id'] = device_id
@@ -100,12 +96,12 @@ async def CreateConfig(email, password, country_code, continent_code, verify_ssl
     config['verify_ssl'] = verify_ssl
     write_config(config)
     click.echo("Config saved.")
-    exit(0)
+    sys.exit(0)
 
 @cli.command(help='Play welcome sound')
 @coro
 async def playsound():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(PlaySound())
     await vacbot.goodbye()
@@ -113,7 +109,7 @@ async def playsound():
 @cli.command(help='Auto clean')
 @coro
 async def clean():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(CleanStart())
     await vacbot.goodbye()
@@ -123,7 +119,7 @@ async def clean():
 @click.argument('cleanings', type=click.STRING, required=False)
 @coro
 async def CustomArea(area, cleanings=1):
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(CleanCustomArea(map_position=area, cleanings=cleanings))
     await vacbot.goodbye()
@@ -135,7 +131,7 @@ async def CustomArea(area, cleanings=1):
 @click.argument('cleanings', type=click.STRING)
 @coro
 async def SpotArea(rooms, cleanings=1):
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(CleanSpotArea(rooms, cleanings))
     await vacbot.goodbye()
@@ -145,7 +141,7 @@ async def SpotArea(rooms, cleanings=1):
 @click.argument('speed', type=click.STRING, required=True)
 @coro
 async def setfanspeed(speed):
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(SetFanSpeed(speed))
     await vacbot.goodbye()
@@ -155,7 +151,7 @@ async def setfanspeed(speed):
 @click.argument('level', type=click.STRING, required=True)
 @coro
 async def setwaterLevel(level):
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(SetWaterLevel(level))
     await vacbot.goodbye()
@@ -164,7 +160,7 @@ async def setwaterLevel(level):
 @cli.command(help='Returns to charger')
 @coro
 async def charge():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(Charge())
     await vacbot.goodbye()
@@ -173,7 +169,7 @@ async def charge():
 @cli.command(help='Pause the robot')
 @coro
 async def pause():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(CleanPause())
     await vacbot.goodbye()
@@ -181,7 +177,7 @@ async def pause():
 @cli.command(help='Resume the robot')
 @coro
 async def resume():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     await vacbot.bot.execute_command(CleanResume())
     await vacbot.goodbye()
@@ -189,7 +185,7 @@ async def resume():
 @cli.command(help='Get Clean Logs')
 @coro
 async def getCleanLogs():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
 
     lock = asyncio.Lock()
@@ -199,7 +195,7 @@ async def getCleanLogs():
         lock.release()
 
     listener = vacbot.bot.cleanLogsEvents.subscribe(on_clean_event)
-    await vacbot.bot.execute_command(GetCleanLogs())
+    vacbot.bot.cleanLogsEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.cleanLogsEvents.unsubscribe(listener)
     await vacbot.goodbye()
@@ -207,7 +203,7 @@ async def getCleanLogs():
 @cli.command(help='Get robot statuses [Status,Battery,FanSpeed,WaterLevel]')
 @coro
 async def statuses():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
     lock = asyncio.Lock()
 
@@ -218,7 +214,7 @@ async def statuses():
         print("Battery: " + str(event.value) + "%")
         lock.release()
     listener = vacbot.bot.batteryEvents.subscribe(on_battery)
-    await vacbot.bot.execute_command(GetBattery())
+    vacbot.bot.batteryEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.batteryEvents.unsubscribe(listener)
 
@@ -226,7 +222,7 @@ async def statuses():
         print("Fan Speed: " + str(event.speed))
         lock.release()
     listener = vacbot.bot.fanSpeedEvents.subscribe(on_fan_event)
-    await vacbot.bot.execute_command(GetFanSpeed())
+    vacbot.bot.fanSpeedEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.fanSpeedEvents.unsubscribe(listener)
 
@@ -234,7 +230,7 @@ async def statuses():
         print("Water Level: " + str(event.amount))
         lock.release()
     listener = vacbot.bot.waterEvents.subscribe(on_water_level)
-    await vacbot.bot.execute_command(GetWaterInfo())
+    vacbot.bot.waterEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.waterEvents.unsubscribe(listener)
 
@@ -243,7 +239,7 @@ async def statuses():
 @cli.command(help='Get stats')
 @coro
 async def stats():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
 
     lock = asyncio.Lock()
@@ -255,7 +251,7 @@ async def stats():
         print("Stats Type: " + str(event.type))
         lock.release()
     listener = vacbot.bot.statsEvents.subscribe(on_stats_event)
-    await vacbot.bot.execute_command(GetStats())
+    vacbot.bot.statsEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.statsEvents.unsubscribe(listener)
     await vacbot.goodbye()
@@ -265,23 +261,31 @@ async def stats():
 @cli.command(help='Get robot components life span')
 @coro
 async def components():
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
 
     async def on_lifespan_event(event: LifeSpanEvent):
         print(str(event.type) + ": " + str(event.percent) + "%")
     listener = vacbot.bot.lifespanEvents.subscribe(on_lifespan_event)
-    await vacbot.bot.execute_command(GetLifeSpan())
+    vacbot.bot.lifespanEvents.request_refresh()
     vacbot.bot.lifespanEvents.unsubscribe(listener)
     await vacbot.goodbye()
 
 @cli.command(help='Get saved rooms')
 @coro
 async def getrooms():
-    print ("Not supported, no clue how to make it work.")
-    return
-    dologin()
-    vacbot.refresh_statuses()
+    vacbot = DoLogin()
+    await vacbot.run()
+
+    lock = asyncio.Lock()
+    await lock.acquire()
+    async def on_rooms(event: RoomsEvent):
+        print(event)
+        lock.release()
+    listener = vacbot.bot.map.roomsEvents.subscribe(on_rooms)
+    vacbot.bot.map.roomsEvents.request_refresh()
+    await lock.acquire()
+    vacbot.bot.map.roomsEvents.unsubscribe(listener)
 
     for v in vacbot.getSavedRooms():
         print(str(v['id']) + ' ' + v['subtype'])
@@ -290,7 +294,7 @@ async def getrooms():
 @click.argument('filepath', type=click.STRING, required=True)
 @coro
 async def exportLiveMap(filepath):
-    vacbot = dologin()
+    vacbot = DoLogin()
     await vacbot.run()
 
     lock = asyncio.Lock()
@@ -300,22 +304,20 @@ async def exportLiveMap(filepath):
             fh.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
         lock.release()
     listener = vacbot.bot.map.mapEvents.subscribe(on_map)
-    await vacbot.bot.execute_command(GetMapTrace())
-    await vacbot.bot.execute_command(GetPos())
-    await vacbot.bot.execute_command(GetMajorMap())
+    vacbot.bot.map.mapEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.map.mapEvents.unsubscribe(listener)
 
     await vacbot.goodbye()
 
-class dologin:
+class DoLogin:
     def __init__(self):
         return
 
     async def run(self):
         if not config_file_exists():
             click.echo("Not logged in. Do '%s createconfig' first." % (os.path.basename(sys.argv[0]),))
-            exit(1)
+            sys.exit(1)
 
         config = read_config()
 
@@ -332,11 +334,7 @@ class dologin:
         self.bot = VacuumBot(self.session, self.auth, self.devices_[0], continent=config['continent'],
                                    country=config['country'], verify_ssl=bool(config['verify_ssl']))
 
-        self.mqtt = EcovacsMqtt(self.auth, continent=config['continent'], country=config['country'])
-        await self.mqtt.subscribe(self.bot)
-
     async def goodbye(self):
-        self.mqtt.unsubscribe(self.bot)
         await self.session.close()
 
 if __name__ == '__main__':
