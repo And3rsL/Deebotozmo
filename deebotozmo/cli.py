@@ -280,15 +280,13 @@ async def getrooms():
     lock = asyncio.Lock()
     await lock.acquire()
     async def on_rooms(event: RoomsEvent):
-        print(event)
+        for v in event.rooms:
+            print(str(v.id) + " " + str(v.subtype))
         lock.release()
     listener = vacbot.bot.map.roomsEvents.subscribe(on_rooms)
     vacbot.bot.map.roomsEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.map.roomsEvents.unsubscribe(listener)
-
-    for v in vacbot.getSavedRooms():
-        print(str(v['id']) + ' ' + v['subtype'])
 
 @cli.command(help='Get robot map and save it [filepath ex: "/folder/livemap.png"')
 @click.argument('filepath', type=click.STRING, required=True)
