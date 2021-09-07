@@ -20,6 +20,7 @@ from deebotozmo.commands import (Charge, CleanCustomArea, CleanPause,
                                  CleanResume, CleanSpotArea, CleanStart,
                                  PlaySound, SetFanSpeed, SetWaterLevel)
 from deebotozmo.ecovacs_api import EcovacsAPI
+from deebotozmo.ecovacs_mqtt import EcovacsMqtt
 from deebotozmo.events import (BatteryEvent, CleanLogEvent, FanSpeedEvent,
                                LifeSpanEvent, MapEvent, RoomsEvent, StatsEvent,
                                WaterInfoEvent)
@@ -302,7 +303,11 @@ class DoLogin:
         self.bot = VacuumBot(self.session, self.auth, self.devices_[0], continent=config['continent'],
                                    country=config['country'], verify_ssl=bool(config['verify_ssl']))
 
+        self.mqtt = EcovacsMqtt(self.auth, continent=config['continent'], country=config['country'])
+        await self.mqtt.subscribe(self.bot)
+
     async def goodbye(self):
+        self.mqtt.unsubscribe(self.bot)
         await self.session.close()
 
 if __name__ == '__main__':
