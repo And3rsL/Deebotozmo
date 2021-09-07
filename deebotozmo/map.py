@@ -6,8 +6,8 @@ import struct
 from io import BytesIO
 from typing import Optional, List, Callable, Union, Awaitable
 
-import numpy as np
 from PIL import Image, ImageDraw, ImageOps
+from numpy import ndarray, zeros, reshape
 
 from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet, GetCachedMapInfo, \
     GetMajorMap, GetPos
@@ -78,10 +78,9 @@ class Map:
         self._rooms: List[Room] = []
         self._amount_rooms: int = 0
         self._traceValues: List[int] = []
-        self._map_pieces = np.empty(64, np.dtype('U100'))
+        self._map_pieces: [MapPiece] = [MapPiece(i) for i in range(64)]
         self._is_map_up_to_date: bool = False
         self._base64_image: Optional[bytes] = None
-        self._buffer = np.zeros((64, 100, 100))
         self._last_requested_width: Optional[int] = None
 
         self.roomsEvents: EventEmitter[RoomsEvent] = \
@@ -211,8 +210,9 @@ class Map:
         if requested:
             tasks = []
             for i in range(64):
-                if self._is_update_piece(i, values[i]):
+                if self._map_pieces[i].is_update(values[i]):
                     _LOGGER.debug(f"[_handle_major_map] MapPiece {i} needs to be updated")
+                    self._is_map_up_to_date = False
                     tasks.append(asyncio.create_task(
                         self._execute_command(GetMinorMap(
                             map_id=event_data["mid"],
@@ -230,9 +230,9 @@ class Map:
         _LOGGER.debug(f"[AddMapPiece] {map_piece} {b64}")
 
         decoded = _decompress_7z_base64_data(b64)
-        piece = np.reshape(list(decoded), (100, 100))
+        points_array = reshape(list(decoded), (100, 100))
 
-        self._buffer[map_piece] = piece
+        self._map_pieces[map_piece].points = points_array
         _LOGGER.debug("[AddMapPiece] Done")
 
     def _update_position(self, new_values: Union[dict, list], is_charger: bool):
@@ -262,21 +262,6 @@ class Map:
             self._charger_position = current_value
         else:
             self._robot_position = current_value
-
-    def _is_update_piece(self, index: int, map_piece):
-        _LOGGER.debug(f"[_is_update_piece] Check {index} {map_piece}")
-        value = f"{index}-{map_piece}"
-
-        if self._map_pieces[index] != value:
-            self._map_pieces[index] = value
-
-            if str(map_piece) != '1295764014':
-                self._is_map_up_to_date = False
-                return True
-            else:
-                return False
-
-        _LOGGER.debug("[_is_update_piece] No need to update")
 
     def _update_trace_points(self, data):
         _LOGGER.debug("[_update_trace_points] Begin")
@@ -319,16 +304,18 @@ class Map:
                     image_x += 100
                     image_y = 0
 
-            for y in range(100):
+            current_piece = self._map_pieces[i]
+            if current_piece.in_use:
                 for x in range(100):
-                    point_x = image_x + x
-                    point_y = image_y + y
-                    if (point_x > 6400) or (point_y > 6400):
-                        _LOGGER.error(f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}")
+                    current_column = current_piece.points[x]
+                    for y in range(100):
+                        pixel_type = current_column[y]
+                        if pixel_type in [0x01, 0x02, 0x03]:
+                            point_x = image_x + x
+                            point_y = image_y + y
+                            if (point_x > 6400) or (point_y > 6400):
+                                _LOGGER.error(f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}")
 
-                    pixel_type = self._buffer[i][x][y]
-                    if pixel_type in [0x01, 0x02, 0x03]:
-                        if im.getpixel((point_x, point_y)) == (0, 0, 0, 0):
                             draw.point((point_x, point_y), fill=Map.COLORS[pixel_type])
 
         # Draw Trace Route
@@ -383,3 +370,44 @@ class Map:
         _LOGGER.debug("[GetBase64Map] Finish")
 
         return self._base64_image
+
+
+class MapPiece:
+    NOT_INUSE: str = '1295764014'
+
+    def __init__(self, index: int):
+        self._index = index
+        self._points: Optional[ndarray] = None
+        self._in_use: bool = False
+        self._piece: str = MapPiece.NOT_INUSE
+
+    def is_update(self, map_piece) -> bool:
+        piece = str(map_piece)
+        if self._piece != piece:
+            self._piece = piece
+
+            if piece == MapPiece.NOT_INUSE:
+                self._in_use = False
+                return False
+            else:
+                self._in_use = True
+                return True
+
+        _LOGGER.debug(f"No update needed for piece idx {self._index}")
+        return False
+
+    @property
+    def in_use(self) -> bool:
+        return self._in_use
+
+    @property
+    def points(self) -> ndarray:
+        """I'm the 'x' property."""
+        if not self._in_use:
+            return zeros((100, 100))
+        return self._points
+
+    @points.setter
+    def points(self, points: ndarray):
+        self._in_use = True
+        self._points = points
