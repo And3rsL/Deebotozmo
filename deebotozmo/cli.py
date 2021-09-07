@@ -195,7 +195,6 @@ async def getCleanLogs():
         lock.release()
 
     listener = vacbot.bot.cleanLogsEvents.subscribe(on_clean_event)
-    vacbot.bot.cleanLogsEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.cleanLogsEvents.unsubscribe(listener)
     await vacbot.goodbye()
@@ -214,7 +213,6 @@ async def statuses():
         print("Battery: " + str(event.value) + "%")
         lock.release()
     listener = vacbot.bot.batteryEvents.subscribe(on_battery)
-    vacbot.bot.batteryEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.batteryEvents.unsubscribe(listener)
 
@@ -222,7 +220,6 @@ async def statuses():
         print("Fan Speed: " + str(event.speed))
         lock.release()
     listener = vacbot.bot.fanSpeedEvents.subscribe(on_fan_event)
-    vacbot.bot.fanSpeedEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.fanSpeedEvents.unsubscribe(listener)
 
@@ -230,7 +227,6 @@ async def statuses():
         print("Water Level: " + str(event.amount))
         lock.release()
     listener = vacbot.bot.waterEvents.subscribe(on_water_level)
-    vacbot.bot.waterEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.waterEvents.unsubscribe(listener)
 
@@ -251,7 +247,6 @@ async def stats():
         print("Stats Type: " + str(event.type))
         lock.release()
     listener = vacbot.bot.statsEvents.subscribe(on_stats_event)
-    vacbot.bot.statsEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.statsEvents.unsubscribe(listener)
     await vacbot.goodbye()
@@ -267,7 +262,6 @@ async def components():
     async def on_lifespan_event(event: LifeSpanEvent):
         print(str(event.type) + ": " + str(event.percent) + "%")
     listener = vacbot.bot.lifespanEvents.subscribe(on_lifespan_event)
-    vacbot.bot.lifespanEvents.request_refresh()
     vacbot.bot.lifespanEvents.unsubscribe(listener)
     await vacbot.goodbye()
 
@@ -284,7 +278,6 @@ async def getrooms():
             print(str(v.id) + " " + str(v.subtype))
         lock.release()
     listener = vacbot.bot.map.roomsEvents.subscribe(on_rooms)
-    vacbot.bot.map.roomsEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.map.roomsEvents.unsubscribe(listener)
 
@@ -302,7 +295,6 @@ async def exportLiveMap(filepath):
             fh.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
         lock.release()
     listener = vacbot.bot.map.mapEvents.subscribe(on_map)
-    vacbot.bot.map.mapEvents.request_refresh()
     await lock.acquire()
     vacbot.bot.map.mapEvents.unsubscribe(listener)
 
