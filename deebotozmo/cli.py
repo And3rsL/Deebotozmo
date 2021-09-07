@@ -127,7 +127,7 @@ async def CustomArea(area, cleanings=1):
 @click.argument('cleanings', type=click.STRING)
 @coro
 async def SpotArea(rooms, cleanings=1):
-    await run_with_login(CleanSpotArea(rooms, cleanings))
+    await run_with_login(CleanSpotArea(area=rooms, cleanings=cleanings))
 
 @cli.command(help='Set Clean Speed')
 @click.argument('speed', type=click.STRING, required=True)
