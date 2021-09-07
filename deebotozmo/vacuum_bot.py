@@ -146,7 +146,11 @@ class VacuumBot:
 
         if requested:
             if event.get("ret") == "ok":
-                event = event.get("resp", {})
+                if event_name == "cleanlogs":
+                    await self._handle_clean_logs(event)
+                    return
+                else:
+                    event = event.get("resp", event)
             else:
                 _LOGGER.warning(f"Event {event_name} where ret != \"ok\": {event}")
                 return
@@ -179,8 +183,6 @@ class VacuumBot:
                 await self._handle_charge_state(event_data)
         elif event_name == "lifespan":
             await self._handle_life_span(event_data)
-        elif event_name == "cleanlogs":
-            await self._handle_clean_logs(event)
         elif event_name == "cleaninfo":
             await self._handle_clean_info(event_data)
         elif event_name == "waterinfo":
