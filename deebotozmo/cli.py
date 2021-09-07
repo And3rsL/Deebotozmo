@@ -38,8 +38,7 @@ def coro(f):
 def config_file():
     if platform.system() == 'Windows':
         return os.path.join(os.getenv('APPDATA'), 'deebotozmo.conf')
-    else:
-        return os.path.expanduser('~/.config/deebotozmo.conf')
+    return os.path.expanduser('~/.config/deebotozmo.conf')
 
 
 def config_file_exists():
@@ -98,32 +97,28 @@ async def CreateConfig(email, password, country_code, continent_code, verify_ssl
     click.echo("Config saved.")
     sys.exit(0)
 
+async def run_with_login(*args, **kwargs):
+    vacbot = DoLogin()
+    await vacbot.run()
+    await vacbot.bot.execute_command(*args, **kwargs)
+    await vacbot.goodbye()
+
 @cli.command(help='Play welcome sound')
 @coro
 async def playsound():
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(PlaySound())
-    await vacbot.goodbye()
+    await run_with_login(PlaySound())
 
 @cli.command(help='Auto clean')
 @coro
 async def clean():
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(CleanStart())
-    await vacbot.goodbye()
+    await run_with_login(CleanStart())
 
 @cli.command(help='Cleans provided area(s), ex: "-602,1812,800,723"', context_settings={"ignore_unknown_options": True})
 @click.argument('area', type=click.STRING, required=True)
 @click.argument('cleanings', type=click.STRING, required=False)
 @coro
 async def CustomArea(area, cleanings=1):
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(CleanCustomArea(map_position=area, cleanings=cleanings))
-    await vacbot.goodbye()
-
+    await run_with_login(CleanCustomArea(map_position=area, cleanings=cleanings))
 
 @cli.command(help='Cleans provided rooms(s), ex: "0,1" | Use GetRooms to see saved numbers',
              context_settings={"ignore_unknown_options": True})
@@ -131,56 +126,34 @@ async def CustomArea(area, cleanings=1):
 @click.argument('cleanings', type=click.STRING)
 @coro
 async def SpotArea(rooms, cleanings=1):
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(CleanSpotArea(rooms, cleanings))
-    await vacbot.goodbye()
-
+    await run_with_login(CleanSpotArea(rooms, cleanings))
 
 @cli.command(help='Set Clean Speed')
 @click.argument('speed', type=click.STRING, required=True)
 @coro
 async def setfanspeed(speed):
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(SetFanSpeed(speed))
-    await vacbot.goodbye()
-
+    await run_with_login(SetFanSpeed(speed))
 
 @cli.command(help='Set Water Level')
 @click.argument('level', type=click.STRING, required=True)
 @coro
 async def setwaterLevel(level):
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(SetWaterLevel(level))
-    await vacbot.goodbye()
-
+    await run_with_login(SetWaterLevel(level))
 
 @cli.command(help='Returns to charger')
 @coro
 async def charge():
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(Charge())
-    await vacbot.goodbye()
-
+    await run_with_login(Charge())
 
 @cli.command(help='Pause the robot')
 @coro
 async def pause():
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(CleanPause())
-    await vacbot.goodbye()
+    await run_with_login(CleanPause())
 
 @cli.command(help='Resume the robot')
 @coro
 async def resume():
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(CleanResume())
-    await vacbot.goodbye()
+    await run_with_login(CleanResume())
 
 @cli.command(help='Get Clean Logs')
 @coro
@@ -197,6 +170,7 @@ async def getCleanLogs():
     listener = vacbot.bot.cleanLogsEvents.subscribe(on_clean_event)
     await lock.acquire()
     vacbot.bot.cleanLogsEvents.unsubscribe(listener)
+
     await vacbot.goodbye()
 
 @cli.command(help='Get robot statuses [Status,Battery,FanSpeed,WaterLevel]')
@@ -249,6 +223,7 @@ async def stats():
     listener = vacbot.bot.statsEvents.subscribe(on_stats_event)
     await lock.acquire()
     vacbot.bot.statsEvents.unsubscribe(listener)
+
     await vacbot.goodbye()
 
 # Needs a lock but the lifespan event is emitted
@@ -263,6 +238,7 @@ async def components():
         print(str(event.type) + ": " + str(event.percent) + "%")
     listener = vacbot.bot.lifespanEvents.subscribe(on_lifespan_event)
     vacbot.bot.lifespanEvents.unsubscribe(listener)
+
     await vacbot.goodbye()
 
 @cli.command(help='Get saved rooms')
@@ -281,6 +257,8 @@ async def getrooms():
     await lock.acquire()
     vacbot.bot.map.roomsEvents.unsubscribe(listener)
 
+    await vacbot.goodbye()
+
 @cli.command(help='Get robot map and save it [filepath ex: "/folder/livemap.png"')
 @click.argument('filepath', type=click.STRING, required=True)
 @coro
@@ -290,7 +268,7 @@ async def exportLiveMap(filepath):
 
     lock = asyncio.Lock()
     await lock.acquire()
-    async def on_map(event: MapEvent):
+    async def on_map(_: MapEvent):
         with open(filepath, "wb") as fh:
             fh.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
         lock.release()
