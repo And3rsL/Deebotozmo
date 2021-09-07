@@ -20,21 +20,25 @@ using your smartphone.
 You are welcome to try using this as a python library for other efforts.
 A simple usage might go something like this:
 
-```import asyncio
+```python
 import aiohttp
+import asyncio
 import logging
+import random
+import string
 
+from deebotozmo.commands import *
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_mqtt import EcovacsMqtt
-from deebotozmo.events import BatteryEvent
-from deebotozmo.vacuum_bot import VacuumBot
 from deebotozmo.ecovacs_json import EcovacsJSON
-from deebotozmo.commands import *
+from deebotozmo.events import BatteryEvent
 from deebotozmo.util import md5
+from deebotozmo.vacuum_bot import VacuumBot
 
-device_id = md5("yourPassword")"
+
+device_id = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 email = "your email or phonenumber (cn)"
-password_hash = "b6000000000000000000000000000000"
+password_hash = md5("yourPassword")
 continent = "eu"
 country = "de"
 
@@ -56,13 +60,13 @@ async def main():
         async def on_battery(event: BatteryEvent):
             # Do stuff on battery event
             if event.value == 100:
-
                 # Battery full
+                pass
 
-                # Subscribe for events (more events available)
-                bot.batteryEvents.subscribe(on_battery)
+        # Subscribe for events (more events available)
+        bot.batteryEvents.subscribe(on_battery)
 
-                # Execute commands
+        # Execute commands
         await bot.execute_command(CleanStart())
         await asyncio.sleep(900)  # Wait for...
         await bot.execute_command(Charge())
@@ -73,6 +77,8 @@ if __name__ == '__main__':
     loop.create_task(main())
     loop.run_forever()
 ```
+
+A more advanced example can be found [here](https://github.com/And3rsL/Deebot-for-Home-Assistant).
 
 ## Thanks
 
