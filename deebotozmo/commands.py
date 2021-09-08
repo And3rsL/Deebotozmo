@@ -45,9 +45,9 @@ class SetScheduleOnce(Command):
             "content":{"jsonStr":"{\"router\":\"plan\",\"type\":\"auto\"}","name":"clean"}
             "count": 1,
             "enable": 1,
-			"hour": str(hour),
-			"minute": str(minute),
-			"repeat": "0000000"
+            "hour": str(hour),
+            "minute": str(minute),
+            "repeat": "0000000"
         })
 
 
