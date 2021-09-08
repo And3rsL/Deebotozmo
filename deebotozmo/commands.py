@@ -36,6 +36,19 @@ class SetWaterLevel(Command):
             "amount": WATER_LEVEL_TO_ECOVACS.get(amount, 2),
             "enable": 0
         })
+		
+class SetScheduleOnce(Command):
+
+    def __init__(self, hour: str, minute: str):
+        super().__init__("setSchedule", {
+            "act": SCHEDULE_TO_ECOVACS,
+			"content":{"jsonStr":"{\"router\":\"plan\",\"type\":\"auto\"}","name":"clean"}
+            "count": 1,
+            "enable": 1,
+			"hour": str(hour),
+			"minute": str(minute),
+			"repeat": "0000000"
+        })
 
 
 class Relocate(Command):
