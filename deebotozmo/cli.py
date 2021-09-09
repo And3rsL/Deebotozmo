@@ -18,7 +18,8 @@ import click
 
 from deebotozmo.commands import (Charge, CleanCustomArea, CleanPause,
                                  CleanResume, CleanSpotArea, CleanStart,
-                                 PlaySound, SetFanSpeed, SetWaterLevel)
+                                 PlaySound, SetFanSpeed, SetScheduleOnce,
+                                 SetWaterLevel)
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_mqtt import EcovacsMqtt
 from deebotozmo.events import (BatteryEvent, CleanLogEvent, FanSpeedEvent,
@@ -128,6 +129,13 @@ async def CustomArea(area, cleanings=1):
 @coro
 async def SpotArea(rooms, cleanings=1):
     await run_with_login(CleanSpotArea(area=rooms, cleanings=cleanings))
+
+@cli.command(help='Set Schedule Once, ex: "20 15" or "5 30"')
+@click.argument('hour', type=click.STRING, required=True)
+@click.argument('minute', type=click.STRING, required=True)
+@coro
+async def setscheduleOnce(hour, minute):
+    await run_with_login(SetScheduleOnce(hour, minute))
 
 @cli.command(help='Set Clean Speed')
 @click.argument('speed', type=click.STRING, required=True)

@@ -29,25 +29,29 @@ class SetFanSpeed(Command):
         })
 
 
+class SetScheduleOnce(Command):
+
+    def __init__(self, hour: str, minute: str ):
+        super().__init__("setSched", {
+            "act": "add",
+            "content": {"jsonStr":"{\"type\":\"auto\"}","name":"clean"},
+            "enable": 1,
+            "hour": int(hour),
+            "index": 2,
+            "mid":"1037360161",
+            "minute": int(minute),
+            "repeat":"0000000",
+            "sid":"16311188160301",
+            "trigger":"app"
+        })
+
+
 class SetWaterLevel(Command):
 
     def __init__(self, amount: str):
         super().__init__("setWaterInfo", {
             "amount": WATER_LEVEL_TO_ECOVACS.get(amount, 2),
             "enable": 0
-        })
-		
-class SetScheduleOnce(Command):
-
-    def __init__(self, hour: str, minute: str):
-        super().__init__("setSchedule", {
-            "act": SCHEDULE_TO_ECOVACS,
-            "content": '{"jsonStr":"{\"router\":\"plan\",\"type\":\"auto\"}","name":"clean"}',
-            "count": 1,
-            "enable": 1,
-            "hour": str(hour),
-            "minute": str(minute),
-            "repeat": "0000000"
         })
 
 
