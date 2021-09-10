@@ -44,9 +44,9 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-        "gmqtt==0.6.9",
-        "numpy==1.20.3",
-        "Pillow==8.2.0",
+        "gmqtt==0.6.10",
+        "numpy==1.21.2",
+        "Pillow==8.3.2",
         "aiohttp==3.7.4.post0",
         "Click==7.0"
     ],
