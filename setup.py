@@ -48,7 +48,7 @@ setup(
         "numpy==1.21.2",
         "Pillow==8.3.2",
         "aiohttp==3.7.4.post0",
-        "Click==7.0"
+        "Click==8.0.1"
     ],
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
