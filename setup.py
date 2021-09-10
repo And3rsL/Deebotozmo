@@ -46,7 +46,7 @@ setup(
     install_requires=[
         "gmqtt==0.6.9",
         "numpy==1.20.3",
-        "Pillow==8.2.0",
+        "Pillow==8.3.2",
         "aiohttp==3.7.4.post0",
         "Click==7.0"
     ],
