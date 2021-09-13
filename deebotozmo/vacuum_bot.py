@@ -330,7 +330,7 @@ class VacuumBot:
                 if "value" in content:
                     area_values = content.get("value")
 
-                _LOGGER.debug(f"Last cleaned custom area values (x1,y1,x2,y2):: {area_values}")
+                _LOGGER.debug(f"Last custom area values (x1,y1,x2,y2): {area_values}")
 
         elif event_data.get("state") == "goCharging":
             status = VacuumState.STATE_RETURNING
