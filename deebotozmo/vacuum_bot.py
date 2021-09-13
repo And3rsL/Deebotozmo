@@ -308,17 +308,29 @@ class VacuumBot:
 
     async def _handle_clean_info(self, event_data: dict):
         status: Optional[VacuumState] = None
-        if event_data.get("state") == "clean":
-            if event_data.get("trigger") == "alert":
-                status = VacuumState.STATE_ERROR
-            else:
-                motion_state = event_data.get("cleanState", {}).get("motionState")
-                if motion_state == "working":
-                    status = VacuumState.STATE_CLEANING
-                elif motion_state == "pause":
-                    status = VacuumState.STATE_PAUSED
-                elif motion_state == "goCharging":
-                    status = VacuumState.STATE_RETURNING
+        if event_data.get("trigger") == "alert":
+            status = VacuumState.STATE_ERROR
+        elif event_data.get("state") == "clean":
+            clean_state = event_data.get("cleanState", {})
+            motion_state = clean_state.get("motionState")
+            if motion_state == "working":
+                status = VacuumState.STATE_CLEANING
+            elif motion_state == "pause":
+                status = VacuumState.STATE_PAUSED
+            elif motion_state == "goCharging":
+                status = VacuumState.STATE_RETURNING
+
+            clean_type = clean_state.get("type")
+            content = clean_state.get("content", {})
+            if "type" in content:
+                clean_type = content.get("type")
+
+            if clean_type == "customArea":
+                area_values = content
+                if "value" in content:
+                    area_values = content.get("value")
+
+                _LOGGER.debug(f"Last custom area values (x1,y1,x2,y2): {area_values}")
 
         elif event_data.get("state") == "goCharging":
             status = VacuumState.STATE_RETURNING
