@@ -55,7 +55,7 @@ def get_refresh_function(
 def sanitize_data(data: dict) -> dict:
     """Sanitize data (remove personal data)."""
     sanitized_data = copy.deepcopy(data)
-    for key in ["auth", "token", "userId", "userid", "accessToken", "uid"]:
+    for key in ["auth", "token", "userId", "userid", "accessToken", "uid", "toId"]:
         if key in sanitized_data:
             sanitized_data[key] = "[REMOVED]"
 
