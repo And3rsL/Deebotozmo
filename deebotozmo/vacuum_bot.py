@@ -50,14 +50,14 @@ class VacuumBot:
     """Vacuum bot representation."""
 
     def __init__(
-            self,
-            session: aiohttp.ClientSession,
-            auth: RequestAuth,
-            vacuum: Vacuum,
-            *,
-            continent: str,
-            country: str,
-            verify_ssl: Union[bool, str] = True,
+        self,
+        session: aiohttp.ClientSession,
+        auth: RequestAuth,
+        vacuum: Vacuum,
+        *,
+        continent: str,
+        country: str,
+        verify_ssl: Union[bool, str] = True,
     ):
         self._semaphore = asyncio.Semaphore(3)
         self._session = session
@@ -117,8 +117,8 @@ class VacuumBot:
     async def execute_command(self, command: Command) -> None:
         """Execute given command and handle response."""
         if (
-                command.name == CleanResume().name
-                and self.status.state != VacuumState.STATE_PAUSED
+            command.name == CleanResume().name
+            and self.status.state != VacuumState.STATE_PAUSED
         ):
             command = CleanStart()
 
@@ -161,7 +161,7 @@ class VacuumBot:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-            self, event_name: str, event: dict, requested: bool = True
+        self, event_name: str, event: dict, requested: bool = True
     ) -> None:
         """Handle the given event.
 
@@ -183,7 +183,7 @@ class VacuumBot:
 
         for prefix in prefixes:
             if event_name.startswith(prefix):
-                event_name = event_name[len(prefix):]
+                event_name = event_name[len(prefix) :]
 
         # OZMO T8 series and newer
         if event_name.endswith("_V2".lower()):
@@ -306,7 +306,7 @@ class VacuumBot:
                 elif event_body["code"] == "5":  # Busy with another command
                     status = VacuumState.STATE_ERROR
                 elif (
-                        event_body["code"] == "3"
+                    event_body["code"] == "3"
                 ):  # Bot in stuck state, example dust bin out
                     status = VacuumState.STATE_ERROR
 
@@ -318,7 +318,7 @@ class VacuumBot:
             self._set_state(VacuumState.STATE_DOCKED)
 
     async def _handle_life_span(
-            self, event_data: List[Dict[str, Union[str, int]]]
+        self, event_data: List[Dict[str, Union[str, int]]]
     ) -> None:
         for component in event_data:
             component_type = COMPONENT_FROM_ECOVACS.get(str(component.get("type")))
