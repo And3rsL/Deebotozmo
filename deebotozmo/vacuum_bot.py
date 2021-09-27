@@ -1,23 +1,54 @@
+"""Vacuum bot module."""
 import asyncio
 import logging
-from typing import Union, Optional, List
+from typing import Dict, List, Optional, Union
 
 import aiohttp
 
-from deebotozmo.commands import *
-from deebotozmo.constants import ERROR_CODES, FAN_SPEED_FROM_ECOVACS, COMPONENT_FROM_ECOVACS, WATER_LEVEL_FROM_ECOVACS
+from deebotozmo.commands import (
+    CleanResume,
+    CleanStart,
+    Command,
+    GetBattery,
+    GetChargeState,
+    GetCleanInfo,
+    GetCleanLogs,
+    GetError,
+    GetFanSpeed,
+    GetLifeSpan,
+    GetStats,
+    GetWaterInfo,
+)
+from deebotozmo.constants import (
+    COMPONENT_FROM_ECOVACS,
+    ERROR_CODES,
+    FAN_SPEED_FROM_ECOVACS,
+    WATER_LEVEL_FROM_ECOVACS,
+)
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
-from deebotozmo.events import EventEmitter, ErrorEvent, PollingEventEmitter, LifeSpanEvent, FanSpeedEvent, \
-    CleanLogEvent, WaterInfoEvent, BatteryEvent, StatusEvent, StatsEvent, CleanLogEntry
+from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter
+from deebotozmo.events import (
+    BatteryEvent,
+    CleanLogEntry,
+    CleanLogEvent,
+    ErrorEvent,
+    FanSpeedEvent,
+    LifeSpanEvent,
+    StatsEvent,
+    StatusEvent,
+    WaterInfoEvent,
+)
 from deebotozmo.map import Map
-from deebotozmo.models import *
-from deebotozmo.util import get_PollingEventEmitter, get_EventEmitter
+from deebotozmo.models import RequestAuth, Vacuum, VacuumState
+from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class VacuumBot:
+    """Vacuum bot representation."""
+
     def __init__(
             self,
             session: aiohttp.ClientSession,
@@ -26,7 +57,7 @@ class VacuumBot:
             *,
             continent: str,
             country: str,
-            verify_ssl: Union[bool, str] = True
+            verify_ssl: Union[bool, str] = True,
     ):
         self._semaphore = asyncio.Semaphore(3)
         self._session = session
@@ -37,47 +68,58 @@ class VacuumBot:
         if country.lower() == "cn":
             portal_url = EcovacsAPI.PORTAL_URL_FORMAT_CN
 
-        self.json: EcovacsJSON = EcovacsJSON(
-            session,
-            auth,
-            portal_url,
-            verify_ssl
-        )
+        self.json: EcovacsJSON = EcovacsJSON(session, auth, portal_url, verify_ssl)
 
         self.status: StatusEvent = StatusEvent(False, None)
         self.fw_version: Optional[str] = None
 
         self._map = Map(self.execute_command)
 
-        self.statusEvents: EventEmitter[StatusEvent] = \
-            get_EventEmitter(StatusEvent, [GetChargeState(), GetCleanInfo(self.vacuum)], self.execute_command)
+        self.statusEvents: EventEmitter[StatusEvent] = EventEmitter[StatusEvent](
+            get_refresh_function(
+                [GetChargeState(), GetCleanInfo(self.vacuum)], self.execute_command
+            )
+        )
 
-        self.errorEvents: EventEmitter[ErrorEvent] = get_EventEmitter(ErrorEvent, [GetError()], self.execute_command)
+        self.errorEvents: EventEmitter[ErrorEvent] = EventEmitter[ErrorEvent](
+            get_refresh_function([GetError()], self.execute_command)
+        )
 
-        self.fanSpeedEvents: EventEmitter[FanSpeedEvent] = \
-            get_EventEmitter(FanSpeedEvent, [GetFanSpeed()], self.execute_command)
+        self.fanSpeedEvents: EventEmitter[FanSpeedEvent] = EventEmitter[FanSpeedEvent](
+            get_refresh_function([GetFanSpeed()], self.execute_command)
+        )
 
-        self.cleanLogsEvents: EventEmitter[CleanLogEvent] = \
-            get_EventEmitter(CleanLogEvent, [GetCleanLogs()], self.execute_command)
+        self.cleanLogsEvents: EventEmitter[CleanLogEvent] = EventEmitter[CleanLogEvent](
+            get_refresh_function([GetCleanLogs()], self.execute_command)
+        )
 
-        self.waterEvents: EventEmitter[WaterInfoEvent] = \
-            get_EventEmitter(WaterInfoEvent, [GetWaterInfo()], self.execute_command)
+        self.waterEvents: EventEmitter[WaterInfoEvent] = EventEmitter[WaterInfoEvent](
+            get_refresh_function([GetWaterInfo()], self.execute_command)
+        )
 
-        self.batteryEvents: EventEmitter[BatteryEvent] = \
-            get_EventEmitter(BatteryEvent, [GetBattery()], self.execute_command)
+        self.batteryEvents: EventEmitter[BatteryEvent] = EventEmitter[BatteryEvent](
+            get_refresh_function([GetBattery()], self.execute_command)
+        )
 
-        self.statsEvents: EventEmitter[StatsEvent] = \
-            get_EventEmitter(StatsEvent, [GetStats()], self.execute_command)
+        self.statsEvents: EventEmitter[StatsEvent] = EventEmitter[StatsEvent](
+            get_refresh_function([GetStats()], self.execute_command)
+        )
 
-        self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = \
-            get_PollingEventEmitter(LifeSpanEvent, 60, [GetLifeSpan()], self.execute_command, self)
+        self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = PollingEventEmitter[
+            LifeSpanEvent
+        ](60, get_refresh_function([GetLifeSpan()], self.execute_command), self)
 
     @property
     def map(self) -> Map:
+        """Return vacuum map."""
         return self._map
 
-    async def execute_command(self, command: Command):
-        if command.name == CleanResume.name and self.status.state != "STATE_PAUSED":
+    async def execute_command(self, command: Command) -> None:
+        """Execute given command and handle response."""
+        if (
+                command.name == CleanResume().name
+                and self.status.state != VacuumState.STATE_PAUSED
+        ):
             command = CleanStart()
 
         async with self._semaphore:
@@ -85,14 +127,15 @@ class VacuumBot:
 
         await self.handle(command.name, response)
 
-    def set_available(self, available: bool):
+    def set_available(self, available: bool) -> None:
+        """Set available."""
         status = StatusEvent(available, self.status.state)
         self._set_status(status)
 
-    def _set_state(self, state: VacuumState):
+    def _set_state(self, state: VacuumState) -> None:
         self._set_status(StatusEvent(True, state))
 
-    def _set_status(self, status: StatusEvent):
+    def _set_status(self, status: StatusEvent) -> None:
         _LOGGER.debug(f"Calling _set_status with {status}")
 
         last_status = self.status
@@ -117,9 +160,11 @@ class VacuumBot:
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    async def handle(self, event_name: str, event: dict, requested: bool = True) -> None:
-        """
-        Handle the given event
+    async def handle(
+            self, event_name: str, event: dict, requested: bool = True
+    ) -> None:
+        """Handle the given event.
+
         :param event_name: the name of the event or request
         :param event: the data of it
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
@@ -152,7 +197,7 @@ class VacuumBot:
                 else:
                     event = event.get("resp", event)
             else:
-                _LOGGER.warning(f"Event {event_name} where ret != \"ok\": {event}")
+                _LOGGER.warning(f'Event {event_name} where ret != "ok": {event}')
                 return
 
         event_body = event.get("body", {})
@@ -198,18 +243,18 @@ class VacuumBot:
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event}")
 
-    async def _handle_stats(self, event_data: dict):
+    async def _handle_stats(self, event_data: dict) -> None:
         stats_event = StatsEvent(
             event_data.get("area"),
             event_data.get("cid"),
             event_data.get("time"),
             event_data.get("type"),
-            event_data.get("start")
+            event_data.get("start"),
         )
 
         self.statsEvents.notify(stats_event)
 
-    async def _handle_error(self, event: dict, event_data: dict):
+    async def _handle_error(self, event: dict, event_data: dict) -> None:
         error: Optional[int] = None
         if "error" in event:
             error = event["error"]
@@ -224,27 +269,33 @@ class VacuumBot:
         if error is not None:
             description = ERROR_CODES.get(error)
             if error != 0:
-                _LOGGER.warning(f"Bot in error-state: code={error}, description={description}")
+                _LOGGER.warning(
+                    f"Bot in error-state: code={error}, description={description}"
+                )
                 self._set_state(VacuumState.STATE_ERROR)
             self.errorEvents.notify(ErrorEvent(error, description))
         else:
-            _LOGGER.warning(f"Could not process error event with received data: {event}")
+            _LOGGER.warning(
+                f"Could not process error event with received data: {event}"
+            )
 
-    async def _handle_fan_speed(self, event_data: dict):
-        speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed"))
+    async def _handle_fan_speed(self, event_data: Dict[str, int]) -> None:
+        speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed", -1))
 
         if speed:
             self.fanSpeedEvents.notify(FanSpeedEvent(speed))
         else:
-            _LOGGER.warning(f"Could not process fan speed event with received data: {event_data}")
+            _LOGGER.warning(
+                f"Could not process fan speed event with received data: {event_data}"
+            )
 
-    async def _handle_battery(self, event_data: dict):
+    async def _handle_battery(self, event_data: dict) -> None:
         try:
             self.batteryEvents.notify(BatteryEvent(event_data["value"]))
         except ValueError:
             _LOGGER.warning(f"Couldn't parse battery status: {event_data}")
 
-    async def _handle_charge_state_requested(self, event_body: dict):
+    async def _handle_charge_state_requested(self, event_body: dict) -> None:
         if event_body["code"] == 0:
             await self._handle_charge_state(event_body.get("data", {}))
         else:
@@ -254,20 +305,23 @@ class VacuumBot:
                     status = VacuumState.STATE_DOCKED
                 elif event_body["code"] == "5":  # Busy with another command
                     status = VacuumState.STATE_ERROR
-                elif event_body["code"] == "3":  # Bot in stuck state, example dust bin out
+                elif (
+                        event_body["code"] == "3"
+                ):  # Bot in stuck state, example dust bin out
                     status = VacuumState.STATE_ERROR
 
             if status:
                 self._set_state(status)
 
-    async def _handle_charge_state(self, event_data: dict):
+    async def _handle_charge_state(self, event_data: dict) -> None:
         if event_data.get("isCharging") == 1:
             self._set_state(VacuumState.STATE_DOCKED)
 
-    async def _handle_life_span(self, event_data: dict):
-        component: dict
+    async def _handle_life_span(
+            self, event_data: List[Dict[str, Union[str, int]]]
+    ) -> None:
         for component in event_data:
-            component_type = COMPONENT_FROM_ECOVACS.get(component.get("type"))
+            component_type = COMPONENT_FROM_ECOVACS.get(str(component.get("type")))
             left = int(component.get("left", 0))
             total = int(component.get("total", 0))
 
@@ -277,36 +331,40 @@ class VacuumBot:
             else:
                 _LOGGER.warning(f"Could not parse life span event with {event_data}")
 
-    async def _handle_water_info(self, event_data: dict):
+    async def _handle_water_info(self, event_data: dict) -> None:
         amount = event_data.get("amount")
         mop_attached = bool(event_data.get("enable"))
 
         if amount:
-            self.waterEvents.notify(WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount)))
+            self.waterEvents.notify(
+                WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount))
+            )
         else:
             _LOGGER.warning(f"Could not parse water info event with {event_data}")
 
-    async def _handle_clean_logs(self, event):
+    async def _handle_clean_logs(self, event: Dict) -> None:
         response: Optional[List[dict]] = event.get("logs")
 
         # Ecovacs API is changing their API, this request may not working properly
         if response is not None and len(response) >= 0:
             logs: List[CleanLogEntry] = []
             for log in response:
-                logs.append(CleanLogEntry(
-                    timestamp=log.get("ts"),
-                    imageUrl=log.get("imageUrl"),
-                    type=log.get("type"),
-                    area=log.get("area"),
-                    stopReason=log.get("stopReason"),
-                    totalTime=log.get("last")
-                ))
+                logs.append(
+                    CleanLogEntry(
+                        timestamp=log.get("ts"),
+                        imageUrl=log.get("imageUrl"),
+                        type=log.get("type"),
+                        area=log.get("area"),
+                        stopReason=log.get("stopReason"),
+                        totalTime=log.get("last"),
+                    )
+                )
 
             self.cleanLogsEvents.notify(CleanLogEvent(logs))
         else:
             _LOGGER.warning(f"Could not parse clean logs event with {event}")
 
-    async def _handle_clean_info(self, event_data: dict):
+    async def _handle_clean_info(self, event_data: dict) -> None:
         status: Optional[VacuumState] = None
         if event_data.get("trigger") == "alert":
             status = VacuumState.STATE_ERROR

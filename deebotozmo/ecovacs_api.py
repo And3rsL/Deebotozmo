@@ -1,28 +1,35 @@
+"""API module."""
 import logging
 import time
 from dataclasses import dataclass
-from typing import Union, Optional, List
+from typing import Any, Dict, List, Optional, Union
 
 import aiohttp
 from aiohttp import hdrs
 
-from deebotozmo.models import Vacuum, RequestAuth
-from deebotozmo.util import str_to_bool_or_cert, md5, sanitize_data
+from deebotozmo.models import RequestAuth, Vacuum
+from deebotozmo.util import md5, sanitize_data, str_to_bool_or_cert
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class EcovacsAPI:
+    """Api representation."""
+
     CLIENT_KEY = "1520391301804"
     CLIENT_SECRET = "6c319b2a5cd3e66e39159c2e28f2fce9"
-    MAIN_URL_FORMAT = "https://gl-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/" \
-                      "{appVersion}/{channel}/{deviceType}"
+    MAIN_URL_FORMAT = (
+        "https://gl-{country}-api.ecovacs.com/v1/private/{country}/{lang}/{deviceId}/{appCode}/"
+        "{appVersion}/{channel}/{deviceType}"
+    )
     USER_URL_FORMAT = "https://users-{continent}.ecouser.net:8000/user.do"
     PORTAL_URL_FORMAT = "https://portal-{continent}.ecouser.net/api"
     PORTAL_URL_FORMAT_CN = "https://portal.ecouser.net/api/"
 
     # New Auth Code Method
-    PORTAL_GLOBAL_AUTHCODE = "https://gl-{country}-openapi.ecovacs.com/v1/global/auth/getAuthCode"
+    PORTAL_GLOBAL_AUTHCODE = (
+        "https://gl-{country}-openapi.ecovacs.com/v1/global/auth/getAuthCode"
+    )
     AUTH_CLIENT_KEY = "1520391491841"
     AUTH_CLIENT_SECRET = "77ef58ce3afbe337da74aa8c5ab963a9"
 
@@ -41,13 +48,21 @@ class EcovacsAPI:
     }
 
     def __init__(
-            self, session: aiohttp.ClientSession, device_id: str, account_id: str, password_hash: str, *,
-            continent: str, country: str, verify_ssl: Union[bool, str] = True
+            self,
+            session: aiohttp.ClientSession,
+            device_id: str,
+            account_id: str,
+            password_hash: str,
+            *,
+            continent: str,
+            country: str,
+            verify_ssl: Union[bool, str] = True,
     ):
-        self._meta = {**EcovacsAPI.META,
-                      "country": country,
-                      "deviceId": device_id,
-                      }
+        self._meta: Dict[str, str] = {
+            **EcovacsAPI.META,
+            "country": country,
+            "deviceId": device_id,
+        }
 
         self._session = session
         self._verify_ssl = str_to_bool_or_cert(verify_ssl)
@@ -60,7 +75,8 @@ class EcovacsAPI:
         self._password_hash = password_hash
         self._login_information: Optional[EcovacsAPI.LoginInformation] = None
 
-    async def login(self):
+    async def login(self) -> None:
+        """Login using username and password."""
         _LOGGER.debug("Start login to EcovacsAPI")
         login_info = await self.__call_login_api(self._account_id, self._password_hash)
         user_id = login_info["uid"]
@@ -73,29 +89,32 @@ class EcovacsAPI:
             _LOGGER.debug("Switching to shorter UID")
             user_id = login_response["userId"]
 
-        self._login_information = EcovacsAPI.LoginInformation(user_access_token, user_id)
+        self._login_information = EcovacsAPI.LoginInformation(
+            user_access_token, user_id
+        )
         _LOGGER.debug("Login to EcovacsAPI successfully")
 
     async def get_request_auth(self) -> RequestAuth:
+        """Return request authentication object for further calls."""
         if self._login_information is None:
             await self.login()
+            if self._login_information is None:
+                raise RuntimeError("Internal error! Please contact developers.")
 
-        return RequestAuth({
-            "with": "users",
-            "userid": self._login_information.user_id,
-            "realm": EcovacsAPI.REALM,
-            "token": self._login_information.access_token,
-            "resource": self._resource,
-        })
+        return RequestAuth(
+            self._login_information.user_id,
+            EcovacsAPI.REALM,
+            self._login_information.access_token,
+            self._resource,
+        )
 
     async def get_devices(self) -> List[Vacuum]:
-        if self._login_information is None:
-            await self.login()
-
+        """Get compatible devices."""
+        auth_ = await self.get_request_auth()
         data = {
-            "userid": self._login_information.user_id,
-            "auth": await self.get_request_auth(),
-            "todo": "GetGlobalDeviceList"
+            "userid": auth_.user_id,
+            "auth": auth_.to_dict(),
+            "todo": "GetGlobalDeviceList",
         }
         json = await self.__call_portal_api(self.API_APPSVR_APP, data)
 
@@ -111,25 +130,31 @@ class EcovacsAPI:
             _LOGGER.error(f"call to {self.API_APPSVR_APP} failed with {json}")
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and "
-                f"parameters {sanitize_data(data)}")
+                f"parameters {sanitize_data(data)}"
+            )
 
-    async def get_product_iot_map(self) -> List[dict]:
+    async def get_product_iot_map(self) -> List[Dict[str, Any]]:
+        """Get product iot map."""
         data = {
             "channel": "",
-            "auth": await self.get_request_auth(),
+            "auth": (await self.get_request_auth()).to_dict(),
         }
         api = self.API_PIM_PRODUCT + "/getProductIotMap"
         json = await self.__call_portal_api(api, data)
 
         if json["code"] == "0000":
-            return json["data"]
+            result: List[Dict[str, Any]] = json["data"]
+            return result
         else:
             _LOGGER.error(f"call to {api} failed with {json}")
             raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {sanitize_data(data)}")
+                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {sanitize_data(data)}"
+            )
 
     @staticmethod
-    def __get_signed_md5(data: dict, key: str, secret: str) -> str:
+    def __get_signed_md5(
+            data: Dict[str, Union[str, int]], key: str, secret: str
+    ) -> str:
         sign_on_text = (
                 key
                 + "".join([k + "=" + str(data[k]) for k in sorted(data.keys())])
@@ -137,21 +162,34 @@ class EcovacsAPI:
         )
         return md5(sign_on_text)
 
-    def __sign(self, params):
-        result = {**params, "authTimespan": int(time.time() * 1000), "authTimeZone": "GMT-8"}
-        sign_data = {**self._meta, **result}
-        result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.CLIENT_KEY, EcovacsAPI.CLIENT_SECRET)
+    def __sign(self, params: Dict[str, str]) -> Dict[str, Union[str, int]]:
+        result: Dict[str, Union[str, int]] = {
+            **params,
+            "authTimespan": int(time.time() * 1000),
+            "authTimeZone": "GMT-8",
+        }
+        sign_data: Dict[str, Union[str, int]] = {**self._meta, **result}
+        result["authSign"] = self.__get_signed_md5(
+            sign_data, EcovacsAPI.CLIENT_KEY, EcovacsAPI.CLIENT_SECRET
+        )
         result["authAppkey"] = EcovacsAPI.CLIENT_KEY
         return result
 
-    def __sign_auth(self, params: dict) -> dict:
-        result = {**params, "authTimespan": int(time.time() * 1000)}
-        sign_data = {**result, "openId": "global"}
-        result["authSign"] = self.__get_signed_md5(sign_data, EcovacsAPI.AUTH_CLIENT_KEY, EcovacsAPI.AUTH_CLIENT_SECRET)
+    def __sign_auth(self, params: Dict[str, str]) -> Dict[str, Union[str, int]]:
+        result: Dict[str, Union[str, int]] = {
+            **params,
+            "authTimespan": int(time.time() * 1000),
+        }
+        sign_data: Dict[str, Union[str, int]] = {**result, "openId": "global"}
+        result["authSign"] = self.__get_signed_md5(
+            sign_data, EcovacsAPI.AUTH_CLIENT_KEY, EcovacsAPI.AUTH_CLIENT_SECRET
+        )
         result["authAppkey"] = EcovacsAPI.AUTH_CLIENT_KEY
         return result
 
-    async def __do_auth_response(self, url: str, params: dict) -> dict:
+    async def __do_auth_response(
+            self, url: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if self._country.lower() == "cn":
             url = url.replace(".ecovacs.com", ".ecovacs.cn")
 
@@ -167,20 +205,25 @@ class EcovacsAPI:
             _LOGGER.debug(f"got {json}")
             # todo better error handling
             if json["code"] == "0000":
-                return json["data"]
+                data: Dict[str, Any] = json["data"]
+                return data
             elif json["code"] == "1005":
                 _LOGGER.warning("incorrect email or password")
                 raise ValueError("incorrect email or password")
             else:
                 _LOGGER.error(f"call to {url} failed with {json}")
-                raise RuntimeError(f"failure code {json['code']} ({json['msg']}) for call {url}")
+                raise RuntimeError(
+                    f"failure code {json['code']} ({json['msg']}) for call {url}"
+                )
 
-    async def __call_login_api(self, account_id: str, password_hash: str):
-        _LOGGER.debug(f"calling login api")
+    async def __call_login_api(
+            self, account_id: str, password_hash: str
+    ) -> Dict[str, Any]:
+        _LOGGER.debug("calling login api")
         params = {
             "account": account_id,
             "password": password_hash,
-            "requestId": md5(time.time())
+            "requestId": md5(str(time.time())),
         }
 
         url = (EcovacsAPI.MAIN_URL_FORMAT + "/user/login").format(**self._meta)
@@ -190,21 +233,23 @@ class EcovacsAPI:
 
         return await self.__do_auth_response(url, self.__sign(params))
 
-    async def __call_auth_api(self, access_token: str, user_id: str):
-        _LOGGER.debug(f"calling auth api")
+    async def __call_auth_api(self, access_token: str, user_id: str) -> str:
+        _LOGGER.debug("calling auth api")
         params = {
             "uid": user_id,
             "accessToken": access_token,
             "bizType": "ECOVACS_IOT",
-            "deviceId": self._meta["deviceId"]
+            "deviceId": self._meta["deviceId"],
         }
 
         url = EcovacsAPI.PORTAL_GLOBAL_AUTHCODE.format(**self._meta)
 
         res = await self.__do_auth_response(url, self.__sign_auth(params))
-        return res["authCode"]
+        return str(res["authCode"])
 
-    async def __call_portal_api(self, api: str, args: dict, continent: Optional[str] = None):
+    async def __call_portal_api(
+            self, api: str, args: dict, continent: Optional[str] = None
+    ) -> Dict[str, Any]:
         _LOGGER.debug(f"calling user api {api} with {sanitize_data(args)}")
         params = {**args}
 
@@ -224,11 +269,13 @@ class EcovacsAPI:
         ) as res:
             res.raise_for_status()
 
-            json = await res.json()
-            _LOGGER.debug("got {}".format(json))
+            json: Dict[str, Any] = await res.json()
+            _LOGGER.debug(f"got {json}")
             return json
 
-    async def __call_login_by_it_token(self, user_id: str, auth_code: str):
+    async def __call_login_by_it_token(
+            self, user_id: str, auth_code: str
+    ) -> Dict[str, str]:
         data = {
             "edition": "ECOGLOBLE",
             "userId": user_id,
@@ -238,14 +285,11 @@ class EcovacsAPI:
             "org": "ECOWW",
             "last": "",
             "country": self._meta["country"].upper(),
-            "todo": "loginByItToken"
+            "todo": "loginByItToken",
         }
 
         if self._country.lower() == "cn":
-            data.update({
-                "org": "ECOCN",
-                "country": "Chinese"
-            })
+            data.update({"org": "ECOCN", "country": "Chinese"})
 
         for c in range(3):
             json = await self.__call_portal_api(self.API_USERS_USER, data)
@@ -253,18 +297,30 @@ class EcovacsAPI:
                 return json
             elif json["result"] == "fail":
                 if c == 2:
-                    _LOGGER.warning("loginByItToken set token error, failed after 3 attempts")
-                elif json["error"] == "set token error.":  # If it is a set token error try again
-                    _LOGGER.warning(f"loginByItToken set token error, trying again ({c + 2}/3)")
+                    _LOGGER.warning(
+                        "loginByItToken set token error, failed after 3 attempts"
+                    )
+                elif (
+                        json["error"] == "set token error."
+                ):  # If it is a set token error try again
+                    _LOGGER.warning(
+                        f"loginByItToken set token error, trying again ({c + 2}/3)"
+                    )
                     continue
 
             _LOGGER.error(f"call to {self.API_USERS_USER} failed with {json}")
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_USERS_USER} and "
-                f"parameters {sanitize_data(data)}")
+                f"parameters {sanitize_data(data)}"
+            )
+
+        raise RuntimeError(
+            f"failure for call {self.API_USERS_USER} with parameters {sanitize_data(data)}"
+        )
 
     @dataclass
     class LoginInformation:
-        """Private class to store login information, which are later required"""
+        """Private class to store login information, which are later required."""
+
         access_token: str
         user_id: str

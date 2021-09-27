@@ -1,35 +1,45 @@
+"""Map module."""
 import asyncio
 import base64
 import logging
 import lzma
 import struct
 from io import BytesIO
-from typing import Optional, List, Callable, Union, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from PIL import Image, ImageDraw, ImageOps
-from numpy import ndarray, zeros, reshape
+from numpy import ndarray, reshape, zeros
 
-from deebotozmo.commands import Command, GetMapTrace, GetMinorMap, GetMapSet, GetMapSubSet, GetCachedMapInfo, \
-    GetMajorMap, GetPos
-from deebotozmo.constants import ROOMS_FROM_ECOVACS, MAP_TRACE_POINT_COUNT
-from deebotozmo.events import RoomsEvent, MapEvent, EventEmitter
+from deebotozmo.commands import (
+    Command,
+    GetCachedMapInfo,
+    GetMajorMap,
+    GetMapSet,
+    GetMapSubSet,
+    GetMapTrace,
+    GetMinorMap,
+    GetPos,
+)
+from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
+from deebotozmo.event_emitter import EventEmitter
+from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
-from deebotozmo.util import get_EventEmitter
+from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _decompress_7z_base64_data(data):
+def _decompress_7z_base64_data(data: str) -> bytes:
     _LOGGER.debug("[decompress7zBase64Data] Begin")
     final_array = bytearray()
 
     # Decode Base64
-    data = base64.b64decode(data)
+    decoded = base64.b64decode(data)
 
     i = 0
-    for idx in data:
+    for idx in decoded:
         if i == 8:
-            final_array += b'\x00\x00\x00\x00'
+            final_array += b"\x00\x00\x00\x00"
         final_array.append(idx)
         i += 1
 
@@ -40,29 +50,38 @@ def _decompress_7z_base64_data(data):
     return decompressed_data
 
 
-def _draw_position(position: Coordinate, png_str: str, im: Image, pixel_width: int, offset: int):
+def _draw_position(
+        position: Coordinate, png_str: str, im: Image, pixel_width: int, offset: int
+) -> None:
     icon = Image.open(BytesIO(base64.b64decode(png_str)))
-    im.paste(icon, (int(((position.x / pixel_width) + offset)),
-                    int(((position.y / pixel_width) + offset))),
-             icon.convert('RGBA'))
+    im.paste(
+        icon,
+        (
+            int((position.x / pixel_width) + offset),
+            int((position.y / pixel_width) + offset),
+        ),
+        icon.convert("RGBA"),
+    )
 
 
-def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int):
+def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int) -> float:
     try:
         if value is not None:
             return (int(value) / pixel_width) + offset
-    except:
+    except (ZeroDivisionError, ValueError):
         pass
 
-    return 0
+    return 0.0
 
 
 class Map:
+    """Map representation."""
+
     COLORS = {
         0x01: "#badaff",  # floor
         0x02: "#4e96e2",  # wall
         0x03: "#1a81ed",  # carpet
-        "tracemap": "#FFFFFF"
+        "tracemap": "#FFFFFF",
     }
 
     ROBOT_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="  # nopep8
@@ -78,20 +97,21 @@ class Map:
         self._rooms: List[Room] = []
         self._amount_rooms: int = 0
         self._traceValues: List[int] = []
-        self._map_pieces: [MapPiece] = [MapPiece(i) for i in range(64)]
+        self._map_pieces: List[MapPiece] = [MapPiece(i) for i in range(64)]
         self._is_map_up_to_date: bool = False
         self._base64_image: Optional[bytes] = None
         self._last_requested_width: Optional[int] = None
 
-        self.roomsEvents: EventEmitter[RoomsEvent] = \
-            get_EventEmitter(RoomsEvent, [GetCachedMapInfo()], self._execute_command)
+        self.roomsEvents: EventEmitter[RoomsEvent] = EventEmitter[RoomsEvent](
+            get_refresh_function([GetCachedMapInfo()], self._execute_command)
+        )
 
-        async def refresh_map():
+        async def refresh_map() -> None:
             _LOGGER.debug("[refresh_map] Begin")
             tasks = [
                 asyncio.create_task(self._execute_command(GetMapTrace())),
                 asyncio.create_task(self._execute_command(GetPos())),
-                asyncio.create_task(self._execute_command(GetMajorMap()))
+                asyncio.create_task(self._execute_command(GetMajorMap())),
             ]
             await asyncio.gather(*tasks)
             self.mapEvents.notify(MapEvent())
@@ -100,9 +120,11 @@ class Map:
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    async def handle(self, event_name: str, event_data: dict, requested: bool = True) -> None:
-        """
-        Handle the given map event
+    async def handle(
+            self, event_name: str, event_data: dict, requested: bool = True
+    ) -> None:
+        """Handle the given map event.
+
         :param event_name: the name of the event or request
         :param event_data: the data of it
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
@@ -130,22 +152,24 @@ class Map:
         else:
             _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
 
-    async def _handle_cached_map_info(self, event_data: dict, requested: bool):
+    async def _handle_cached_map_info(self, event_data: dict, requested: bool) -> None:
         try:
-            map_id = None
+            map_id: Optional[int] = None
             for map_status in event_data["info"]:
                 if map_status["using"] == 1:
                     map_id = map_status["mid"]
                     _LOGGER.debug(f"[_handle_cached_map] Using Map: {map_id}")
                     break
 
-            if requested:
+            if requested and map_id is not None:
                 await self._execute_command(GetMapSet(map_id))
         except Exception as e:
             _LOGGER.debug("[_handle_cached_map] Exception thrown", e, exc_info=True)
-            _LOGGER.warning("[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?")
+            _LOGGER.warning(
+                "[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?"
+            )
 
-    async def _handle_map_set(self, event_data: dict, requested: bool):
+    async def _handle_map_set(self, event_data: dict, requested: bool) -> None:
         map_id = event_data["mid"]
         map_set_id = event_data["msid"]
         map_type = event_data["type"]
@@ -157,18 +181,23 @@ class Map:
         if requested:
             tasks = []
             for subset in subsets:
-                tasks.append(asyncio.create_task(
-                    self._execute_command(GetMapSubSet(
-                        map_id=map_id,
-                        map_set_id=map_set_id,
-                        map_type=map_type,
-                        map_subset_id=subset["mssid"]
-                    ))))
+                tasks.append(
+                    asyncio.create_task(
+                        self._execute_command(
+                            GetMapSubSet(
+                                map_id=map_id,
+                                map_set_id=map_set_id,
+                                map_type=map_type,
+                                map_subset_id=subset["mssid"],
+                            )
+                        )
+                    )
+                )
 
             if tasks:
                 await asyncio.gather(*tasks)
 
-    def _handle_map_sub_set(self, event_data: dict):
+    def _handle_map_sub_set(self, event_data: dict) -> None:
         subtype = int(event_data["subtype"])
         self._rooms.append(
             Room(
@@ -181,14 +210,14 @@ class Map:
         if len(self._rooms) == self._amount_rooms:
             self.roomsEvents.notify(RoomsEvent(self._rooms))
 
-    def _handle_position(self, event_data: dict):
+    def _handle_position(self, event_data: dict) -> None:
         if "chargePos" in event_data:
             self._update_position(event_data["chargePos"], True)
 
         if "deebotPos" in event_data:
             self._update_position(event_data["deebotPos"], False)
 
-    async def _handle_map_trace(self, event_data: dict, requested: bool):
+    async def _handle_map_trace(self, event_data: dict, requested: bool) -> None:
         total_count = int(event_data["totalCount"])
         trace_start = int(event_data["traceStart"])
 
@@ -203,7 +232,7 @@ class Map:
             if trace_start < total_count and requested:
                 await self._execute_command(GetMapTrace(trace_start))
 
-    async def _handle_major_map(self, event_data: dict, requested: bool):
+    async def _handle_major_map(self, event_data: dict, requested: bool) -> None:
         _LOGGER.debug("[_handle_major_map] begin")
         values = event_data["value"].split(",")
 
@@ -211,22 +240,26 @@ class Map:
             tasks = []
             for i in range(64):
                 if self._map_pieces[i].is_update(values[i]):
-                    _LOGGER.debug(f"[_handle_major_map] MapPiece {i} needs to be updated")
+                    _LOGGER.debug(
+                        f"[_handle_major_map] MapPiece {i} needs to be updated"
+                    )
                     self._is_map_up_to_date = False
-                    tasks.append(asyncio.create_task(
-                        self._execute_command(GetMinorMap(
-                            map_id=event_data["mid"],
-                            piece_index=i
-                        ))))
+                    tasks.append(
+                        asyncio.create_task(
+                            self._execute_command(
+                                GetMinorMap(map_id=event_data["mid"], piece_index=i)
+                            )
+                        )
+                    )
             if tasks:
                 await asyncio.gather(*tasks)
 
-    def _handle_minor_map(self, event_data: dict):
+    def _handle_minor_map(self, event_data: dict) -> None:
         self._add_map_piece(event_data["pieceIndex"], event_data["pieceValue"])
 
     # ---------------------------- METHODS ----------------------------
 
-    def _add_map_piece(self, map_piece, b64):
+    def _add_map_piece(self, map_piece: int, b64: str) -> None:
         _LOGGER.debug(f"[AddMapPiece] {map_piece} {b64}")
 
         decoded = _decompress_7z_base64_data(b64)
@@ -235,8 +268,12 @@ class Map:
         self._map_pieces[map_piece].points = points_array
         _LOGGER.debug("[AddMapPiece] Done")
 
-    def _update_position(self, new_values: Union[dict, list], is_charger: bool):
-        current_value: Coordinate = self._charger_position if is_charger else self._robot_position
+    def _update_position(
+            self, new_values: Union[Dict[str, Any], List[Dict[str, Any]]], is_charger: bool
+    ) -> None:
+        current_value: Optional[Coordinate] = (
+            self._charger_position if is_charger else self._robot_position
+        )
         name = "charger" if is_charger else "robot"
         if isinstance(new_values, list):
             new_values = new_values[0]
@@ -263,13 +300,13 @@ class Map:
         else:
             self._robot_position = current_value
 
-    def _update_trace_points(self, data):
+    def _update_trace_points(self, data: str) -> None:
         _LOGGER.debug("[_update_trace_points] Begin")
         trace_points = _decompress_7z_base64_data(data)
 
         for i in range(0, len(trace_points), 5):
-            byte_position_x = struct.unpack("<h", trace_points[i:i + 2])
-            byte_position_y = struct.unpack("<h", trace_points[i + 2:i + 4])
+            byte_position_x = struct.unpack("<h", trace_points[i: i + 2])
+            byte_position_y = struct.unpack("<h", trace_points[i + 2: i + 4])
 
             # Add To List
             position_x = (int(byte_position_x[0] / 5)) + 400
@@ -281,7 +318,12 @@ class Map:
         _LOGGER.debug("[_update_trace_points] finish")
 
     def get_base64_map(self, width: Optional[int] = None) -> bytes:
-        if self._is_map_up_to_date and width == self._last_requested_width:
+        """Return map as base64 image string."""
+        if (
+                self._is_map_up_to_date
+                and width == self._last_requested_width
+                and self._base64_image is not None
+        ):
             _LOGGER.debug("[get_base64_map] No need to update")
             return self._base64_image
 
@@ -314,14 +356,16 @@ class Map:
                             point_x = image_x + x
                             point_y = image_y + y
                             if (point_x > 6400) or (point_y > 6400):
-                                _LOGGER.error(f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}")
+                                _LOGGER.error(
+                                    f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}"
+                                )
 
                             draw.point((point_x, point_y), fill=Map.COLORS[pixel_type])
 
         # Draw Trace Route
         if len(self._traceValues) > 0:
             _LOGGER.debug("[get_base64_map] Draw Trace")
-            draw.line(self._traceValues, fill=Map.COLORS['tracemap'], width=1)
+            draw.line(self._traceValues, fill=Map.COLORS["tracemap"], width=1)
 
         del draw
 
@@ -331,7 +375,9 @@ class Map:
 
         if self._charger_position is not None:
             _LOGGER.debug("[get_base64_map] Draw charge station")
-            _draw_position(self._charger_position, Map.CHARGER_PNG, im, pixel_width, offset)
+            _draw_position(
+                self._charger_position, Map.CHARGER_PNG, im, pixel_width, offset
+            )
 
         _LOGGER.debug("[get_base64_map] Crop Image")
         image_box = im.getbbox()
@@ -341,20 +387,28 @@ class Map:
         _LOGGER.debug("[get_base64_map] Flipping Image")
         cropped = ImageOps.flip(cropped)
 
-        _LOGGER.debug(f"[get_base64_map] Map current Size: X: {cropped.size[0]} Y: {cropped.size[1]}")
+        _LOGGER.debug(
+            f"[get_base64_map] Map current Size: X: {cropped.size[0]} Y: {cropped.size[1]}"
+        )
 
         new_size = None
         if width is not None and width > 0:
             height = int((width / cropped.size[0]) * cropped.size[1])
             _LOGGER.debug(
-                f"[get_base64_map] Resize based on the requested width: {width} and calculated height {height}")
+                f"[get_base64_map] Resize based on the requested width: {width} and calculated height {height}"
+            )
             new_size = (width, height)
         elif cropped.size[0] > 400 or cropped.size[1] > 400:
-            _LOGGER.debug("[get_base64_map] Resize disabled.. map over 400 and image width was passed")
+            _LOGGER.debug(
+                "[get_base64_map] Resize disabled.. map over 400 and image width was passed"
+            )
         else:
             resize_factor = Map.RESIZE_FACTOR
             _LOGGER.debug(f"[get_base64_map] Resize factor: {resize_factor}")
-            new_size = (cropped.size[0] * resize_factor, cropped.size[1] * resize_factor)
+            new_size = (
+                cropped.size[0] * resize_factor,
+                cropped.size[1] * resize_factor,
+            )
 
         if new_size is not None:
             cropped = cropped.resize(new_size, Image.NEAREST)
@@ -373,16 +427,19 @@ class Map:
 
 
 class MapPiece:
-    NOT_INUSE: str = '1295764014'
+    """Map piece representation."""
 
-    def __init__(self, index: int):
+    NOT_INUSE: str = "1295764014"
+
+    def __init__(self, index: int) -> None:
         self._index = index
         self._points: Optional[ndarray] = None
         self._in_use: bool = False
         self._piece: str = MapPiece.NOT_INUSE
 
-    def is_update(self, map_piece) -> bool:
-        piece = str(map_piece)
+    def is_update(self, map_piece: str) -> bool:
+        """Return True if update is required."""
+        piece = map_piece
         if self._piece != piece:
             self._piece = piece
 
@@ -398,16 +455,17 @@ class MapPiece:
 
     @property
     def in_use(self) -> bool:
+        """Return True if piece is in use."""
         return self._in_use
 
     @property
     def points(self) -> ndarray:
         """I'm the 'x' property."""
-        if not self._in_use:
+        if not self._in_use or self._points is None:
             return zeros((100, 100))
         return self._points
 
     @points.setter
-    def points(self, points: ndarray):
+    def points(self, points: ndarray) -> None:
         self._in_use = True
         self._points = points

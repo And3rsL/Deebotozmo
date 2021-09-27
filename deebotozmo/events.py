@@ -1,16 +1,15 @@
-import asyncio
-import logging
-from asyncio import Task
+"""Deebot events."""
+
 from dataclasses import dataclass
-from typing import List, TypeVar, Generic, Callable, Awaitable, Optional
+from typing import List, Optional
 
 from deebotozmo.models import Room, VacuumState
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
 class StatsEvent:
+    """Stats event representation."""
+
     area: Optional[int]
     clean_id: Optional[str]
     time: Optional[int]
@@ -20,40 +19,54 @@ class StatsEvent:
 
 @dataclass
 class ErrorEvent:
+    """Error event representation."""
+
     code: int
     description: Optional[str]
 
 
 @dataclass
 class FanSpeedEvent:
+    """Fan speed event representation."""
+
     speed: str
 
 
 @dataclass
 class BatteryEvent:
+    """Battery event representation."""
+
     value: int
 
 
 @dataclass
 class StatusEvent:
+    """Status event representation."""
+
     available: bool
     state: Optional[VacuumState]
 
 
 @dataclass
 class LifeSpanEvent:
+    """Lifespan event representation."""
+
     type: str
     percent: float
 
 
 @dataclass
 class WaterInfoEvent:
+    """Water info event representation."""
+
     mopAttached: bool
     amount: Optional[str]
 
 
 @dataclass
 class CleanLogEntry:
+    """Clean log entry representation."""
+
     timestamp: Optional[int]
     imageUrl: Optional[str]
     type: Optional[str]
@@ -68,128 +81,20 @@ class CleanLogEntry:
 
 @dataclass
 class CleanLogEvent:
+    """Clean log event representation."""
+
     logs: List[CleanLogEntry]
 
 
 @dataclass
 class RoomsEvent:
+    """Room event representation."""
+
     rooms: List[Room]
 
 
 @dataclass
 class MapEvent:
+    """Map event representation."""
+
     pass
-
-
-T = TypeVar('T')
-
-
-class EventListener(Generic[T]):
-    """Object that allows event consumers to easily unsubscribe from events."""
-
-    def __init__(self, emitter: "EventEmitter", callback: Callable[[T], Awaitable[None]]):
-        self._emitter = emitter
-        self.callback = callback
-
-    def unsubscribe(self):
-        self._emitter.unsubscribe(self)
-
-
-class EventEmitter(Generic[T]):
-    """A very simple event emitting system."""
-
-    def __init__(self, refresh_function: Callable[[], Awaitable[None]]):
-        self._subscribers: List[EventListener] = []
-        self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
-        self._semaphore = asyncio.Semaphore(1)
-        self._last_event: Optional[T] = None
-
-    @property
-    def has_subscribers(self) -> bool:
-        return len(self._subscribers) > 0
-
-    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
-        listener = EventListener(self, callback)
-        self._subscribers.append(listener)
-
-        if self._last_event:
-            # Notify subscriber directly with the last event
-            asyncio.create_task(listener.callback(self._last_event))
-        elif len(self._subscribers) == 1:
-            # first subscriber therefore do refresh
-            self.request_refresh()
-
-        return listener
-
-    def unsubscribe(self, listener: EventListener[T]):
-        self._subscribers.remove(listener)
-
-    def notify(self, event: T):
-        if event == self._last_event:
-            _LOGGER.debug(f"Event is the same! Skipping ({event})")
-            return
-
-        self._last_event = event
-        if self._subscribers:
-            _LOGGER.debug(f"Notify subscribers with {event}")
-            for subscriber in self._subscribers:
-                asyncio.create_task(subscriber.callback(event))
-        else:
-            _LOGGER.debug(f"No subscribers... Discharging {event}")
-
-    async def _call_refresh_function(self):
-        if self._semaphore.locked():
-            _LOGGER.debug("Already refresh function running. Skipping...")
-            return
-
-        async with self._semaphore:
-            await self._refresh_function()
-
-    def request_refresh(self):
-        if len(self._subscribers) > 0:
-            asyncio.create_task(self._call_refresh_function())
-
-
-class PollingEventEmitter(EventEmitter[T]):
-
-    def __init__(self, refresh_interval: int, refresh_function: Callable[[], Awaitable[None]], vacuum_bot: "VacuumBot"):
-        super().__init__(refresh_function)
-        self._refresh_task: Optional[Task] = None
-        self._refresh_interval: int = refresh_interval
-        self._status: Optional[VacuumState] = vacuum_bot.status
-
-        async def on_status(event: StatusEvent):
-            self._status = event.state
-            if event.state == VacuumState.STATE_CLEANING:
-                self._start_refresh_task()
-            else:
-                self._stop_refresh_task()
-
-        vacuum_bot.statusEvents.subscribe(on_status)
-
-    async def _refresh_interval_task(self):
-        while True:
-            await self._call_refresh_function()
-            await asyncio.sleep(self._refresh_interval)
-
-    def _start_refresh_task(self):
-        if self._refresh_task is None and len(self._subscribers) != 0:
-            self._refresh_task = asyncio.create_task(self._refresh_interval_task())
-
-    def _stop_refresh_task(self):
-        if self._refresh_task is not None:
-            task = self._refresh_task
-            self._refresh_task = None
-            task.cancel()
-
-    def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
-        listener = super(PollingEventEmitter, self).subscribe(callback)
-        if self._status == VacuumState.STATE_CLEANING:
-            self._start_refresh_task()
-        return listener
-
-    def unsubscribe(self, listener: EventListener[T]):
-        super().unsubscribe(listener)
-
-        if len(self._subscribers) == 0:
-            self._stop_refresh_task()
