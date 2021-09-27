@@ -5,14 +5,14 @@ scratch*
 .idea
 build
 dist
-venv/
+venv
 
 # Nosetests files
 cover/
 .coverage
 
 # Ignore Vscode files
-.vscode/
+.vscode
 
 # Ignore sucks.egg-info
 sucks.egg-info/
