@@ -32,7 +32,7 @@ def md5(text: str) -> str:
 
 
 def get_refresh_function(
-        commands: List[Command], execute_command: Callable[[Command], Awaitable[None]]
+    commands: List[Command], execute_command: Callable[[Command], Awaitable[None]]
 ) -> Callable[[], Awaitable[None]]:
     """Return refresh function for given commands."""
     if len(commands) == 1:

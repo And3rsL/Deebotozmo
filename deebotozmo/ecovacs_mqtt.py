@@ -31,7 +31,7 @@ class EcovacsMqtt:
         self._client = Client(client_id)
 
         async def _on_message(
-                client: Client, topic: str, payload: bytes, qos: int, properties: Dict
+            client: Client, topic: str, payload: bytes, qos: int, properties: Dict
         ) -> None:
             try:
                 payload_str = payload.decode()

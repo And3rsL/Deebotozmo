@@ -1,6 +1,7 @@
 <a href="https://www.buymeacoffee.com/4nd3rs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-black.png" width="150px" height="35px" alt="Buy Me A Coffee" style="height: 35px !important;width: 150px !important;" ></a>
 
 =====
+
 # Library for DeebotOzmo 960/950/920
 
 A simple command-line python script to drive a robot vacuum. Currently
@@ -84,19 +85,16 @@ A more advanced example can be found [here](https://github.com/And3rsL/Deebot-fo
 
 My heartfelt thanks to:
 
-* [sucks](https://github.com/wpietri/sucks),
-After all, this is a sucks fork :)
-* [xmpppeek](https://www.beneaththewaves.net/Software/XMPPPeek.html),
-a great library for examining XMPP traffic flows (yes, your vacuum
-speaks Jabbber!),
-* [mitmproxy](https://mitmproxy.org/), a fantastic tool for analyzing HTTPS,
-* [click](http://click.pocoo.org/), a wonderfully complete and thoughtful
-library for making Python command-line interfaces,
-* [requests](http://docs.python-requests.org/en/master/), a polished Python
-library for HTTP requests,
-* [Decompilers online](http://www.javadecompilers.com/apk), which was
-very helpful in figuring out what the Android app was up to,
-* Albert Louw, who was kind enough to post code from [his own
-experiments](https://community.smartthings.com/t/ecovacs-deebot-n79/93410/33)
-with his device, and
-* All the users who have given useful feedback and contributed code!
+- [sucks](https://github.com/wpietri/sucks), After all, this is a sucks fork :)
+- [xmpppeek](https://www.beneaththewaves.net/Software/XMPPPeek.html), a great library for examining XMPP traffic flows (
+  yes, your vacuum speaks Jabbber!),
+- [mitmproxy](https://mitmproxy.org/), a fantastic tool for analyzing HTTPS,
+- [click](http://click.pocoo.org/), a wonderfully complete and thoughtful library for making Python command-line
+  interfaces,
+- [requests](http://docs.python-requests.org/en/master/), a polished Python library for HTTP requests,
+- [Decompilers online](http://www.javadecompilers.com/apk), which was very helpful in figuring out what the Android app
+  was up to,
+- Albert Louw, who was kind enough to post code
+  from [his own experiments](https://community.smartthings.com/t/ecovacs-deebot-n79/93410/33)
+  with his device, and
+- All the users who have given useful feedback and contributed code!

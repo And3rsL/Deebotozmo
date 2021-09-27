@@ -22,11 +22,11 @@ class EcovacsJSON:
     }
 
     def __init__(
-            self,
-            session: aiohttp.ClientSession,
-            auth: RequestAuth,
-            portal_url: str,
-            verify_ssl: Union[bool, str],
+        self,
+        session: aiohttp.ClientSession,
+        auth: RequestAuth,
+        portal_url: str,
+        verify_ssl: Union[bool, str],
     ):
         self._session = session
         self._auth = auth
@@ -42,11 +42,11 @@ class EcovacsJSON:
         try:
             # todo use maybe async_timeout?
             async with self._session.post(
-                    url_with_params,
-                    headers=EcovacsJSON.REQUEST_HEADERS,
-                    json=json,
-                    timeout=60,
-                    ssl=self.verify_ssl,
+                url_with_params,
+                headers=EcovacsJSON.REQUEST_HEADERS,
+                json=json,
+                timeout=60,
+                ssl=self.verify_ssl,
             ) as res:
                 res.raise_for_status()
                 if res.status != 200:
@@ -68,7 +68,7 @@ class EcovacsJSON:
         return {}
 
     def _get_json_and_url(
-            self, command: Command, vacuum: Vacuum
+        self, command: Command, vacuum: Vacuum
     ) -> Tuple[Dict[str, Any], str, str]:
         json: Dict[str, Any] = {"auth": self._auth.to_dict()}
         base_url = self.portal_url

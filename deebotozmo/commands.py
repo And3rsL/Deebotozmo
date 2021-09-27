@@ -236,7 +236,7 @@ class GetMapSubSet(Command):
     """Get map subset command."""
 
     def __init__(
-            self, *, map_id: int, map_set_id: int, map_type: str, map_subset_id: str
+        self, *, map_id: int, map_set_id: int, map_type: str, map_subset_id: str
     ) -> None:
         super().__init__(
             "getMapSubSet",

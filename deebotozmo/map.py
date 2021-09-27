@@ -7,8 +7,8 @@ import struct
 from io import BytesIO
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
-from PIL import Image, ImageDraw, ImageOps
 from numpy import ndarray, reshape, zeros
+from PIL import Image, ImageDraw, ImageOps
 
 from deebotozmo.commands import (
     Command,
@@ -51,7 +51,7 @@ def _decompress_7z_base64_data(data: str) -> bytes:
 
 
 def _draw_position(
-        position: Coordinate, png_str: str, im: Image, pixel_width: int, offset: int
+    position: Coordinate, png_str: str, im: Image, pixel_width: int, offset: int
 ) -> None:
     icon = Image.open(BytesIO(base64.b64decode(png_str)))
     im.paste(
@@ -121,7 +121,7 @@ class Map:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-            self, event_name: str, event_data: dict, requested: bool = True
+        self, event_name: str, event_data: dict, requested: bool = True
     ) -> None:
         """Handle the given map event.
 
@@ -269,7 +269,7 @@ class Map:
         _LOGGER.debug("[AddMapPiece] Done")
 
     def _update_position(
-            self, new_values: Union[Dict[str, Any], List[Dict[str, Any]]], is_charger: bool
+        self, new_values: Union[Dict[str, Any], List[Dict[str, Any]]], is_charger: bool
     ) -> None:
         current_value: Optional[Coordinate] = (
             self._charger_position if is_charger else self._robot_position
@@ -305,8 +305,8 @@ class Map:
         trace_points = _decompress_7z_base64_data(data)
 
         for i in range(0, len(trace_points), 5):
-            byte_position_x = struct.unpack("<h", trace_points[i: i + 2])
-            byte_position_y = struct.unpack("<h", trace_points[i + 2: i + 4])
+            byte_position_x = struct.unpack("<h", trace_points[i : i + 2])
+            byte_position_y = struct.unpack("<h", trace_points[i + 2 : i + 4])
 
             # Add To List
             position_x = (int(byte_position_x[0] / 5)) + 400
@@ -320,9 +320,9 @@ class Map:
     def get_base64_map(self, width: Optional[int] = None) -> bytes:
         """Return map as base64 image string."""
         if (
-                self._is_map_up_to_date
-                and width == self._last_requested_width
-                and self._base64_image is not None
+            self._is_map_up_to_date
+            and width == self._last_requested_width
+            and self._base64_image is not None
         ):
             _LOGGER.debug("[get_base64_map] No need to update")
             return self._base64_image

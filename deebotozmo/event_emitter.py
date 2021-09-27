@@ -19,7 +19,7 @@ class EventListener(Generic[T]):
     """Object that allows event consumers to easily unsubscribe from events."""
 
     def __init__(
-            self, emitter: "EventEmitter", callback: Callable[[T], Awaitable[None]]
+        self, emitter: "EventEmitter", callback: Callable[[T], Awaitable[None]]
     ) -> None:
         self._emitter = emitter
         self.callback = callback
@@ -93,10 +93,10 @@ class PollingEventEmitter(EventEmitter[T]):
     """EventEmiter, which is polling data with the given refresh_function on the given interval."""
 
     def __init__(
-            self,
-            refresh_interval: int,
-            refresh_function: Callable[[], Awaitable[None]],
-            vacuum_bot: "VacuumBot",
+        self,
+        refresh_interval: int,
+        refresh_function: Callable[[], Awaitable[None]],
+        vacuum_bot: "VacuumBot",
     ) -> None:
         super().__init__(refresh_function)
         self._refresh_task: Optional[Task] = None

@@ -48,15 +48,15 @@ class EcovacsAPI:
     }
 
     def __init__(
-            self,
-            session: aiohttp.ClientSession,
-            device_id: str,
-            account_id: str,
-            password_hash: str,
-            *,
-            continent: str,
-            country: str,
-            verify_ssl: Union[bool, str] = True,
+        self,
+        session: aiohttp.ClientSession,
+        device_id: str,
+        account_id: str,
+        password_hash: str,
+        *,
+        continent: str,
+        country: str,
+        verify_ssl: Union[bool, str] = True,
     ):
         self._meta: Dict[str, str] = {
             **EcovacsAPI.META,
@@ -153,12 +153,12 @@ class EcovacsAPI:
 
     @staticmethod
     def __get_signed_md5(
-            data: Dict[str, Union[str, int]], key: str, secret: str
+        data: Dict[str, Union[str, int]], key: str, secret: str
     ) -> str:
         sign_on_text = (
-                key
-                + "".join([k + "=" + str(data[k]) for k in sorted(data.keys())])
-                + secret
+            key
+            + "".join([k + "=" + str(data[k]) for k in sorted(data.keys())])
+            + secret
         )
         return md5(sign_on_text)
 
@@ -188,14 +188,14 @@ class EcovacsAPI:
         return result
 
     async def __do_auth_response(
-            self, url: str, params: Dict[str, Any]
+        self, url: str, params: Dict[str, Any]
     ) -> Dict[str, Any]:
         if self._country.lower() == "cn":
             url = url.replace(".ecovacs.com", ".ecovacs.cn")
 
         # todo use maybe async_timeout?
         async with self._session.get(
-                url, params=params, timeout=60, ssl=self._verify_ssl
+            url, params=params, timeout=60, ssl=self._verify_ssl
         ) as res:
             res.raise_for_status()
 
@@ -217,7 +217,7 @@ class EcovacsAPI:
                 )
 
     async def __call_login_api(
-            self, account_id: str, password_hash: str
+        self, account_id: str, password_hash: str
     ) -> Dict[str, Any]:
         _LOGGER.debug("calling login api")
         params = {
@@ -248,7 +248,7 @@ class EcovacsAPI:
         return str(res["authCode"])
 
     async def __call_portal_api(
-            self, api: str, args: dict, continent: Optional[str] = None
+        self, api: str, args: dict, continent: Optional[str] = None
     ) -> Dict[str, Any]:
         _LOGGER.debug(f"calling user api {api} with {sanitize_data(args)}")
         params = {**args}
@@ -265,7 +265,7 @@ class EcovacsAPI:
 
         # todo use maybe async_timeout?
         async with self._session.post(
-                url, json=params, timeout=60, ssl=self._verify_ssl
+            url, json=params, timeout=60, ssl=self._verify_ssl
         ) as res:
             res.raise_for_status()
 
@@ -274,7 +274,7 @@ class EcovacsAPI:
             return json
 
     async def __call_login_by_it_token(
-            self, user_id: str, auth_code: str
+        self, user_id: str, auth_code: str
     ) -> Dict[str, str]:
         data = {
             "edition": "ECOGLOBLE",
@@ -301,7 +301,7 @@ class EcovacsAPI:
                         "loginByItToken set token error, failed after 3 attempts"
                     )
                 elif (
-                        json["error"] == "set token error."
+                    json["error"] == "set token error."
                 ):  # If it is a set token error try again
                     _LOGGER.warning(
                         f"loginByItToken set token error, trying again ({c + 2}/3)"
