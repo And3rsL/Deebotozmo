@@ -48,18 +48,10 @@ class StatusEvent:
 
 
 @dataclass
-class LifeSpanEvent:
-    """Lifespan event representation."""
-
-    type: str
-    percent: float
-
-
-@dataclass
 class WaterInfoEvent:
     """Water info event representation."""
 
-    mopAttached: bool
+    mop_attached: bool
     amount: Optional[str]
 
 
@@ -68,15 +60,15 @@ class CleanLogEntry:
     """Clean log entry representation."""
 
     timestamp: Optional[int]
-    imageUrl: Optional[str]
+    image_url: Optional[str]
     type: Optional[str]
     area: Optional[int]
-    stopReason: Optional[str]
+    stop_reason: Optional[str]
     # Stop reason
     # 1 -> finished
     # 2 -> manual stopped
     # 3 -> finished with warnings (ex. a scheduled room was not cleaned)
-    totalTime: Optional[int]  # in seconds
+    total_time: Optional[int]  # in seconds
 
 
 @dataclass

@@ -5,7 +5,7 @@ import logging
 import lzma
 import struct
 from io import BytesIO
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, Final, List, Optional, Union
 
 from numpy import ndarray, reshape, zeros
 from PIL import Image, ImageDraw, ImageOps
@@ -21,12 +21,13 @@ from deebotozmo.commands import (
     GetPos,
 )
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
-from deebotozmo.event_emitter import EventEmitter
+from deebotozmo.event_emitter import EventEmitter, ThrottleEventEmitter
 from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
+_TRACE_MAP = "trace_map"
 
 
 def _decompress_7z_base64_data(data: str) -> bytes:
@@ -74,6 +75,22 @@ def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int) -> flo
     return 0.0
 
 
+class MapEvents:
+    """Map events representation."""
+
+    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]) -> None:
+        self.map: Final[EventEmitter[MapEvent]] = ThrottleEventEmitter[MapEvent](
+            get_refresh_function(
+                [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
+            ),
+            5,
+            True,
+        )
+        self.rooms: Final[EventEmitter[RoomsEvent]] = EventEmitter[RoomsEvent](
+            get_refresh_function([GetCachedMapInfo()], execute_command)
+        )
+
+
 class Map:
     """Map representation."""
 
@@ -81,7 +98,7 @@ class Map:
         0x01: "#badaff",  # floor
         0x02: "#4e96e2",  # wall
         0x03: "#1a81ed",  # carpet
-        "tracemap": "#FFFFFF",
+        _TRACE_MAP: "#FFFFFF",
     }
 
     ROBOT_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="  # nopep8
@@ -104,21 +121,7 @@ class Map:
         self._base64_image: Optional[bytes] = None
         self._last_requested_width: Optional[int] = None
 
-        self.roomsEvents: EventEmitter[RoomsEvent] = EventEmitter[RoomsEvent](
-            get_refresh_function([GetCachedMapInfo()], self._execute_command)
-        )
-
-        async def refresh_map() -> None:
-            _LOGGER.debug("[refresh_map] Begin")
-            tasks = [
-                asyncio.create_task(self._execute_command(GetMapTrace())),
-                asyncio.create_task(self._execute_command(GetPos())),
-                asyncio.create_task(self._execute_command(GetMajorMap())),
-            ]
-            await asyncio.gather(*tasks)
-            self.mapEvents.notify(MapEvent())
-
-        self.mapEvents: EventEmitter[MapEvent] = EventEmitter[MapEvent](refresh_map)
+        self.events: Final = MapEvents(self._execute_command)
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
@@ -139,7 +142,7 @@ class Map:
             await self._handle_map_set(event_data, requested)
         elif event_name == "mapsubset":
             self._handle_map_sub_set(event_data)
-        elif not self.mapEvents.has_subscribers:
+        elif not self.events.map.has_subscribers:
             # above events must be processed always as they are needed to get room information's
             _LOGGER.debug("No Map subscribers. Skipping map events")
             return
@@ -210,7 +213,7 @@ class Map:
         )
 
         if len(self._rooms) == self._amount_rooms:
-            self.roomsEvents.notify(RoomsEvent(self._rooms))
+            self.events.rooms.notify(RoomsEvent(self._rooms))
 
     def _handle_position(self, event_data: dict) -> None:
         if "chargePos" in event_data:
@@ -233,6 +236,8 @@ class Map:
             trace_start += MAP_TRACE_POINT_COUNT
             if trace_start < total_count and requested:
                 await self._execute_command(GetMapTrace(trace_start))
+            else:
+                self.events.map.notify(MapEvent())
 
     async def _handle_major_map(self, event_data: dict, requested: bool) -> None:
         _LOGGER.debug("[_handle_major_map] begin")
@@ -268,6 +273,7 @@ class Map:
         points_array = reshape(list(decoded), (100, 100))
 
         self._map_pieces[map_piece].points = points_array
+        self.events.map.notify(MapEvent())
         _LOGGER.debug("[AddMapPiece] Done")
 
     def _update_position(
@@ -287,20 +293,17 @@ class Map:
             _LOGGER.warning("Could not parse position event for %s", name)
             return
 
-        if current_value:
-            if (current_value.x != x) or (current_value.y != y):
-                _LOGGER.debug("Updating %s position: %d, %d", name, x, y)
-                current_value = Coordinate(x=x, y=y)
-                self._is_map_up_to_date = False
-        else:
-            _LOGGER.debug("Setting %s position: %d, %d", name, x, y)
-            current_value = Coordinate(x=x, y=y)
-            self._is_map_up_to_date = False
+        new_value = Coordinate(x=x, y=y)
 
-        if is_charger:
-            self._charger_position = current_value
-        else:
-            self._robot_position = current_value
+        if current_value != new_value:
+            _LOGGER.debug("Updating %s position: %d, %d", name, x, y)
+            if is_charger:
+                self._charger_position = new_value
+            else:
+                self._robot_position = new_value
+
+            self._is_map_up_to_date = False
+            self.events.map.notify(MapEvent())
 
     def _update_trace_points(self, data: str) -> None:
         _LOGGER.debug("[_update_trace_points] Begin")
@@ -369,7 +372,7 @@ class Map:
         # Draw Trace Route
         if len(self._trace_values) > 0:
             _LOGGER.debug("[get_base64_map] Draw Trace")
-            draw.line(self._trace_values, fill=Map.COLORS["tracemap"], width=1)
+            draw.line(self._trace_values, fill=Map.COLORS[_TRACE_MAP], width=1)
 
         del draw
 

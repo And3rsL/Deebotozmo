@@ -1,7 +1,7 @@
 """Vacuum bot module."""
 import asyncio
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Dict, Final, List, Optional, Union
 
 import aiohttp
 
@@ -34,16 +34,55 @@ from deebotozmo.events import (
     CleanLogEvent,
     ErrorEvent,
     FanSpeedEvent,
-    LifeSpanEvent,
     StatsEvent,
     StatusEvent,
     WaterInfoEvent,
 )
-from deebotozmo.map import Map
+from deebotozmo.map import Map, MapEvents
 from deebotozmo.models import RequestAuth, Vacuum, VacuumState
 from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class VacuumEvents:
+    """Vacuum events representation."""
+
+    def __init__(self, vacuum_bot: "VacuumBot", map_events: MapEvents) -> None:
+        self.battery: Final[EventEmitter[BatteryEvent]] = EventEmitter[BatteryEvent](
+            get_refresh_function([GetBattery()], vacuum_bot.execute_command)
+        )
+        self.clean_logs: Final[EventEmitter[CleanLogEvent]] = EventEmitter[
+            CleanLogEvent
+        ](get_refresh_function([GetCleanLogs()], vacuum_bot.execute_command))
+        self.error: Final[EventEmitter[ErrorEvent]] = EventEmitter[ErrorEvent](
+            get_refresh_function([GetError()], vacuum_bot.execute_command)
+        )
+        self.fan_speed: Final[EventEmitter[FanSpeedEvent]] = EventEmitter[
+            FanSpeedEvent
+        ](get_refresh_function([GetFanSpeed()], vacuum_bot.execute_command))
+        self.lifespan: Final[EventEmitter[Dict[str, float]]] = PollingEventEmitter[
+            Dict[str, float]
+        ](
+            60,
+            get_refresh_function([GetLifeSpan()], vacuum_bot.execute_command),
+            vacuum_bot,
+        )
+        self.stats: Final[EventEmitter[StatsEvent]] = EventEmitter[StatsEvent](
+            get_refresh_function([GetStats()], vacuum_bot.execute_command)
+        )
+        self.status: Final[EventEmitter[StatusEvent]] = EventEmitter[StatusEvent](
+            get_refresh_function(
+                [GetChargeState(), GetCleanInfo(vacuum_bot.vacuum)],
+                vacuum_bot.execute_command,
+            )
+        )
+        self.water_info: Final[EventEmitter[WaterInfoEvent]] = EventEmitter[
+            WaterInfoEvent
+        ](get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command))
+
+        self.map: Final = map_events.map
+        self.rooms: Final = map_events.rooms
 
 
 class VacuumBot:
@@ -73,46 +112,8 @@ class VacuumBot:
         self.status: StatusEvent = StatusEvent(False, None)
         self.fw_version: Optional[str] = None
 
-        self._map = Map(self.execute_command)
-
-        self.statusEvents: EventEmitter[StatusEvent] = EventEmitter[StatusEvent](
-            get_refresh_function(
-                [GetChargeState(), GetCleanInfo(self.vacuum)], self.execute_command
-            )
-        )
-
-        self.errorEvents: EventEmitter[ErrorEvent] = EventEmitter[ErrorEvent](
-            get_refresh_function([GetError()], self.execute_command)
-        )
-
-        self.fanSpeedEvents: EventEmitter[FanSpeedEvent] = EventEmitter[FanSpeedEvent](
-            get_refresh_function([GetFanSpeed()], self.execute_command)
-        )
-
-        self.cleanLogsEvents: EventEmitter[CleanLogEvent] = EventEmitter[CleanLogEvent](
-            get_refresh_function([GetCleanLogs()], self.execute_command)
-        )
-
-        self.waterEvents: EventEmitter[WaterInfoEvent] = EventEmitter[WaterInfoEvent](
-            get_refresh_function([GetWaterInfo()], self.execute_command)
-        )
-
-        self.batteryEvents: EventEmitter[BatteryEvent] = EventEmitter[BatteryEvent](
-            get_refresh_function([GetBattery()], self.execute_command)
-        )
-
-        self.statsEvents: EventEmitter[StatsEvent] = EventEmitter[StatsEvent](
-            get_refresh_function([GetStats()], self.execute_command)
-        )
-
-        self.lifespanEvents: PollingEventEmitter[LifeSpanEvent] = PollingEventEmitter[
-            LifeSpanEvent
-        ](60, get_refresh_function([GetLifeSpan()], self.execute_command), self)
-
-    @property
-    def map(self) -> Map:
-        """Return vacuum map."""
-        return self._map
+        self.map: Final = Map(self.execute_command)
+        self.events: Final = VacuumEvents(self, self.map.events)
 
     async def execute_command(self, command: Command) -> None:
         """Execute given command and handle response."""
@@ -145,18 +146,13 @@ class VacuumBot:
             return
 
         self.status = status
-        self.statusEvents.notify(status)
+        self.events.status.notify(status)
 
         if (not last_status.available) and status.available:
             # bot was unavailable
-            self.statusEvents.request_refresh()
-            self.errorEvents.request_refresh()
-            self.fanSpeedEvents.request_refresh()
-            self.cleanLogsEvents.request_refresh()
-            self.waterEvents.request_refresh()
-            self.batteryEvents.request_refresh()
-            self.statsEvents.request_refresh()
-            self.lifespanEvents.request_refresh()
+            for event in dir(self.events):
+                if isinstance(event, EventEmitter):
+                    event.request_refresh()
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
@@ -235,7 +231,7 @@ class VacuumBot:
         elif event_name == "waterinfo":
             await self._handle_water_info(event_data)
         elif "map" in event_name or event_name == "pos":
-            await self._map.handle(event_name, event_data, requested)
+            await self.map.handle(event_name, event_data, requested)
         elif event_name.startswith("set"):
             # ignore set commands for now
             pass
@@ -254,7 +250,7 @@ class VacuumBot:
             event_data.get("start"),
         )
 
-        self.statsEvents.notify(stats_event)
+        self.events.stats.notify(stats_event)
 
     async def _handle_error(self, event: dict, event_data: dict) -> None:
         error: Optional[int] = None
@@ -275,7 +271,7 @@ class VacuumBot:
                     "Bot in error-state: code=%d, description=%s", error, description
                 )
                 self._set_state(VacuumState.STATE_ERROR)
-            self.errorEvents.notify(ErrorEvent(error, description))
+            self.events.error.notify(ErrorEvent(error, description))
         else:
             _LOGGER.warning(
                 "Could not process error event with received data: %s", event
@@ -285,7 +281,7 @@ class VacuumBot:
         speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed", -1))
 
         if speed:
-            self.fanSpeedEvents.notify(FanSpeedEvent(speed))
+            self.events.fan_speed.notify(FanSpeedEvent(speed))
         else:
             _LOGGER.warning(
                 "Could not process fan speed event with received data: %s", event_data
@@ -293,7 +289,7 @@ class VacuumBot:
 
     async def _handle_battery(self, event_data: dict) -> None:
         try:
-            self.batteryEvents.notify(BatteryEvent(event_data["value"]))
+            self.events.battery.notify(BatteryEvent(event_data["value"]))
         except ValueError:
             _LOGGER.warning("Couldn't parse battery status: %s", event_data)
 
@@ -322,6 +318,7 @@ class VacuumBot:
     async def _handle_life_span(
         self, event_data: List[Dict[str, Union[str, int]]]
     ) -> None:
+        components: Dict[str, float] = {}
         for component in event_data:
             component_type = COMPONENT_FROM_ECOVACS.get(str(component.get("type")))
             left = int(component.get("left", 0))
@@ -329,16 +326,18 @@ class VacuumBot:
 
             if component_type and total > 0:
                 percent = round((left / total) * 100, 2)
-                self.lifespanEvents.notify(LifeSpanEvent(component_type, percent))
+                components[component_type] = percent
             else:
                 _LOGGER.warning("Could not parse life span event with %s", event_data)
+
+        self.events.lifespan.notify(components)
 
     async def _handle_water_info(self, event_data: dict) -> None:
         amount = event_data.get("amount")
         mop_attached = bool(event_data.get("enable"))
 
         if amount:
-            self.waterEvents.notify(
+            self.events.water_info.notify(
                 WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount))
             )
         else:
@@ -354,15 +353,15 @@ class VacuumBot:
                 logs.append(
                     CleanLogEntry(
                         timestamp=log.get("ts"),
-                        imageUrl=log.get("imageUrl"),
+                        image_url=log.get("imageUrl"),
                         type=log.get("type"),
                         area=log.get("area"),
-                        stopReason=log.get("stopReason"),
-                        totalTime=log.get("last"),
+                        stop_reason=log.get("stopReason"),
+                        total_time=log.get("last"),
                     )
                 )
 
-            self.cleanLogsEvents.notify(CleanLogEvent(logs))
+            self.events.clean_logs.notify(CleanLogEvent(logs))
         else:
             _LOGGER.warning("Could not parse clean logs event with %s", event)
 
@@ -399,4 +398,4 @@ class VacuumBot:
             self._set_state(status)
 
         if self.status.state == VacuumState.STATE_DOCKED:
-            self.cleanLogsEvents.request_refresh()
+            self.events.clean_logs.request_refresh()
