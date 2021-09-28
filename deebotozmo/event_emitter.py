@@ -64,16 +64,16 @@ class EventEmitter(Generic[T]):
     def notify(self, event: T) -> None:
         """Notify subscriber with given event representation."""
         if event == self._last_event:
-            _LOGGER.debug(f"Event is the same! Skipping ({event})")
+            _LOGGER.debug("Event is the same! Skipping (%s)", event)
             return
 
         self._last_event = event
         if self._subscribers:
-            _LOGGER.debug(f"Notify subscribers with {event}")
+            _LOGGER.debug("Notify subscribers with %s", event)
             for subscriber in self._subscribers:
                 asyncio.create_task(subscriber.callback(event))
         else:
-            _LOGGER.debug(f"No subscribers... Discharging {event}")
+            _LOGGER.debug("No subscribers... Discharging %s", event)
 
     async def _call_refresh_function(self) -> None:
         if self._semaphore.locked():

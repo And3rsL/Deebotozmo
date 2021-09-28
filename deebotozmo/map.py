@@ -51,10 +51,10 @@ def _decompress_7z_base64_data(data: str) -> bytes:
 
 
 def _draw_position(
-    position: Coordinate, png_str: str, im: Image, pixel_width: int, offset: int
+    position: Coordinate, png_str: str, image: Image, pixel_width: int, offset: int
 ) -> None:
     icon = Image.open(BytesIO(base64.b64decode(png_str)))
-    im.paste(
+    image.paste(
         icon,
         (
             int((position.x / pixel_width) + offset),
@@ -87,7 +87,9 @@ class Map:
     ROBOT_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAYAAAAGCAIAAABvrngfAAAACXBIWXMAAAsTAAALEwEAmpwYAAAF0WlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDUgNzkuMTYzNDk5LCAyMDE4LzA4LzEzLTE2OjQwOjIyICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHhtcDpDcmVhdGVEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiB4bXA6TW9kaWZ5RGF0ZT0iMjAyMC0wNS0yNFQxMjowMzoxNiswMjowMCIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDo0YWM4NWY5MC1hNWMwLTE2NDktYTQ0MC0xMWM0NWY5OGQ1MDYiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo3Zjk3MTZjMi1kZDM1LWJiNDItYjMzZS1hYjYwY2Y4ZTZlZDYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIGRjOmZvcm1hdD0iaW1hZ2UvcG5nIiBwaG90b3Nob3A6Q29sb3JNb2RlPSIzIj4gPHhtcE1NOkhpc3Rvcnk+IDxyZGY6U2VxPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0iY3JlYXRlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDpiMzhiNGZlMS1lOGNkLTJjNDctYmQwZC1lNmZiNzRhMjFkMDciIHN0RXZ0OndoZW49IjIwMjAtMDUtMjRUMTI6MDM6MTYrMDI6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAyMDE5IChXaW5kb3dzKSIvPiA8cmRmOmxpIHN0RXZ0OmFjdGlvbj0ic2F2ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NGFjODVmOTAtYTVjMC0xNjQ5LWE0NDAtMTFjNDVmOThkNTA2IiBzdEV2dDp3aGVuPSIyMDIwLTA1LTI0VDEyOjAzOjE2KzAyOjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgMjAxOSAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+AP7+NwAAAFpJREFUCJllzEEKgzAQhtFvMkSsEKj30oUXrYserELA1obhd+nCd4BnksZ53X4Cnr193ov59Iq+o2SA2vz4p/iKkgkRouTYlbhJ/jBqww03avPBTNI4rdtx9ScfWyYCg52e0gAAAABJRU5ErkJggg=="  # nopep8
     CHARGER_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAOCAYAAAAWo42rAAAAdUlEQVQoU2NkQAP/nzD8BwkxyjAwIkuhcEASRCmEKYKZhGwq3ER0ReiKSVOIyzRkU8EmwhUyKzAwSNyHyL9QZGD4+wDMBLmVEasimFHIiuEKpcHBhwmeQryBMJFohcjuw2s1SBKHZ8BWo/gauyshvobJEYoZAEOSPXnhzwZnAAAAAElFTkSuQmCC"  # nopep8
 
-    RESIZE_FACTOR: int = 3
+    RESIZE_FACTOR = 3
+    PIXEL_WIDTH = 50
+    OFFSET = 400
 
     def __init__(self, execute_command: Callable[[Command], Awaitable[None]]):
         self._execute_command = execute_command
@@ -96,7 +98,7 @@ class Map:
         self._charger_position: Optional[Coordinate] = None
         self._rooms: List[Room] = []
         self._amount_rooms: int = 0
-        self._traceValues: List[int] = []
+        self._trace_values: List[int] = []
         self._map_pieces: List[MapPiece] = [MapPiece(i) for i in range(64)]
         self._is_map_up_to_date: bool = False
         self._base64_image: Optional[bytes] = None
@@ -150,7 +152,7 @@ class Map:
         elif event_name == "minormap":
             self._handle_minor_map(event_data)
         else:
-            _LOGGER.debug(f"Unknown event: {event_name} with {event_data}")
+            _LOGGER.debug("Unknown event: %s with %s", event_name, event_data)
 
     async def _handle_cached_map_info(self, event_data: dict, requested: bool) -> None:
         try:
@@ -158,13 +160,13 @@ class Map:
             for map_status in event_data["info"]:
                 if map_status["using"] == 1:
                     map_id = map_status["mid"]
-                    _LOGGER.debug(f"[_handle_cached_map] Using Map: {map_id}")
+                    _LOGGER.debug("[_handle_cached_map] Using Map: %d", map_id)
                     break
 
             if requested and map_id is not None:
                 await self._execute_command(GetMapSet(map_id))
-        except Exception as e:
-            _LOGGER.debug("[_handle_cached_map] Exception thrown", e, exc_info=True)
+        except Exception as ex:  # pylint: disable=broad-except
+            _LOGGER.debug(ex, exc_info=True)
             _LOGGER.warning(
                 "[_handle_cached_map] MapID not found -- did you finish your first auto cleaning?"
             )
@@ -224,7 +226,7 @@ class Map:
         # No trace value available
         if "traceValue" in event_data:
             if trace_start == 0:
-                self._traceValues = []
+                self._trace_values = []
 
             self._update_trace_points(event_data["traceValue"])
 
@@ -241,7 +243,7 @@ class Map:
             for i in range(64):
                 if self._map_pieces[i].is_update(values[i]):
                     _LOGGER.debug(
-                        f"[_handle_major_map] MapPiece {i} needs to be updated"
+                        "[_handle_major_map] MapPiece %d needs to be updated", i
                     )
                     self._is_map_up_to_date = False
                     tasks.append(
@@ -260,7 +262,7 @@ class Map:
     # ---------------------------- METHODS ----------------------------
 
     def _add_map_piece(self, map_piece: int, b64: str) -> None:
-        _LOGGER.debug(f"[AddMapPiece] {map_piece} {b64}")
+        _LOGGER.debug("[AddMapPiece] %d %s", map_piece, b64)
 
         decoded = _decompress_7z_base64_data(b64)
         points_array = reshape(list(decoded), (100, 100))
@@ -282,16 +284,16 @@ class Map:
         y = new_values.get("y")
 
         if x is None or y is None:
-            _LOGGER.warning(f"Could not parse position event for {name}")
+            _LOGGER.warning("Could not parse position event for %s", name)
             return
 
         if current_value:
             if (current_value.x != x) or (current_value.y != y):
-                _LOGGER.debug(f"Updating {name} position: {x}, {y}")
+                _LOGGER.debug("Updating %s position: %d, %d", name, x, y)
                 current_value = Coordinate(x=x, y=y)
                 self._is_map_up_to_date = False
         else:
-            _LOGGER.debug(f"Setting {name} position: {x}, {y}")
+            _LOGGER.debug("Setting %s position: %d, %d", name, x, y)
             current_value = Coordinate(x=x, y=y)
             self._is_map_up_to_date = False
 
@@ -312,29 +314,13 @@ class Map:
             position_x = (int(byte_position_x[0] / 5)) + 400
             position_y = (int(byte_position_y[0] / 5)) + 400
 
-            self._traceValues.append(position_x)
-            self._traceValues.append(position_y)
+            self._trace_values.append(position_x)
+            self._trace_values.append(position_y)
 
         _LOGGER.debug("[_update_trace_points] finish")
 
-    def get_base64_map(self, width: Optional[int] = None) -> bytes:
-        """Return map as base64 image string."""
-        if (
-            self._is_map_up_to_date
-            and width == self._last_requested_width
-            and self._base64_image is not None
-        ):
-            _LOGGER.debug("[get_base64_map] No need to update")
-            return self._base64_image
-
-        _LOGGER.debug("[get_base64_map] Begin")
-
-        pixel_width = 50
-        offset = 400
-        im = Image.new("RGBA", (6400, 6400))
-        draw = ImageDraw.Draw(im)
-
-        _LOGGER.debug("[get_base64_map] Draw Map")
+    def _draw_map_pices(self, draw: ImageDraw.Draw) -> None:
+        _LOGGER.debug("[_draw_map_pices] Draw")
         image_x = 0
         image_y = 0
 
@@ -352,50 +338,78 @@ class Map:
                     current_column = current_piece.points[x]
                     for y in range(100):
                         pixel_type = current_column[y]
+                        point_x = image_x + x
+                        point_y = image_y + y
+                        if (point_x > 6400) or (point_y > 6400):
+                            _LOGGER.error(
+                                "[get_base64_map] Map Limit 6400!! X: %d Y: %d",
+                                point_x,
+                                point_y,
+                            )
+                            raise RuntimeError("Map Limit reached!")
                         if pixel_type in [0x01, 0x02, 0x03]:
-                            point_x = image_x + x
-                            point_y = image_y + y
-                            if (point_x > 6400) or (point_y > 6400):
-                                _LOGGER.error(
-                                    f"[get_base64_map] Map Limit 6400!! X: {point_x} Y: {point_y}"
-                                )
-
                             draw.point((point_x, point_y), fill=Map.COLORS[pixel_type])
 
+    def get_base64_map(self, width: Optional[int] = None) -> bytes:
+        """Return map as base64 image string."""
+        if (
+            self._is_map_up_to_date
+            and width == self._last_requested_width
+            and self._base64_image is not None
+        ):
+            _LOGGER.debug("[get_base64_map] No need to update")
+            return self._base64_image
+
+        _LOGGER.debug("[get_base64_map] Begin")
+        image = Image.new("RGBA", (6400, 6400))
+        draw = ImageDraw.Draw(image)
+
+        self._draw_map_pices(draw)
+
         # Draw Trace Route
-        if len(self._traceValues) > 0:
+        if len(self._trace_values) > 0:
             _LOGGER.debug("[get_base64_map] Draw Trace")
-            draw.line(self._traceValues, fill=Map.COLORS["tracemap"], width=1)
+            draw.line(self._trace_values, fill=Map.COLORS["tracemap"], width=1)
 
         del draw
 
         if self._robot_position is not None:
             _LOGGER.debug("[get_base64_map] Draw robot")
-            _draw_position(self._robot_position, Map.ROBOT_PNG, im, pixel_width, offset)
+            _draw_position(
+                self._robot_position, Map.ROBOT_PNG, image, Map.PIXEL_WIDTH, Map.OFFSET
+            )
 
         if self._charger_position is not None:
             _LOGGER.debug("[get_base64_map] Draw charge station")
             _draw_position(
-                self._charger_position, Map.CHARGER_PNG, im, pixel_width, offset
+                self._charger_position,
+                Map.CHARGER_PNG,
+                image,
+                Map.PIXEL_WIDTH,
+                Map.OFFSET,
             )
 
         _LOGGER.debug("[get_base64_map] Crop Image")
-        image_box = im.getbbox()
-        cropped = im.crop(image_box)
-        del im
+        image_box = image.getbbox()
+        cropped = image.crop(image_box)
+        del image
 
         _LOGGER.debug("[get_base64_map] Flipping Image")
         cropped = ImageOps.flip(cropped)
 
         _LOGGER.debug(
-            f"[get_base64_map] Map current Size: X: {cropped.size[0]} Y: {cropped.size[1]}"
+            "[get_base64_map] Map current Size: X: %d Y: %d",
+            cropped.size[0],
+            cropped.size[1],
         )
 
         new_size = None
         if width is not None and width > 0:
             height = int((width / cropped.size[0]) * cropped.size[1])
             _LOGGER.debug(
-                f"[get_base64_map] Resize based on the requested width: {width} and calculated height {height}"
+                "[get_base64_map] Resize based on the requested width: %d and calculated height %d",
+                width,
+                height,
             )
             new_size = (width, height)
         elif cropped.size[0] > 400 or cropped.size[1] > 400:
@@ -404,7 +418,7 @@ class Map:
             )
         else:
             resize_factor = Map.RESIZE_FACTOR
-            _LOGGER.debug(f"[get_base64_map] Resize factor: {resize_factor}")
+            _LOGGER.debug("[get_base64_map] Resize factor: %d", resize_factor)
             new_size = (
                 cropped.size[0] * resize_factor,
                 cropped.size[1] * resize_factor,
@@ -446,11 +460,10 @@ class MapPiece:
             if piece == MapPiece.NOT_INUSE:
                 self._in_use = False
                 return False
-            else:
-                self._in_use = True
-                return True
+            self._in_use = True
+            return True
 
-        _LOGGER.debug(f"No update needed for piece idx {self._index}")
+        _LOGGER.debug("No update needed for piece idx %d", self._index)
         return False
 
     @property

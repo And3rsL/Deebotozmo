@@ -96,5 +96,3 @@ class RoomsEvent:
 @dataclass
 class MapEvent:
     """Map event representation."""
-
-    pass

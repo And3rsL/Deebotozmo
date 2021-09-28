@@ -37,10 +37,10 @@ class EcovacsJSON:
         """Send json command for given vacuum to the api."""
         json, base_url, url_with_params = self._get_json_and_url(command, vacuum)
 
-        _LOGGER.debug(f"Calling {base_url} with {sanitize_data(json)}")
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Calling %s with %s", base_url, sanitize_data(json))
 
         try:
-            # todo use maybe async_timeout?
             async with self._session.post(
                 url_with_params,
                 headers=EcovacsJSON.REQUEST_HEADERS,
@@ -50,20 +50,20 @@ class EcovacsJSON:
             ) as res:
                 res.raise_for_status()
                 if res.status != 200:
-                    _LOGGER.warning(f"Error calling API ({res.status}): {base_url}")
+                    _LOGGER.warning("Error calling API (%d): %s", res.status, base_url)
                     return {}
 
                 json = await res.json()
-                _LOGGER.debug(f"Got {json}")
+                _LOGGER.debug("Got %s", json)
                 return json
         except ClientResponseError as err:
             if err.status == 502:
                 _LOGGER.info(
-                    "Error calling API (502): Unfortunately the ecovacs api is unreliable. "
-                    f"URL was: {base_url}"
+                    "Error calling API (502): Unfortunately the ecovacs api is unreliable. URL was: %s",
+                    base_url,
                 )
             else:
-                _LOGGER.warning(f"Error calling API ({err.status}): {base_url}")
+                _LOGGER.warning("Error calling API (%sd): %s", err.status, base_url)
 
         return {}
 

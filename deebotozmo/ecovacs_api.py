@@ -124,14 +124,13 @@ class EcovacsAPI:
                 if device.get("company") == "eco-ng":
                     devices.append(Vacuum(device))
                 else:
-                    _LOGGER.debug(f"Skipping device as it is not supported: {device}")
+                    _LOGGER.debug("Skipping device as it is not supported: %s", device)
             return devices
-        else:
-            _LOGGER.error(f"call to {self.API_APPSVR_APP} failed with {json}")
-            raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and "
-                f"parameters {sanitize_data(data)}"
-            )
+        _LOGGER.error("call to %s failed with %s", self.API_APPSVR_APP, json)
+        raise RuntimeError(
+            f"failure {json['error']} ({json['errno']}) for call {self.API_APPSVR_APP} and "
+            f"parameters {sanitize_data(data)}"
+        )
 
     async def get_product_iot_map(self) -> List[Dict[str, Any]]:
         """Get product iot map."""
@@ -145,11 +144,10 @@ class EcovacsAPI:
         if json["code"] == "0000":
             result: List[Dict[str, Any]] = json["data"]
             return result
-        else:
-            _LOGGER.error(f"call to {api} failed with {json}")
-            raise RuntimeError(
-                f"failure {json['error']} ({json['errno']}) for call {api} and parameters {sanitize_data(data)}"
-            )
+        _LOGGER.error("call to %s failed with %s", api, json)
+        raise RuntimeError(
+            f"failure {json['error']} ({json['errno']}) for call {api} and parameters {sanitize_data(data)}"
+        )
 
     @staticmethod
     def __get_signed_md5(
@@ -193,7 +191,6 @@ class EcovacsAPI:
         if self._country.lower() == "cn":
             url = url.replace(".ecovacs.com", ".ecovacs.cn")
 
-        # todo use maybe async_timeout?
         async with self._session.get(
             url, params=params, timeout=60, ssl=self._verify_ssl
         ) as res:
@@ -202,19 +199,19 @@ class EcovacsAPI:
             # ecovacs returns a json but content_type header is set to text
             content_type = res.headers.get(hdrs.CONTENT_TYPE, "").lower()
             json = await res.json(content_type=content_type)
-            _LOGGER.debug(f"got {json}")
-            # todo better error handling
+            _LOGGER.debug("got %s", json)
+            # todo better error handling # pylint: disable=fixme
             if json["code"] == "0000":
                 data: Dict[str, Any] = json["data"]
                 return data
-            elif json["code"] == "1005":
+            if json["code"] == "1005":
                 _LOGGER.warning("incorrect email or password")
                 raise ValueError("incorrect email or password")
-            else:
-                _LOGGER.error(f"call to {url} failed with {json}")
-                raise RuntimeError(
-                    f"failure code {json['code']} ({json['msg']}) for call {url}"
-                )
+
+            _LOGGER.error("call to %s failed with %s", url, json)
+            raise RuntimeError(
+                f"failure code {json['code']} ({json['msg']}) for call {url}"
+            )
 
     async def __call_login_api(
         self, account_id: str, password_hash: str
@@ -250,7 +247,8 @@ class EcovacsAPI:
     async def __call_portal_api(
         self, api: str, args: dict, continent: Optional[str] = None
     ) -> Dict[str, Any]:
-        _LOGGER.debug(f"calling user api {api} with {sanitize_data(args)}")
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("calling user api %s with %s", api, sanitize_data(args))
         params = {**args}
 
         base_url = EcovacsAPI.PORTAL_URL_FORMAT
@@ -263,14 +261,13 @@ class EcovacsAPI:
 
         url = (base_url + "/" + api).format(**format_data)
 
-        # todo use maybe async_timeout?
         async with self._session.post(
             url, json=params, timeout=60, ssl=self._verify_ssl
         ) as res:
             res.raise_for_status()
 
             json: Dict[str, Any] = await res.json()
-            _LOGGER.debug(f"got {json}")
+            _LOGGER.debug("got %s", json)
             return json
 
     async def __call_login_by_it_token(
@@ -291,24 +288,23 @@ class EcovacsAPI:
         if self._country.lower() == "cn":
             data.update({"org": "ECOCN", "country": "Chinese"})
 
-        for c in range(3):
+        for i in range(3):
             json = await self.__call_portal_api(self.API_USERS_USER, data)
             if json["result"] == "ok":
                 return json
-            elif json["result"] == "fail":
-                if c == 2:
+            if json["result"] == "fail":
+                if i == 2:
                     _LOGGER.warning(
                         "loginByItToken set token error, failed after 3 attempts"
                     )
-                elif (
-                    json["error"] == "set token error."
-                ):  # If it is a set token error try again
+                elif json["error"] == "set token error.":
+                    # If it is a set token error try again
                     _LOGGER.warning(
-                        f"loginByItToken set token error, trying again ({c + 2}/3)"
+                        "loginByItToken set token error, trying again (%d/3)", i + 2
                     )
                     continue
 
-            _LOGGER.error(f"call to {self.API_USERS_USER} failed with {json}")
+            _LOGGER.error("call to %s failed with %s", self.API_USERS_USER, json)
             raise RuntimeError(
                 f"failure {json['error']} ({json['errno']}) for call {self.API_USERS_USER} and "
                 f"parameters {sanitize_data(data)}"

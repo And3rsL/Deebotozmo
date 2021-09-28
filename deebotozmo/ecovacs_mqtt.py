@@ -30,28 +30,33 @@ class EcovacsMqtt:
         client_id = f"{auth.user_id}@ecouser/{auth.resource}"
         self._client = Client(client_id)
 
+        # pylint: disable=unused-argument
         async def _on_message(
             client: Client, topic: str, payload: bytes, qos: int, properties: Dict
         ) -> None:
             try:
                 payload_str = payload.decode()
-                _LOGGER.debug(f"Got message: topic={topic}; payload={payload_str};")
+                _LOGGER.debug("Got message: topic=%s; payload=%s;", topic, payload_str)
                 topic_split = topic.split("/")
                 if len(topic_split) != 7:
                     _LOGGER.info(
-                        f"Unexpected message, skipping... topic={topic}; payload={payload_str};"
+                        "Unexpected message, skipping... topic=%s; payload=%s;",
+                        topic,
+                        payload_str,
                     )
                 elif topic_split[6] != "j":
                     _LOGGER.warning(
-                        f"Received message type was not json, skipping... topic={topic}; payload={payload_str};"
+                        "Received message type was not json, skipping... topic=%s; payload=%s;",
+                        topic,
+                        payload_str,
                     )
 
                 bot = self._subscribers.get(topic_split[3])
                 if bot:
                     data = json.loads(payload)
                     await bot.handle(topic_split[2], data, False)
-            except Exception as err:
-                _LOGGER.error("An exception occurred", err, exc_info=True)
+            except Exception as ex:  # pylint: disable=broad-except
+                _LOGGER.error(ex, exc_info=True)
 
         self._client.on_message = _on_message
         self._client.set_auth_credentials(auth.user_id, auth.token)

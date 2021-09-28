@@ -136,7 +136,7 @@ class VacuumBot:
         self._set_status(StatusEvent(True, state))
 
     def _set_status(self, status: StatusEvent) -> None:
-        _LOGGER.debug(f"Calling _set_status with {status}")
+        _LOGGER.debug("Calling _set_status with %s", status)
 
         last_status = self.status
 
@@ -170,8 +170,10 @@ class VacuumBot:
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
         :return: None
         """
+        # pylint: disable=too-many-branches
+        # Todo fix too-many-branches # pylint: disable=fixme
 
-        _LOGGER.debug(f"Handle {event_name}: {event}")
+        _LOGGER.debug("Handle %s: %s", event_name, event)
         event_name = event_name.lower()
 
         prefixes = [
@@ -194,17 +196,17 @@ class VacuumBot:
                 if event_name == "cleanlogs":
                     await self._handle_clean_logs(event)
                     return
-                else:
-                    event = event.get("resp", event)
+
+                event = event.get("resp", event)
             else:
-                _LOGGER.warning(f'Event {event_name} where ret != "ok": {event}')
+                _LOGGER.warning('Event %s where ret != "ok": %s', event_name, event)
                 return
 
         event_body = event.get("body", {})
         event_header = event.get("header", {})
 
         if not (event_body and event_header):
-            _LOGGER.warning(f"Invalid Event {event_name}: {event}")
+            _LOGGER.warning("Invalid Event %s: %s", event_name, event)
             return
 
         event_data = event_body.get("data", {})
@@ -241,7 +243,7 @@ class VacuumBot:
             # ignore this events
             pass
         else:
-            _LOGGER.debug(f"Unknown event: {event_name} with {event}")
+            _LOGGER.debug("Unknown event: %s with %s", event_name, event)
 
     async def _handle_stats(self, event_data: dict) -> None:
         stats_event = StatsEvent(
@@ -270,13 +272,13 @@ class VacuumBot:
             description = ERROR_CODES.get(error)
             if error != 0:
                 _LOGGER.warning(
-                    f"Bot in error-state: code={error}, description={description}"
+                    "Bot in error-state: code=%d, description=%s", error, description
                 )
                 self._set_state(VacuumState.STATE_ERROR)
             self.errorEvents.notify(ErrorEvent(error, description))
         else:
             _LOGGER.warning(
-                f"Could not process error event with received data: {event}"
+                "Could not process error event with received data: %s", event
             )
 
     async def _handle_fan_speed(self, event_data: Dict[str, int]) -> None:
@@ -286,14 +288,14 @@ class VacuumBot:
             self.fanSpeedEvents.notify(FanSpeedEvent(speed))
         else:
             _LOGGER.warning(
-                f"Could not process fan speed event with received data: {event_data}"
+                "Could not process fan speed event with received data: %s", event_data
             )
 
     async def _handle_battery(self, event_data: dict) -> None:
         try:
             self.batteryEvents.notify(BatteryEvent(event_data["value"]))
         except ValueError:
-            _LOGGER.warning(f"Couldn't parse battery status: {event_data}")
+            _LOGGER.warning("Couldn't parse battery status: %s", event_data)
 
     async def _handle_charge_state_requested(self, event_body: dict) -> None:
         if event_body["code"] == 0:
@@ -329,7 +331,7 @@ class VacuumBot:
                 percent = round((left / total) * 100, 2)
                 self.lifespanEvents.notify(LifeSpanEvent(component_type, percent))
             else:
-                _LOGGER.warning(f"Could not parse life span event with {event_data}")
+                _LOGGER.warning("Could not parse life span event with %s", event_data)
 
     async def _handle_water_info(self, event_data: dict) -> None:
         amount = event_data.get("amount")
@@ -340,7 +342,7 @@ class VacuumBot:
                 WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount))
             )
         else:
-            _LOGGER.warning(f"Could not parse water info event with {event_data}")
+            _LOGGER.warning("Could not parse water info event with %s", event_data)
 
     async def _handle_clean_logs(self, event: Dict) -> None:
         response: Optional[List[dict]] = event.get("logs")
@@ -362,7 +364,7 @@ class VacuumBot:
 
             self.cleanLogsEvents.notify(CleanLogEvent(logs))
         else:
-            _LOGGER.warning(f"Could not parse clean logs event with {event}")
+            _LOGGER.warning("Could not parse clean logs event with %s", event)
 
     async def _handle_clean_info(self, event_data: dict) -> None:
         status: Optional[VacuumState] = None
@@ -388,7 +390,7 @@ class VacuumBot:
                 if "value" in content:
                     area_values = content.get("value")
 
-                _LOGGER.debug(f"Last custom area values (x1,y1,x2,y2): {area_values}")
+                _LOGGER.debug("Last custom area values (x1,y1,x2,y2): %s", area_values)
 
         elif event_data.get("state") == "goCharging":
             status = VacuumState.STATE_RETURNING

@@ -8,22 +8,22 @@ from typing import Awaitable, Callable, List, Union
 from deebotozmo.commands import Command
 
 
-def str_to_bool_or_cert(s: Union[bool, str]) -> Union[bool, str]:
+def str_to_bool_or_cert(string: Union[bool, str]) -> Union[bool, str]:
     """Convert string to bool or certificate."""
-    if s == "True" or s is True:
+    if string == "True" or string is True:
         return True
-    elif s == "False" or s is False:
-        return False
-    else:
-        if s is not None:
-            if os.path.exists(str(s)):
-                # User could provide a path to a CA Cert as well, which is useful for Bumper
-                if os.path.isfile(str(s)):
-                    return s
-                else:
-                    raise ValueError(f"Certificate path provided is not a file: {s}")
 
-        raise ValueError(f'Cannot convert "{s}" to a bool or certificate path')
+    if string == "False" or string is False:
+        return False
+
+    if string is not None:
+        if os.path.exists(str(string)):
+            # User could provide a path to a CA Cert as well, which is useful for Bumper
+            if os.path.isfile(str(string)):
+                return string
+            raise ValueError(f"Certificate path provided is not a file: {string}")
+
+    raise ValueError(f'Cannot convert "{string}" to a bool or certificate path')
 
 
 def md5(text: str) -> str:
@@ -44,8 +44,8 @@ def get_refresh_function(
 
         async def refresh() -> None:
             tasks = []
-            for c in commands:
-                tasks.append(asyncio.create_task(execute_command(c)))
+            for command in commands:
+                tasks.append(asyncio.create_task(execute_command(command)))
 
             await asyncio.gather(*tasks)
 
@@ -55,8 +55,8 @@ def get_refresh_function(
 def sanitize_data(data: dict) -> dict:
     """Sanitize data (remove personal data)."""
     sanitized_data = copy.deepcopy(data)
-    for s in ["auth", "token", "userId", "userid", "accessToken", "uid"]:
-        if s in sanitized_data:
-            sanitized_data[s] = "[REMOVED]"
+    for key in ["auth", "token", "userId", "userid", "accessToken", "uid"]:
+        if key in sanitized_data:
+            sanitized_data[key] = "[REMOVED]"
 
     return sanitized_data
