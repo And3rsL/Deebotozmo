@@ -6,6 +6,7 @@ import configparser
 import itertools
 import json
 import logging
+import mimetypes
 import os
 import platform
 import sys
@@ -250,7 +251,9 @@ async def statuses() -> None:
         await vacbot.before()
         lock = asyncio.Event()
 
-        print(f"Vacuum State: {str(vacbot.bot.status.state).rsplit('.', maxsplit=1)[-1]}")
+        print(
+            f"Vacuum State: {str(vacbot.bot.status.state).rsplit('.', maxsplit=1)[-1]}"
+        )
 
         async def on_battery(event: BatteryEvent) -> None:
             print("Battery: " + str(event.value) + "%")
@@ -359,9 +362,21 @@ async def get_rooms() -> None:
     help='Get robot map and save it [filepath ex: "/folder/livemap.png"',
 )
 @click.argument("filepath", type=click.STRING, required=True)
+@click.option(
+    "--force-extension/--no-force-extension",
+    default=False,
+    help="Do not check if the file extension is valid.",
+)
 @coro
-async def export_live_map(filepath: str) -> None:
+async def export_live_map(filepath: str, force_extension: bool) -> None:
     """Click subcommand that returns the live map."""
+    if not force_extension and mimetypes.guess_type(filepath)[0] != "image/png":
+        logging.error("exportlivemap generates a png image.")
+        logging.error(
+            "either change your file extension to 'png' or pass '--force_extension'."
+        )
+        return
+
     vacbot = CliUtil()
     try:
         await vacbot.before()
