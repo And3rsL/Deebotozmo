@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Tuple
 
 import aiohttp
 import click
@@ -404,6 +404,18 @@ async def export_live_map(filepath: str, force_extension: bool) -> None:
         await vacbot.after()
 
 
+@cli.command(name="getdevices", help="Get Devices")
+@coro
+async def get_devices() -> None:
+    """Click subcommand that returns all devices."""
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
+        print(vacbot.devices)
+    finally:
+        await vacbot.after()
+
+
 class CliUtil:
     """CliUtil communicates with the bot to provide self.bot."""
 
@@ -429,19 +441,18 @@ class CliUtil:
             )
             sys.exit(1)
 
-        self.bot = Optional[VacuumBot]
-
     async def before(self) -> None:
+        # pylint: disable=attribute-defined-outside-init
         """Communicate with Deebot."""
         await self._api.login()
 
-        devices_ = await self._api.get_devices()
+        self.devices = await self._api.get_devices()
 
         auth = await self._api.get_request_auth()
         self.bot = VacuumBot(
             self._session,
             auth,
-            devices_[0],
+            self.devices[0],
             continent=self._config["continent"],
             country=self._config["country"],
             verify_ssl=bool(self._config["verify_ssl"]),
