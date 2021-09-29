@@ -79,7 +79,7 @@ def write_config(config: dict) -> None:
     os.makedirs(os.path.dirname(config_file()), exist_ok=True)
     with open(config_file(), "w", encoding="utf-8") as file:
         for key in config:
-            file.write(key + "=" + str(config[key]) + "\n")
+            file.write(f"{key}={config[key]}\n")
 
 
 @click.group(chain=True, help="")
@@ -87,7 +87,7 @@ def write_config(config: dict) -> None:
 def cli(debug: bool = False) -> None:
     """Create a click group for nesting subcommands."""
     logging.basicConfig(format="%(name)-10s %(levelname)-8s %(message)s")
-    logging.root.setLevel(logging.DEBUG if debug else logging.ERROR)
+    logging.root.setLevel(logging.DEBUG if debug else logging.WARNING)
 
 
 @cli.command(name="createconfig", help="logs in with specified email; run this first")
@@ -102,7 +102,7 @@ async def create_config(
 ) -> None:
     """Click subcommand to create a new config."""
     if config_file_exists() and not click.confirm("overwrite existing config?"):
-        click.echo("Skipping setconfig.")
+        click.echo("Skipping createconfig.")
         sys.exit(0)
     config = {}
     password_hash = md5(password)
@@ -134,10 +134,12 @@ async def create_config(
 
 async def run_with_login(*args: Any, **kwargs: Any) -> None:
     """Execute a command only."""
-    vacbot = DoLogin()
-    await vacbot.run()
-    await vacbot.bot.execute_command(*args, **kwargs)
-    await vacbot.goodbye()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
+        await vacbot.bot.execute_command(*args, **kwargs)
+    finally:
+        await vacbot.after()
 
 
 @cli.command(name="playsound", help="Play welcome sound")
@@ -221,129 +223,135 @@ async def resume() -> None:
 @coro
 async def get_clean_logs() -> None:
     """Click subcommand that returns clean logs."""
-    vacbot = DoLogin()
-    await vacbot.run()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
 
-    lock = asyncio.Lock()
-    await lock.acquire()
+        lock = asyncio.Event()
 
-    async def on_clean_event(event: CleanLogEvent) -> None:
-        print(json.dumps(asdict(event)))
-        lock.release()
+        async def on_clean_event(event: CleanLogEvent) -> None:
+            print(json.dumps(asdict(event)))
+            lock.set()
 
-    listener = vacbot.bot.events.clean_logs.subscribe(on_clean_event)
-    await lock.acquire()
-    vacbot.bot.events.clean_logs.unsubscribe(listener)
-
-    await vacbot.goodbye()
+        lock.clear()
+        listener = vacbot.bot.events.clean_logs.subscribe(on_clean_event)
+        await lock.wait()
+        listener.unsubscribe()
+    finally:
+        await vacbot.after()
 
 
 @cli.command(help="Get robot statuses [Status,Battery,FanSpeed,WaterLevel]")
 @coro
 async def statuses() -> None:
     """Click subcommand that returns the robot status."""
-    vacbot = DoLogin()
-    await vacbot.run()
-    lock = asyncio.Lock()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
+        lock = asyncio.Event()
 
-    print(f"Vacuum State: {str(vacbot.bot.status.state).rsplit('.', maxsplit=1)[-1]}")
+        print(f"Vacuum State: {str(vacbot.bot.status.state).rsplit('.', maxsplit=1)[-1]}")
 
-    await lock.acquire()
+        async def on_battery(event: BatteryEvent) -> None:
+            print("Battery: " + str(event.value) + "%")
+            lock.set()
 
-    async def on_battery(event: BatteryEvent) -> None:
-        print("Battery: " + str(event.value) + "%")
-        lock.release()
+        lock.clear()
+        battery_listener = vacbot.bot.events.battery.subscribe(on_battery)
+        await lock.wait()
+        battery_listener.unsubscribe()
 
-    battery_listener = vacbot.bot.events.battery.subscribe(on_battery)
-    await lock.acquire()
-    vacbot.bot.events.battery.unsubscribe(battery_listener)
+        async def on_fan_event(event: FanSpeedEvent) -> None:
+            print("Fan Speed: " + str(event.speed))
+            lock.set()
 
-    async def on_fan_event(event: FanSpeedEvent) -> None:
-        print("Fan Speed: " + str(event.speed))
-        lock.release()
+        lock.clear()
+        fan_speed_listener = vacbot.bot.events.fan_speed.subscribe(on_fan_event)
+        await lock.wait()
+        fan_speed_listener.unsubscribe()
 
-    fan_speed_listener = vacbot.bot.events.fan_speed.subscribe(on_fan_event)
-    await lock.acquire()
-    vacbot.bot.events.fan_speed.unsubscribe(fan_speed_listener)
+        async def on_water_level(event: WaterInfoEvent) -> None:
+            print("Water Level: " + str(event.amount))
+            lock.set()
 
-    async def on_water_level(event: WaterInfoEvent) -> None:
-        print("Water Level: " + str(event.amount))
-        lock.release()
-
-    water_level_listener = vacbot.bot.events.water_info.subscribe(on_water_level)
-    await lock.acquire()
-    vacbot.bot.events.water_info.unsubscribe(water_level_listener)
-
-    await vacbot.goodbye()
+        lock.clear()
+        water_level_listener = vacbot.bot.events.water_info.subscribe(on_water_level)
+        await lock.wait()
+        water_level_listener.unsubscribe()
+    finally:
+        await vacbot.after()
 
 
 @cli.command(help="Get stats")
 @coro
 async def stats() -> None:
     """Click subcommand that returns bot stats."""
-    vacbot = DoLogin()
-    await vacbot.run()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
 
-    lock = asyncio.Lock()
-    await lock.acquire()
+        lock = asyncio.Event()
 
-    async def on_stats_event(event: StatsEvent) -> None:
-        print("Stats Cid: " + str(event.clean_id))
-        print("Stats Area: " + str(event.area))
-        if isinstance(event.time, int):
-            print("Stats Time: " + str(int(event.time / 60)) + " minutes")
-        print("Stats Type: " + str(event.type))
-        lock.release()
+        async def on_stats_event(event: StatsEvent) -> None:
+            print(f"Stats Cid: {event.clean_id}")
+            print(f"Stats Area: {event.area}")
+            if isinstance(event.time, int):
+                print(f"Stats Time: {int(event.time / 60)} minutes")
+            print(f"Stats Type: {event.type}")
+            lock.set()
 
-    listener = vacbot.bot.events.stats.subscribe(on_stats_event)
-    await lock.acquire()
-    vacbot.bot.events.stats.unsubscribe(listener)
-
-    await vacbot.goodbye()
+        lock.clear()
+        listener = vacbot.bot.events.stats.subscribe(on_stats_event)
+        await lock.wait()
+        listener.unsubscribe()
+    finally:
+        await vacbot.after()
 
 
 @cli.command(help="Get robot components life span")
 @coro
 async def components() -> None:
     """Click subcommand that returns the robot's life span."""
-    vacbot = DoLogin()
-    await vacbot.run()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
 
-    lock = asyncio.Lock()
-    await lock.acquire()
+        lock = asyncio.Event()
 
-    async def on_lifespan_event(event: dict) -> None:
-        for key, value in event.items():
-            print(f"{key}: {value}%")
-        lock.release()
+        async def on_lifespan_event(event: dict) -> None:
+            for key, value in event.items():
+                print(f"{key}: {value}%")
+            lock.set()
 
-    listener = vacbot.bot.events.lifespan.subscribe(on_lifespan_event)
-    await lock.acquire()
-    vacbot.bot.events.lifespan.unsubscribe(listener)
-
-    await vacbot.goodbye()
+        lock.clear()
+        listener = vacbot.bot.events.lifespan.subscribe(on_lifespan_event)
+        await lock.wait()
+        listener.unsubscribe()
+    finally:
+        await vacbot.after()
 
 
 @cli.command(name="getrooms", help="Get saved rooms")
 @coro
 async def get_rooms() -> None:
     """Click subcommand that returns saved room."""
-    vacbot = DoLogin()
-    await vacbot.run()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
 
-    lock = asyncio.Lock()
-    await lock.acquire()
+        lock = asyncio.Event()
 
-    async def on_rooms(event: RoomsEvent) -> None:
-        for room in event.rooms:
-            print(str(room.id) + " " + str(room.subtype))
-        lock.release()
+        async def on_rooms(event: RoomsEvent) -> None:
+            for room in event.rooms:
+                print(f"{room.id} {room.subtype}")
+            lock.set()
 
-    listener = vacbot.bot.map.events.rooms.subscribe(on_rooms)
-    await lock.acquire()
-    vacbot.bot.map.events.rooms.unsubscribe(listener)
-
-    await vacbot.goodbye()
+        lock.set()
+        listener = vacbot.bot.map.events.rooms.subscribe(on_rooms)
+        await lock.wait()
+        listener.unsubscribe()
+    finally:
+        await vacbot.after()
 
 
 @cli.command(
@@ -354,29 +362,30 @@ async def get_rooms() -> None:
 @coro
 async def export_live_map(filepath: str) -> None:
     """Click subcommand that returns the live map."""
-    vacbot = DoLogin()
-    await vacbot.run()
+    vacbot = CliUtil()
+    try:
+        await vacbot.before()
 
-    lock = asyncio.Lock()
-    await lock.acquire()
+        lock = asyncio.Event()
 
-    async def on_map(_: MapEvent) -> None:
-        with open(filepath, "wb") as file:
-            file.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
-        lock.release()
+        async def on_map(_: MapEvent) -> None:
+            with open(filepath, "wb") as file:
+                file.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
+            lock.set()
 
-    listener = vacbot.bot.events.map.subscribe(on_map)
-    await lock.acquire()
-    vacbot.bot.events.map.unsubscribe(listener)
+        lock.clear()
+        listener = vacbot.bot.events.map.subscribe(on_map)
+        await lock.wait()
+        listener.unsubscribe()
+    finally:
+        await vacbot.after()
 
-    await vacbot.goodbye()
 
-
-class DoLogin:
-    """DoLogin communicates with the bot to provide self.bot."""
+class CliUtil:
+    """CliUtil communicates with the bot to provide self.bot."""
 
     def __init__(self) -> None:
-        """Init DoLogin."""
+        """Init CliUtil."""
         # self.session = None
         # self.auth = None
         # self.devices_ = None
@@ -384,15 +393,15 @@ class DoLogin:
         # self.mqtt = None
         return
 
-    async def run(self) -> None:
+    async def before(self) -> None:
         # pylint: disable=attribute-defined-outside-init
         """Communicate with Deebot."""
         config = read_config()
 
-        self.session = aiohttp.ClientSession()
+        self._session = aiohttp.ClientSession()
 
-        self.api = EcovacsAPI(
-            self.session,
+        self._api = EcovacsAPI(
+            self._session,
             config["device_id"],
             config["email"],
             config["password_hash"],
@@ -408,13 +417,13 @@ class DoLogin:
             )
             sys.exit(1)
 
-        await self.api.login()
+        await self._api.login()
 
-        self.devices_ = await self.api.get_devices()
+        self.devices_ = await self._api.get_devices()
 
-        self.auth = await self.api.get_request_auth()
+        self.auth = await self._api.get_request_auth()
         self.bot = VacuumBot(
-            self.session,
+            self._session,
             self.auth,
             self.devices_[0],
             continent=config["continent"],
@@ -429,10 +438,10 @@ class DoLogin:
         )
         await self.mqtt.subscribe(self.bot)
 
-    async def goodbye(self) -> None:
+    async def after(self) -> None:
         """Close all connections."""
         self.mqtt.unsubscribe(self.bot)
-        await self.session.close()
+        await self._session.close()
 
 
 if __name__ == "__main__":
