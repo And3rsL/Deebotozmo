@@ -82,7 +82,7 @@ def write_config(config: dict) -> None:
             file.write(key + "=" + str(config[key]) + "\n")
 
 
-@click.group(chain=True)
+@click.group(chain=True, help="")
 @click.option("--debug/--no-debug", default=False)
 def cli(debug: bool = False) -> None:
     """Create a click group for nesting subcommands."""
