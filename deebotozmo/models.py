@@ -1,6 +1,7 @@
 """Models module."""
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 class Vacuum(dict):
@@ -22,9 +23,9 @@ class Vacuum(dict):
         return str(self["name"])
 
     @property
-    def nick(self) -> str:
+    def nick(self) -> Optional[str]:
         """Return nick name."""
-        return str(self["nick"])
+        return self.get("nick", None)
 
     @property
     def resource(self) -> str:
