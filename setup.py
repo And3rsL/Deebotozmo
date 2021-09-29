@@ -33,4 +33,9 @@ setup(
     packages=["deebotozmo"],
     package_data={"deebotozmo": ["py.typed"]},
     install_requires=list(val.strip() for val in open("requirements.txt")),
+    entry_points={
+        "console_scripts": [
+            "deebotozmo=deebotozmo.cli:cli",
+        ],
+    },
 )
