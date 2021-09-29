@@ -30,7 +30,6 @@ from deebotozmo.commands import (
     SetWaterLevel,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.ecovacs_mqtt import EcovacsMqtt
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
@@ -38,8 +37,10 @@ from deebotozmo.events import (
     MapEvent,
     RoomsEvent,
     StatsEvent,
+    StatusEvent,
     WaterInfoEvent,
 )
+from deebotozmo.models import VacuumState
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
@@ -251,9 +252,16 @@ async def statuses() -> None:
         await vacbot.before()
         lock = asyncio.Event()
 
-        print(
-            f"Vacuum State: {str(vacbot.bot.status.state).rsplit('.', maxsplit=1)[-1]}"
-        )
+        async def on_status(event: StatusEvent) -> None:
+            print(f"Vacuum Available: {event.available}")
+            if isinstance(event.state, VacuumState):
+                print(f"Vacuum State: {event.state.name}")
+            lock.set()
+
+        lock.clear()
+        status_listener = vacbot.bot.events.status.subscribe(on_status)
+        await lock.wait()
+        status_listener.unsubscribe()
 
         async def on_battery(event: BatteryEvent) -> None:
             print("Battery: " + str(event.value) + "%")
@@ -421,8 +429,6 @@ class CliUtil:
             )
             sys.exit(1)
 
-        return
-
     async def before(self) -> None:
         # pylint: disable=attribute-defined-outside-init
         """Communicate with Deebot."""
@@ -440,17 +446,8 @@ class CliUtil:
             verify_ssl=bool(self._config["verify_ssl"]),
         )
 
-        self.mqtt = EcovacsMqtt(
-            self.auth,
-            continent=self._config["continent"],
-            country=self._config["country"],
-        )
-
-        await self.mqtt.subscribe(self.bot)
-
     async def after(self) -> None:
         """Close all connections."""
-        self.mqtt.unsubscribe(self.bot)
         await self._session.close()
 
 
