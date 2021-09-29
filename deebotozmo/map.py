@@ -21,7 +21,7 @@ from deebotozmo.commands import (
     GetPos,
 )
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
-from deebotozmo.event_emitter import EventEmitter, ThrottleEventEmitter
+from deebotozmo.event_emitter import DebounceAtMostEventEmitter, EventEmitter
 from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_refresh_function
@@ -79,12 +79,11 @@ class MapEvents:
     """Map events representation."""
 
     def __init__(self, execute_command: Callable[[Command], Awaitable[None]]) -> None:
-        self.map: Final[EventEmitter[MapEvent]] = ThrottleEventEmitter[MapEvent](
+        self.map: Final[EventEmitter[MapEvent]] = DebounceAtMostEventEmitter[MapEvent](
             get_refresh_function(
                 [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
             ),
             5,
-            True,
         )
         self.rooms: Final[EventEmitter[RoomsEvent]] = EventEmitter[RoomsEvent](
             get_refresh_function([GetCachedMapInfo()], execute_command)

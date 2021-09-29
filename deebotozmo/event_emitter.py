@@ -19,8 +19,8 @@ class EventListener(Generic[T]):
     def __init__(
         self, emitter: "EventEmitter", callback: Callable[[T], Awaitable[None]]
     ) -> None:
-        self._emitter = emitter
-        self.callback = callback
+        self._emitter: Final = emitter
+        self.callback: Final = callback
 
     def unsubscribe(self) -> None:
         """Unsubscribe from event representation."""
@@ -94,27 +94,39 @@ class EventEmitter(Generic[T]):
             asyncio.create_task(self._call_refresh_function())
 
 
-class ThrottleEventEmitter(EventEmitter[T]):
-    """An event emitter, which throttle the notifications."""
+class DebounceAtMostEventEmitter(EventEmitter[T]):
+    """An event emitter, which debounce the event at most the given time."""
 
     def __init__(
         self,
         refresh_function: Callable[[], Awaitable[None]],
-        throttle_seconds: int,
-        notify_on_equal_event: bool = False,
+        debounce_at_most_seconds: int,
     ):
-        super().__init__(refresh_function, notify_on_equal_event)
+        super().__init__(refresh_function, True)
         self._last_event_time: float = 0.0
-        self._throttle_seconds: Final = throttle_seconds
+        self._debounce_at_most_seconds: Final = debounce_at_most_seconds
+        self._timer_task: Optional[asyncio.TimerHandle] = None
+
+    def _call_later(self) -> None:
+        self._timer_task = None
+        if self._last_event:
+            super().notify(self._last_event)
 
     def notify(self, event: T) -> bool:
         """Notify subscriber with given event representation."""
-        if time.time() > self._last_event_time + self._throttle_seconds:
+        self._last_event = event
+        if time.time() > self._last_event_time + self._debounce_at_most_seconds:
             notified = super().notify(event)
             if notified:
                 self._last_event_time = time.time()
             return notified
 
+        if self._timer_task:
+            self._timer_task.cancel()
+
+        self._timer_task = asyncio.get_event_loop().call_later(
+            self._debounce_at_most_seconds, self._call_later
+        )
         return False
 
 
