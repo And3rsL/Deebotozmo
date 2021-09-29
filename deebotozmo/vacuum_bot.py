@@ -109,7 +109,7 @@ class VacuumBot:
 
         self.json: EcovacsJSON = EcovacsJSON(session, auth, portal_url, verify_ssl)
 
-        self.status: StatusEvent = StatusEvent(False, None)
+        self._status: StatusEvent = StatusEvent(False, None)
         self.fw_version: Optional[str] = None
 
         self.map: Final = Map(self.execute_command)
@@ -119,9 +119,14 @@ class VacuumBot:
         """Execute given command and handle response."""
         if (
             command.name == CleanResume().name
-            and self.status.state != VacuumState.STATE_PAUSED
+            and self._status.state != VacuumState.STATE_PAUSED
         ):
             command = CleanStart()
+        elif (
+            command.name == CleanStart().name
+            and self._status.state == VacuumState.STATE_PAUSED
+        ):
+            command = CleanResume()
 
         async with self._semaphore:
             response = await self.json.send_command(command, self.vacuum)
@@ -130,7 +135,7 @@ class VacuumBot:
 
     def set_available(self, available: bool) -> None:
         """Set available."""
-        status = StatusEvent(available, self.status.state)
+        status = StatusEvent(available, self._status.state)
         self._set_status(status)
 
     def _set_state(self, state: VacuumState) -> None:
@@ -139,13 +144,13 @@ class VacuumBot:
     def _set_status(self, status: StatusEvent) -> None:
         _LOGGER.debug("Calling _set_status with %s", status)
 
-        last_status = self.status
+        last_status = self._status
 
-        if self.status == status:
+        if self._status == status:
             _LOGGER.debug("Status still the same... Skipping")
             return
 
-        self.status = status
+        self._status = status
         self.events.status.notify(status)
 
         if (not last_status.available) and status.available:
@@ -397,5 +402,5 @@ class VacuumBot:
         if status:
             self._set_state(status)
 
-        if self.status.state == VacuumState.STATE_DOCKED:
+        if self._status.state == VacuumState.STATE_DOCKED:
             self.events.clean_logs.request_refresh()
