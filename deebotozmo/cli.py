@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import aiohttp
 import click
@@ -429,18 +429,19 @@ class CliUtil:
             )
             sys.exit(1)
 
+        self.bot = Optional[VacuumBot]
+
     async def before(self) -> None:
-        # pylint: disable=attribute-defined-outside-init
         """Communicate with Deebot."""
         await self._api.login()
 
-        self.devices_ = await self._api.get_devices()
+        devices_ = await self._api.get_devices()
 
-        self.auth = await self._api.get_request_auth()
+        auth = await self._api.get_request_auth()
         self.bot = VacuumBot(
             self._session,
-            self.auth,
-            self.devices_[0],
+            auth,
+            devices_[0],
             continent=self._config["continent"],
             country=self._config["country"],
             verify_ssl=bool(self._config["verify_ssl"]),
