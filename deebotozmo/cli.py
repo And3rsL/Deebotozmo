@@ -427,8 +427,7 @@ class CliUtil:
 
         if not config_file_exists():
             click.echo(
-                "Not logged in. "
-                + f"Do '{os.path.basename(sys.argv[0])} createconfig' first."
+                f"Not logged in. Do '{os.path.basename(sys.argv[0])} createconfig' first."
             )
             sys.exit(1)
 
