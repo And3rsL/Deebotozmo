@@ -3,22 +3,10 @@ import asyncio
 import logging
 import time
 from asyncio import Task
-from typing import (
-    TYPE_CHECKING,
-    Awaitable,
-    Callable,
-    Final,
-    Generic,
-    List,
-    Optional,
-    TypeVar,
-)
+from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
 
 from deebotozmo.events import StatusEvent
 from deebotozmo.models import VacuumState
-
-if TYPE_CHECKING:
-    from deebotozmo.vacuum_bot import VacuumBot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,13 +125,13 @@ class PollingEventEmitter(EventEmitter[T]):
         self,
         refresh_interval: int,
         refresh_function: Callable[[], Awaitable[None]],
-        vacuum_bot: "VacuumBot",
+        status_event: EventEmitter[StatusEvent],
         notify_on_equal_event: bool = False,
     ):
         super().__init__(refresh_function, notify_on_equal_event)
         self._refresh_task: Optional[Task] = None
         self._refresh_interval: int = refresh_interval
-        self._status: Optional[VacuumState] = vacuum_bot.status.state
+        self._status: Optional[VacuumState] = None
 
         async def on_status(event: StatusEvent) -> None:
             self._status = event.state
@@ -152,7 +140,7 @@ class PollingEventEmitter(EventEmitter[T]):
             else:
                 self._stop_refresh_task()
 
-        vacuum_bot.events.status.subscribe(on_status)
+        status_event.subscribe(on_status)
 
     async def _refresh_interval_task(self) -> None:
         while True:

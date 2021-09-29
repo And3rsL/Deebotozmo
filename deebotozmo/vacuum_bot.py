@@ -61,13 +61,6 @@ class VacuumEvents:
         self.fan_speed: Final[EventEmitter[FanSpeedEvent]] = EventEmitter[
             FanSpeedEvent
         ](get_refresh_function([GetFanSpeed()], vacuum_bot.execute_command))
-        self.lifespan: Final[EventEmitter[Dict[str, float]]] = PollingEventEmitter[
-            Dict[str, float]
-        ](
-            60,
-            get_refresh_function([GetLifeSpan()], vacuum_bot.execute_command),
-            vacuum_bot,
-        )
         self.stats: Final[EventEmitter[StatsEvent]] = EventEmitter[StatsEvent](
             get_refresh_function([GetStats()], vacuum_bot.execute_command)
         )
@@ -81,6 +74,13 @@ class VacuumEvents:
             WaterInfoEvent
         ](get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command))
 
+        self.lifespan: Final[EventEmitter[Dict[str, float]]] = PollingEventEmitter[
+            Dict[str, float]
+        ](
+            60,
+            get_refresh_function([GetLifeSpan()], vacuum_bot.execute_command),
+            self.status,
+        )
         self.map: Final = map_events.map
         self.rooms: Final = map_events.rooms
 
