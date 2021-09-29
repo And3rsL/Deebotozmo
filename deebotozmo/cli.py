@@ -401,28 +401,18 @@ class CliUtil:
 
     def __init__(self) -> None:
         """Init CliUtil."""
-        # self.session = None
-        # self.auth = None
-        # self.devices_ = None
-        # self.bot = None
-        # self.mqtt = None
-        return
-
-    async def before(self) -> None:
-        # pylint: disable=attribute-defined-outside-init
-        """Communicate with Deebot."""
-        config = read_config()
+        self._config = read_config()
 
         self._session = aiohttp.ClientSession()
 
         self._api = EcovacsAPI(
             self._session,
-            config["device_id"],
-            config["email"],
-            config["password_hash"],
-            continent=config["continent"],
-            country=config["country"],
-            verify_ssl=bool(config["verify_ssl"]),
+            self._config["device_id"],
+            self._config["email"],
+            self._config["password_hash"],
+            continent=self._config["continent"],
+            country=self._config["country"],
+            verify_ssl=bool(self._config["verify_ssl"]),
         )
 
         if not config_file_exists():
@@ -431,6 +421,11 @@ class CliUtil:
             )
             sys.exit(1)
 
+        return
+
+    async def before(self) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        """Communicate with Deebot."""
         await self._api.login()
 
         self.devices_ = await self._api.get_devices()
@@ -440,16 +435,17 @@ class CliUtil:
             self._session,
             self.auth,
             self.devices_[0],
-            continent=config["continent"],
-            country=config["country"],
-            verify_ssl=bool(config["verify_ssl"]),
+            continent=self._config["continent"],
+            country=self._config["country"],
+            verify_ssl=bool(self._config["verify_ssl"]),
         )
 
         self.mqtt = EcovacsMqtt(
             self.auth,
-            continent=config["continent"],
-            country=config["country"],
+            continent=self._config["continent"],
+            country=self._config["country"],
         )
+
         await self.mqtt.subscribe(self.bot)
 
     async def after(self) -> None:
