@@ -228,7 +228,7 @@ class GetMinorMap(Command):
 class GetMapSet(Command):
     """Get map set command."""
 
-    def __init__(self, map_id: int) -> None:
+    def __init__(self, map_id: str) -> None:
         super().__init__("getMapSet", {"mid": map_id, "type": "ar"})
 
 
@@ -236,7 +236,7 @@ class GetMapSubSet(Command):
     """Get map subset command."""
 
     def __init__(
-        self, *, map_id: int, map_set_id: int, map_type: str, map_subset_id: str
+        self, *, map_id: str, map_set_id: str, map_type: str, map_subset_id: str
     ) -> None:
         super().__init__(
             "getMapSubSet",

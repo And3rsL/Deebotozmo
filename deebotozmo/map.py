@@ -159,11 +159,11 @@ class Map:
 
     async def _handle_cached_map_info(self, event_data: dict, requested: bool) -> None:
         try:
-            map_id: Optional[int] = None
+            map_id: Optional[str] = None
             for map_status in event_data["info"]:
                 if map_status["using"] == 1:
                     map_id = map_status["mid"]
-                    _LOGGER.debug("[_handle_cached_map] Using Map: %d", map_id)
+                    _LOGGER.debug("[_handle_cached_map] Using Map: %s", map_id)
                     break
 
             if requested and map_id is not None:
