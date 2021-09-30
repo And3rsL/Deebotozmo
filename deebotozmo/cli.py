@@ -76,7 +76,7 @@ def read_config() -> configparser.ConfigParser:
 
 
 def read_config_old() -> configparser.SectionProxy:
-    """Read and parser the config file for migration."""
+    """Read and parser the config file for migration to new format. DEPRECATED."""
     parser = configparser.ConfigParser()
     with open(config_file(), encoding="utf-8") as file:
         parser.read_file(itertools.chain(["[global]"], file), source=config_file())
@@ -110,24 +110,11 @@ def cli(
         ctx.obj["DEVICE"] = device
 
 
-# pylint: disable=too-many-arguments
-def _create_config(
-    email: str,
-    password_hash: str,
-    device_id: str,
-    continent_code: str,
-    country_code: str,
-    verify_ssl: str,
-) -> None:
+def _create_config(_config: Dict[str, str]) -> None:
     config = configparser.ConfigParser()
-    config["account"] = {}
-    config["account"]["email"] = email
-    config["account"]["password_hash"] = password_hash
-    config["device"] = {}
-    config["device"]["device_id"] = device_id
-    config["device"]["continent"] = continent_code.lower()
-    config["device"]["country"] = country_code.lower()
-    config["device"]["verify_ssl"] = verify_ssl
+    config["DEFAULT"] = {}
+    for key, value in _config.items():
+        config["DEFAULT"][key] = value
     write_config(config)
 
 
@@ -162,12 +149,13 @@ async def create_config(
             click.echo(error.args[0])
             sys.exit(1)
     _create_config(
-        email=email,
-        password_hash=password_hash,
-        device_id=device_id,
-        country_code=country_code,
-        continent_code=continent_code,
-        verify_ssl=verify_ssl,
+        {
+            "email": email,
+            "password_hash": password_hash,
+            "country": country_code,
+            "continent": continent_code,
+            "verify_ssl": verify_ssl,
+        }
     )
     click.echo("Config saved.")
     sys.exit(0)
@@ -512,21 +500,23 @@ class CliUtil:
             config_old = read_config_old()
             config = configparser.ConfigParser()
             _create_config(
-                email=config_old["email"],
-                password_hash=config_old["password_hash"],
-                device_id=config_old["device_id"],
-                continent_code=config_old["continent"],
-                country_code=config_old["country"],
-                verify_ssl=config_old["verify_ssl"],
+                {
+                    "email": config_old["email"],
+                    "password_hash": config_old["password_hash"],
+                    "device_id": config_old["device_id"],
+                    "continent": config_old["continent"],
+                    "country": config_old["country"],
+                    "verify_ssl": config_old["verify_ssl"],
+                }
             )
             config = read_config()
 
-        device_id = config["device"]["device_id"]
-        email = config["account"]["email"]
-        password_hash = config["account"]["password_hash"]
-        self._continent = config["device"]["continent"]
-        self._country = config["device"]["country"]
-        self._verify_ssl = config["device"]["verify_ssl"]
+        device_id = config["DEFAULT"]["device_id"]
+        email = config["DEFAULT"]["email"]
+        password_hash = config["DEFAULT"]["password_hash"]
+        self._continent = config["DEFAULT"]["continent"]
+        self._country = config["DEFAULT"]["country"]
+        self._verify_ssl = config["DEFAULT"]["verify_ssl"]
 
         self._session = aiohttp.ClientSession()
 
