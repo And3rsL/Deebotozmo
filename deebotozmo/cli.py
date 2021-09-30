@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import aiohttp
 import click
@@ -95,9 +95,9 @@ def write_config(config: configparser.ConfigParser) -> None:
 @click.option("--device", default=None, help="Select a device.")
 @click.pass_context
 def cli(
-    ctx: Union[click.Context, None] = None,
+    ctx: Optional[click.Context] = None,
     debug: bool = False,
-    device: Union[str, None] = None,
+    device: Optional[str] = None,
 ) -> None:
     """Create a click group for nesting subcommands."""
     logging.basicConfig(format="%(name)-10s %(levelname)-8s %(message)s")
@@ -174,10 +174,10 @@ async def create_config(
 
 
 async def run_with_login(
-    device: Union[str, None],
+    device: Optional[str],
     cmd: Callable,
-    cmd_list: Union[list, None] = None,
-    cmd_dict: Union[dict, None] = None,
+    cmd_list: Optional[list] = None,
+    cmd_dict: Optional[dict] = None,
 ) -> None:
     """Execute a command only."""
     if cmd_list is None:
@@ -546,8 +546,10 @@ class CliUtil:
             )
             sys.exit(1)
 
-    async def before(self, selected_device: Union[str, None] = None) -> None:
-        # pylint: disable=attribute-defined-outside-init
+        self.bot: VacuumBot
+        self.devices: List[Vacuum]
+
+    async def before(self, selected_device: Optional[str] = None) -> None:
         """Communicate with Deebot."""
         await self._api.login()
 
