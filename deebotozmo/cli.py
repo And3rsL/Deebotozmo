@@ -270,15 +270,15 @@ async def get_clean_logs(ctx: click.Context) -> None:
     try:
         await vacbot.before(ctx.obj["DEVICE"])
 
-        lock = asyncio.Event()
+        event = asyncio.Event()
 
-        async def on_clean_event(event: CleanLogEvent) -> None:
-            print(json.dumps(asdict(event)))
-            lock.set()
+        async def on_clean_event(clean_log_event: CleanLogEvent) -> None:
+            print(json.dumps(asdict(clean_log_event)))
+            event.set()
 
-        lock.clear()
+        event.clear()
         listener = vacbot.bot.events.clean_logs.subscribe(on_clean_event)
-        await lock.wait()
+        await event.wait()
         listener.unsubscribe()
     finally:
         await vacbot.after()
@@ -292,44 +292,44 @@ async def statuses(ctx: click.Context) -> None:
     vacbot = CliUtil()
     try:
         await vacbot.before(ctx.obj["DEVICE"])
-        lock = asyncio.Event()
+        event = asyncio.Event()
 
-        async def on_status(event: StatusEvent) -> None:
-            print(f"Vacuum Available: {event.available}")
-            if isinstance(event.state, VacuumState):
-                print(f"Vacuum State: {event.state.name}")
-            lock.set()
+        async def on_status(status_event: StatusEvent) -> None:
+            print(f"Vacuum Available: {status_event.available}")
+            if isinstance(status_event.state, VacuumState):
+                print(f"Vacuum State: {status_event.state.name}")
+            event.set()
 
-        lock.clear()
+        event.clear()
         status_listener = vacbot.bot.events.status.subscribe(on_status)
-        await lock.wait()
+        await event.wait()
         status_listener.unsubscribe()
 
-        async def on_battery(event: BatteryEvent) -> None:
-            print(f"Battery: {event.value}%")
-            lock.set()
+        async def on_battery(battery_event: BatteryEvent) -> None:
+            print(f"Battery: {battery_event.value}%")
+            event.set()
 
-        lock.clear()
+        event.clear()
         battery_listener = vacbot.bot.events.battery.subscribe(on_battery)
-        await lock.wait()
+        await event.wait()
         battery_listener.unsubscribe()
 
-        async def on_fan_event(event: FanSpeedEvent) -> None:
-            print(f"Fan Speed: {event.speed}")
-            lock.set()
+        async def on_fan_event(fan_speed_event: FanSpeedEvent) -> None:
+            print(f"Fan Speed: {fan_speed_event.speed}")
+            event.set()
 
-        lock.clear()
+        event.clear()
         fan_speed_listener = vacbot.bot.events.fan_speed.subscribe(on_fan_event)
-        await lock.wait()
+        await event.wait()
         fan_speed_listener.unsubscribe()
 
-        async def on_water_level(event: WaterInfoEvent) -> None:
-            print(f"Water Level: {event.amount}")
-            lock.set()
+        async def on_water_level(water_info_event: WaterInfoEvent) -> None:
+            print(f"Water Level: {water_info_event.amount}")
+            event.set()
 
-        lock.clear()
+        event.clear()
         water_level_listener = vacbot.bot.events.water_info.subscribe(on_water_level)
-        await lock.wait()
+        await event.wait()
         water_level_listener.unsubscribe()
     finally:
         await vacbot.after()
@@ -344,19 +344,19 @@ async def stats(ctx: click.Context) -> None:
     try:
         await vacbot.before(ctx.obj["DEVICE"])
 
-        lock = asyncio.Event()
+        event = asyncio.Event()
 
-        async def on_stats_event(event: StatsEvent) -> None:
-            print(f"Stats Cid: {event.clean_id}")
-            print(f"Stats Area: {event.area}")
-            if isinstance(event.time, int):
-                print(f"Stats Time: {event.time / 60} minutes")
-            print(f"Stats Type: {event.type}")
-            lock.set()
+        async def on_stats_event(stats_event: StatsEvent) -> None:
+            print(f"Stats Cid: {stats_event.clean_id}")
+            print(f"Stats Area: {stats_event.area}")
+            if isinstance(stats_event.time, int):
+                print(f"Stats Time: {stats_event.time / 60} minutes")
+            print(f"Stats Type: {stats_event.type}")
+            event.set()
 
-        lock.clear()
+        event.clear()
         listener = vacbot.bot.events.stats.subscribe(on_stats_event)
-        await lock.wait()
+        await event.wait()
         listener.unsubscribe()
     finally:
         await vacbot.after()
@@ -371,16 +371,16 @@ async def components(ctx: click.Context) -> None:
     try:
         await vacbot.before(ctx.obj["DEVICE"])
 
-        lock = asyncio.Event()
+        event = asyncio.Event()
 
-        async def on_lifespan_event(event: dict) -> None:
-            for key, value in event.items():
+        async def on_lifespan_event(lifespan_event: dict) -> None:
+            for key, value in lifespan_event.items():
                 print(f"{key}: {value}%")
-            lock.set()
+            event.set()
 
-        lock.clear()
+        event.clear()
         listener = vacbot.bot.events.lifespan.subscribe(on_lifespan_event)
-        await lock.wait()
+        await event.wait()
         listener.unsubscribe()
     finally:
         await vacbot.after()
@@ -395,16 +395,16 @@ async def get_rooms(ctx: click.Context) -> None:
     try:
         await vacbot.before(ctx.obj["DEVICE"])
 
-        lock = asyncio.Event()
+        event = asyncio.Event()
 
-        async def on_rooms(event: RoomsEvent) -> None:
-            for room in event.rooms:
+        async def on_rooms(rooms_event: RoomsEvent) -> None:
+            for room in rooms_event.rooms:
                 print(f"{room.id} {room.subtype}")
-            lock.set()
+            event.set()
 
-        lock.set()
+        event.set()
         listener = vacbot.bot.map.events.rooms.subscribe(on_rooms)
-        await lock.wait()
+        await event.wait()
         listener.unsubscribe()
     finally:
         await vacbot.after()
@@ -437,16 +437,16 @@ async def export_live_map(
     try:
         await vacbot.before(ctx.obj["DEVICE"])
 
-        lock = asyncio.Event()
+        event = asyncio.Event()
 
         async def on_map(_: MapEvent) -> None:
             with open(filepath, "wb") as file:
                 file.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
-            lock.set()
+            event.set()
 
-        lock.clear()
+        event.clear()
         listener = vacbot.bot.events.map.subscribe(on_map)
-        await lock.wait()
+        await event.wait()
         listener.unsubscribe()
     finally:
         await vacbot.after()
