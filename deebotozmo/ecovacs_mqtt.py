@@ -2,8 +2,7 @@
 import json
 import logging
 import ssl
-from typing import Dict, MutableMapping
-from typing import MutableMapping, Optional
+from typing import Dict, MutableMapping, Optional
 
 from gmqtt import Client
 from gmqtt.mqtt.constants import MQTTv311
@@ -19,7 +18,7 @@ def _get_topic(vacuum: Vacuum) -> str:
 
 
 class NotInitializedError(Exception):
-    pass
+    """Thrown when not class was not initialized correctly."""
 
 
 class EcovacsMqtt:
@@ -64,7 +63,7 @@ class EcovacsMqtt:
 
         self.__on_message = _on_message
 
-    async def initialize(self, auth: RequestAuth)-> None:
+    async def initialize(self, auth: RequestAuth) -> None:
         """Initialize MQTT."""
         if self._client is not None:
             self.disconnect()
@@ -95,10 +94,11 @@ class EcovacsMqtt:
         vacuum = vacuum_bot.vacuum
         sub = self._subscribers.pop(vacuum.did, None)
 
-        if sub:
+        if sub and self._client:
             self._client.unsubscribe(_get_topic(vacuum))
 
     def disconnect(self) -> None:
         """Disconnect from MQTT."""
-        self._client.disconnect()
+        if self._client:
+            self._client.disconnect()
         self._subscribers.clear()
