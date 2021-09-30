@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import aiohttp
 import click
@@ -49,7 +49,7 @@ def coro(func: Callable) -> Callable:
     """Wrap around a function to run it in coroutine."""
 
     @wraps(func)
-    def wrapper(*args: Tuple, **kwargs: Tuple) -> Any:
+    def wrapper(*args: Tuple, **kwargs: Dict) -> Any:
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(func(*args, **kwargs))
 
