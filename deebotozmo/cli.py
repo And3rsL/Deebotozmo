@@ -405,13 +405,22 @@ async def export_live_map(filepath: str, force_extension: bool) -> None:
 
 
 @cli.command(name="getdevices", help="Get Devices")
+@click.option(
+    "--raw-data/--no-raw-data", default=False, help="Return raw data about all devices"
+)
 @coro
-async def get_devices() -> None:
+async def get_devices(raw_data: bool) -> None:
     """Click subcommand that returns all devices."""
     vacbot = CliUtil()
     try:
         await vacbot.before()
-        print(vacbot.devices)
+        if raw_data:
+            print(vacbot.devices)
+        else:
+            for idx, device in enumerate(vacbot.devices):
+                print(
+                    f"{idx + 1}) {device.nick} ({device.device_name}) ({device.did}) ({device.name})"
+                )
     finally:
         await vacbot.after()
 
