@@ -1,7 +1,6 @@
 """Event emitter module."""
 import asyncio
 import logging
-import time
 from asyncio import Task
 from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
 
@@ -92,42 +91,6 @@ class EventEmitter(Generic[T]):
         """Request manual refresh."""
         if len(self._subscribers) > 0:
             asyncio.create_task(self._call_refresh_function())
-
-
-class DebounceAtMostEventEmitter(EventEmitter[T]):
-    """An event emitter, which debounce the event at most the given time."""
-
-    def __init__(
-        self,
-        refresh_function: Callable[[], Awaitable[None]],
-        debounce_at_most_seconds: int,
-    ):
-        super().__init__(refresh_function, True)
-        self._last_event_time: float = 0.0
-        self._debounce_at_most_seconds: Final = debounce_at_most_seconds
-        self._timer_task: Optional[asyncio.TimerHandle] = None
-
-    def _call_later(self) -> None:
-        self._timer_task = None
-        if self._last_event:
-            super().notify(self._last_event)
-
-    def notify(self, event: T) -> bool:
-        """Notify subscriber with given event representation."""
-        self._last_event = event
-        if time.time() > self._last_event_time + self._debounce_at_most_seconds:
-            notified = super().notify(event)
-            if notified:
-                self._last_event_time = time.time()
-            return notified
-
-        if self._timer_task:
-            self._timer_task.cancel()
-
-        self._timer_task = asyncio.get_event_loop().call_later(
-            self._debounce_at_most_seconds, self._call_later
-        )
-        return False
 
 
 class PollingEventEmitter(EventEmitter[T]):

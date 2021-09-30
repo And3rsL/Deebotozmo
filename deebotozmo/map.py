@@ -21,7 +21,7 @@ from deebotozmo.commands import (
     GetPos,
 )
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
-from deebotozmo.event_emitter import DebounceAtMostEventEmitter, EventEmitter
+from deebotozmo.event_emitter import EventEmitter
 from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_refresh_function
@@ -79,11 +79,10 @@ class MapEvents:
     """Map events representation."""
 
     def __init__(self, execute_command: Callable[[Command], Awaitable[None]]) -> None:
-        self.map: Final[EventEmitter[MapEvent]] = DebounceAtMostEventEmitter[MapEvent](
+        self.map: Final[EventEmitter[MapEvent]] = EventEmitter[MapEvent](
             get_refresh_function(
                 [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
             ),
-            5,
         )
         self.rooms: Final[EventEmitter[RoomsEvent]] = EventEmitter[RoomsEvent](
             get_refresh_function([GetCachedMapInfo()], execute_command)
@@ -235,8 +234,6 @@ class Map:
             trace_start += MAP_TRACE_POINT_COUNT
             if trace_start < total_count and requested:
                 await self._execute_command(GetMapTrace(trace_start))
-            else:
-                self.events.map.notify(MapEvent())
 
     async def _handle_major_map(self, event_data: dict, requested: bool) -> None:
         _LOGGER.debug("[_handle_major_map] begin")
@@ -272,7 +269,6 @@ class Map:
         points_array = reshape(list(decoded), (100, 100))
 
         self._map_pieces[map_piece].points = points_array
-        self.events.map.notify(MapEvent())
         _LOGGER.debug("[AddMapPiece] Done")
 
     def _update_position(
@@ -302,7 +298,6 @@ class Map:
                 self._robot_position = new_value
 
             self._is_map_up_to_date = False
-            self.events.map.notify(MapEvent())
 
     def _update_trace_points(self, data: str) -> None:
         _LOGGER.debug("[_update_trace_points] Begin")
