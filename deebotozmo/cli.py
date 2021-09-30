@@ -306,7 +306,7 @@ async def statuses(ctx: click.Context) -> None:
         status_listener.unsubscribe()
 
         async def on_battery(event: BatteryEvent) -> None:
-            print("Battery: " + str(event.value) + "%")
+            print(f"Battery: {event.value}%")
             lock.set()
 
         lock.clear()
@@ -315,7 +315,7 @@ async def statuses(ctx: click.Context) -> None:
         battery_listener.unsubscribe()
 
         async def on_fan_event(event: FanSpeedEvent) -> None:
-            print("Fan Speed: " + str(event.speed))
+            print(f"Fan Speed: {event.speed}")
             lock.set()
 
         lock.clear()
@@ -324,7 +324,7 @@ async def statuses(ctx: click.Context) -> None:
         fan_speed_listener.unsubscribe()
 
         async def on_water_level(event: WaterInfoEvent) -> None:
-            print("Water Level: " + str(event.amount))
+            print(f"Water Level: {event.amount}")
             lock.set()
 
         lock.clear()
@@ -350,7 +350,7 @@ async def stats(ctx: click.Context) -> None:
             print(f"Stats Cid: {event.clean_id}")
             print(f"Stats Area: {event.area}")
             if isinstance(event.time, int):
-                print(f"Stats Time: {int(event.time / 60)} minutes")
+                print(f"Stats Time: {event.time / 60} minutes")
             print(f"Stats Type: {event.type}")
             lock.set()
 
