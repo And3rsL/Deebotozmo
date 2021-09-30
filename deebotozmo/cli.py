@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Tuple, Union
 
 import aiohttp
 import click
@@ -40,7 +40,7 @@ from deebotozmo.events import (
     StatusEvent,
     WaterInfoEvent,
 )
-from deebotozmo.models import VacuumState
+from deebotozmo.models import Vacuum, VacuumState
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
@@ -86,10 +86,22 @@ def write_config(config: dict) -> None:
 
 @click.group(chain=True, help="")
 @click.option("--debug/--no-debug", default=False)
-def cli(debug: bool = False) -> None:
+@click.option("--device", default=None, help="Select a device.")
+@click.pass_context
+def cli(
+    ctx: Union[click.Context, None] = None,
+    debug: bool = False,
+    device: Union[str, None] = None,
+) -> None:
     """Create a click group for nesting subcommands."""
     logging.basicConfig(format="%(name)-10s %(levelname)-8s %(message)s")
     logging.root.setLevel(logging.DEBUG if debug else logging.WARNING)
+
+    # ensure that ctx.obj exists and is a dict (in case `cli()` is called
+    # by means other than the `if` block below)
+    if isinstance(ctx, click.Context):
+        ctx.ensure_object(dict)
+        ctx.obj["DEVICE"] = device
 
 
 @cli.command(name="createconfig", help="logs in with specified email; run this first")
@@ -134,28 +146,41 @@ async def create_config(
     sys.exit(0)
 
 
-async def run_with_login(*args: Any, **kwargs: Any) -> None:
+async def run_with_login(
+    device: Union[str, None],
+    cmd: Callable,
+    cmd_list: Union[list, None] = None,
+    cmd_dict: Union[dict, None] = None,
+) -> None:
     """Execute a command only."""
+    if cmd_list is None:
+        cmd_list = []
+
+    if cmd_dict is None:
+        cmd_dict = {}
+
     vacbot = CliUtil()
     try:
-        await vacbot.before()
-        await vacbot.bot.execute_command(*args, **kwargs)
+        await vacbot.before(device)
+        await vacbot.bot.execute_command(cmd(*cmd_list, **cmd_dict))
     finally:
         await vacbot.after()
 
 
 @cli.command(name="playsound", help="Play welcome sound")
+@click.pass_context
 @coro
-async def play_sound() -> None:
+async def play_sound(ctx: click.Context) -> None:
     """Click subcommand that runs the welcome sound."""
-    await run_with_login(PlaySound())
+    await run_with_login(cmd=PlaySound, device=ctx.obj["DEVICE"])
 
 
 @cli.command(help="Auto clean")
+@click.pass_context
 @coro
-async def clean() -> None:
+async def clean(ctx: click.Context) -> None:
     """Click subcommand that runs the auto clean command."""
-    await run_with_login(CleanStart())
+    await run_with_login(cmd=CleanStart, device=ctx.obj["DEVICE"])
 
 
 @cli.command(
@@ -165,10 +190,15 @@ async def clean() -> None:
 )
 @click.argument("area", type=click.STRING, required=True)
 @click.argument("cleanings", type=click.INT, required=False)
+@click.pass_context
 @coro
-async def custom_area(area: str, cleanings: int = 1) -> None:
+async def custom_area(ctx: click.Context, area: str, cleanings: int = 1) -> None:
     """Click subcommand that runs a clean in a custom area."""
-    await run_with_login(CleanCustomArea(map_position=area, cleanings=cleanings))
+    await run_with_login(
+        cmd=CleanCustomArea,
+        cmd_dict={"map_position": area, "cleanings": cleanings},
+        device=ctx.obj["DEVICE"],
+    )
 
 
 @cli.command(
@@ -178,56 +208,67 @@ async def custom_area(area: str, cleanings: int = 1) -> None:
 )
 @click.argument("rooms", type=click.STRING, required=True)
 @click.argument("cleanings", type=click.INT)
+@click.pass_context
 @coro
-async def spot_area(rooms: str, cleanings: int = 1) -> None:
+async def spot_area(ctx: click.Context, rooms: str, cleanings: int = 1) -> None:
     """Click subcommand that runs a clean in a specific room."""
-    await run_with_login(CleanSpotArea(area=rooms, cleanings=cleanings))
+    await run_with_login(
+        cmd=CleanSpotArea,
+        cmd_dict={"area": rooms, "cleanings": cleanings},
+        device=ctx.obj["DEVICE"],
+    )
 
 
 @cli.command(name="setfanspeed", help="Set Clean Speed")
 @click.argument("speed", type=click.STRING, required=True)
+@click.pass_context
 @coro
-async def set_fan_speed(speed: str) -> None:
+async def set_fan_speed(ctx: click.Context, speed: str) -> None:
     """Click subcommand that sets the fan speed."""
-    await run_with_login(SetFanSpeed(speed))
+    await run_with_login(cmd=SetFanSpeed, cmd_list=[speed], device=ctx.obj["DEVICE"])
 
 
 @cli.command(name="setwaterlevel", help="Set Water Level")
 @click.argument("level", type=click.STRING, required=True)
+@click.pass_context
 @coro
-async def set_water_level(level: str) -> None:
+async def set_water_level(ctx: click.Context, level: str) -> None:
     """Click subcommmand that sets the water level."""
-    await run_with_login(SetWaterLevel(level))
+    await run_with_login(cmd=SetWaterLevel, cmd_list=[level], device=ctx.obj["DEVICE"])
 
 
 @cli.command(help="Returns to charger")
+@click.pass_context
 @coro
-async def charge() -> None:
+async def charge(ctx: click.Context) -> None:
     """Click subcommand that returns to charger."""
-    await run_with_login(Charge())
+    await run_with_login(cmd=Charge, device=ctx.obj["DEVICE"])
 
 
 @cli.command(help="Pause the robot")
+@click.pass_context
 @coro
-async def pause() -> None:
+async def pause(ctx: click.Context) -> None:
     """Click subcommand that pauses the clean."""
-    await run_with_login(CleanPause())
+    await run_with_login(cmd=CleanPause, device=ctx.obj["DEVICE"])
 
 
 @cli.command(help="Resume the robot")
+@click.pass_context
 @coro
-async def resume() -> None:
+async def resume(ctx: click.Context) -> None:
     """Click subcommand that resumes the clean."""
-    await run_with_login(CleanResume())
+    await run_with_login(cmd=CleanResume, device=ctx.obj["DEVICE"])
 
 
 @cli.command(name="getcleanlogs", help="Get Clean Logs")
+@click.pass_context
 @coro
-async def get_clean_logs() -> None:
+async def get_clean_logs(ctx: click.Context) -> None:
     """Click subcommand that returns clean logs."""
     vacbot = CliUtil()
     try:
-        await vacbot.before()
+        await vacbot.before(ctx.obj["DEVICE"])
 
         lock = asyncio.Event()
 
@@ -244,12 +285,13 @@ async def get_clean_logs() -> None:
 
 
 @cli.command(help="Get robot statuses [Status,Battery,FanSpeed,WaterLevel]")
+@click.pass_context
 @coro
-async def statuses() -> None:
+async def statuses(ctx: click.Context) -> None:
     """Click subcommand that returns the robot status."""
     vacbot = CliUtil()
     try:
-        await vacbot.before()
+        await vacbot.before(ctx.obj["DEVICE"])
         lock = asyncio.Event()
 
         async def on_status(event: StatusEvent) -> None:
@@ -294,12 +336,13 @@ async def statuses() -> None:
 
 
 @cli.command(help="Get stats")
+@click.pass_context
 @coro
-async def stats() -> None:
+async def stats(ctx: click.Context) -> None:
     """Click subcommand that returns bot stats."""
     vacbot = CliUtil()
     try:
-        await vacbot.before()
+        await vacbot.before(ctx.obj["DEVICE"])
 
         lock = asyncio.Event()
 
@@ -320,12 +363,13 @@ async def stats() -> None:
 
 
 @cli.command(help="Get robot components life span")
+@click.pass_context
 @coro
-async def components() -> None:
+async def components(ctx: click.Context) -> None:
     """Click subcommand that returns the robot's life span."""
     vacbot = CliUtil()
     try:
-        await vacbot.before()
+        await vacbot.before(ctx.obj["DEVICE"])
 
         lock = asyncio.Event()
 
@@ -343,12 +387,13 @@ async def components() -> None:
 
 
 @cli.command(name="getrooms", help="Get saved rooms")
+@click.pass_context
 @coro
-async def get_rooms() -> None:
+async def get_rooms(ctx: click.Context) -> None:
     """Click subcommand that returns saved room."""
     vacbot = CliUtil()
     try:
-        await vacbot.before()
+        await vacbot.before(ctx.obj["DEVICE"])
 
         lock = asyncio.Event()
 
@@ -375,8 +420,11 @@ async def get_rooms() -> None:
     default=False,
     help="Do not check if the file extension is valid.",
 )
+@click.pass_context
 @coro
-async def export_live_map(filepath: str, force_extension: bool) -> None:
+async def export_live_map(
+    ctx: click.Context, filepath: str, force_extension: bool
+) -> None:
     """Click subcommand that returns the live map."""
     if not force_extension and mimetypes.guess_type(filepath)[0] != "image/png":
         logging.error("exportlivemap generates a png image.")
@@ -387,7 +435,7 @@ async def export_live_map(filepath: str, force_extension: bool) -> None:
 
     vacbot = CliUtil()
     try:
-        await vacbot.before()
+        await vacbot.before(ctx.obj["DEVICE"])
 
         lock = asyncio.Event()
 
@@ -450,18 +498,29 @@ class CliUtil:
             )
             sys.exit(1)
 
-    async def before(self) -> None:
+    async def before(self, match: Union[str, None] = None) -> None:
         # pylint: disable=attribute-defined-outside-init
         """Communicate with Deebot."""
         await self._api.login()
 
         self.devices = await self._api.get_devices()
+        if match is None:
+            device = self.devices[0]
+        else:
+            device_ = self.match_device(match)
+            if device_ is None:
+                logging.warning(
+                    "Failed to find a device, defaulting to first item in list."
+                )
+                device = self.devices[0]
+            else:
+                device = device_
 
         auth = await self._api.get_request_auth()
         self.bot = VacuumBot(
             self._session,
             auth,
-            self.devices[0],
+            device,
             continent=self._config["continent"],
             country=self._config["country"],
             verify_ssl=bool(self._config["verify_ssl"]),
@@ -470,6 +529,13 @@ class CliUtil:
     async def after(self) -> None:
         """Close all connections."""
         await self._session.close()
+
+    def match_device(self, match: str) -> Union[Vacuum, None]:
+        """Match a device based on nick, device name, did or device name."""
+        for device in self.devices:
+            if match in [device.nick, device.device_name, device.did, device.name]:
+                return device
+        return None
 
 
 if __name__ == "__main__":
