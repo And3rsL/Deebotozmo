@@ -68,20 +68,24 @@ def config_file_exists() -> bool:
     return os.path.isfile(config_file())
 
 
-def read_config() -> configparser.SectionProxy:
+def read_config() -> configparser.ConfigParser:
     """Read and parse the config file."""
+    parser = configparser.ConfigParser()
+    parser.read(config_file())
+    return parser
+
+def read_config_old() -> configparser.SectionProxy:
+    """Read and parser the config file for migration."""
     parser = configparser.ConfigParser()
     with open(config_file(), encoding="utf-8") as file:
         parser.read_file(itertools.chain(["[global]"], file), source=config_file())
     return parser["global"]
 
-
-def write_config(config: dict) -> None:
+def write_config(config: configparser.ConfigParser) -> None:
     """Create a new config file."""
     os.makedirs(os.path.dirname(config_file()), exist_ok=True)
     with open(config_file(), "w", encoding="utf-8") as file:
-        for key in config:
-            file.write(f"{key}={config[key]}\n")
+        config.write(file)
 
 
 @click.group(chain=True, help="")
@@ -478,18 +482,39 @@ class CliUtil:
 
     def __init__(self) -> None:
         """Init CliUtil."""
-        self._config = read_config()
+        try:
+            config = read_config()
+        except configparser.MissingSectionHeaderError:
+            config_old = read_config_old()
+            config = configparser.ConfigParser()
+            config["account"] = {}
+            config["account"]["email"] = config_old["email"]
+            config["account"]["password_hash"] = config_old["password_hash"]
+            config["device"] = {}
+            config["device"]["device_id"] = config_old["device_id"]
+            config["device"]["continent"] = config_old["continent"]
+            config["device"]["country"] = config_old["country"]
+            config["device"]["verify_ssl"] = config_old["verify_ssl"]
+            write_config(config)
+            config = read_config()
+
+        device_id = config["device"]["device_id"]
+        email = config["account"]["email"]
+        password_hash = config["account"]["password_hash"]
+        self._continent = config["device"]["continent"]
+        self._country = config["device"]["country"]
+        self._verify_ssl = config["device"]["verify_ssl"]
 
         self._session = aiohttp.ClientSession()
 
         self._api = EcovacsAPI(
             self._session,
-            self._config["device_id"],
-            self._config["email"],
-            self._config["password_hash"],
-            continent=self._config["continent"],
-            country=self._config["country"],
-            verify_ssl=bool(self._config["verify_ssl"]),
+            device_id,
+            email,
+            password_hash,
+            continent=self._continent,
+            country=self._country,
+            verify_ssl=bool(self._verify_ssl),
         )
 
         if not config_file_exists():
@@ -521,9 +546,9 @@ class CliUtil:
             self._session,
             auth,
             device,
-            continent=self._config["continent"],
-            country=self._config["country"],
-            verify_ssl=bool(self._config["verify_ssl"]),
+            continent=self._continent,
+            country=self._country,
+            verify_ssl=bool(self._verify_ssl),
         )
 
     async def after(self) -> None:
