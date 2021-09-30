@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import aiohttp
 import click
@@ -492,10 +492,11 @@ async def get_devices(raw_data: bool) -> None:
         if raw_data:
             print(vacbot.devices)
         else:
-            for idx, device in enumerate(vacbot.devices):
-                print(
-                    f"{idx + 1}) {device.nick} ({device.device_name}) ({device.did}) ({device.name})"
-                )
+            for device in vacbot.devices:
+                name = device.nick
+                if not name:
+                    name = device.name
+                print(f"{name} ({device.device_name}) ({device.did})")
     finally:
         await vacbot.after()
 
@@ -545,23 +546,13 @@ class CliUtil:
             )
             sys.exit(1)
 
-    async def before(self, match: Union[str, None] = None) -> None:
+    async def before(self, selected_device: Union[str, None] = None) -> None:
         # pylint: disable=attribute-defined-outside-init
         """Communicate with Deebot."""
         await self._api.login()
 
         self.devices = await self._api.get_devices()
-        if match is None:
-            device = self.devices[0]
-        else:
-            device_ = self.match_device(match)
-            if device_ is None:
-                logging.warning(
-                    "Failed to find a device, defaulting to first item in list."
-                )
-                device = self.devices[0]
-            else:
-                device = device_
+        device = self._get_matched_device(selected_device)
 
         auth = await self._api.get_request_auth()
         self.bot = VacuumBot(
@@ -577,12 +568,21 @@ class CliUtil:
         """Close all connections."""
         await self._session.close()
 
-    def match_device(self, match: str) -> Union[Vacuum, None]:
-        """Match a device based on nick, device name, did or device name."""
+    def _get_matched_device(self, device_match: Optional[str]) -> Vacuum:
+        """Match a device based on nick, device name, did or device name or return first device."""
+        if device_match is None:
+            return self.devices[0]
+
         for device in self.devices:
-            if match in [device.nick, device.device_name, device.did, device.name]:
+            if device_match in [
+                device.nick,
+                device.device_name,
+                device.did,
+                device.name,
+            ]:
                 return device
-        return None
+        logging.warning("Failed to find a device, defaulting to first item in list.")
+        return self.devices[0]
 
 
 if __name__ == "__main__":
