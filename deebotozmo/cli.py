@@ -110,9 +110,9 @@ def cli(
 
     # ensure that ctx.obj exists and is a dict (in case `cli()` is called
     # by means other than the `if` block below)
-    if isinstance(ctx, click.Context):
-        ctx.ensure_object(dict)
-        ctx.obj[DEVICE] = device
+    assert isinstance(ctx, click.Context)
+    ctx.ensure_object(dict)
+    ctx.obj[DEVICE] = device
 
 
 @cli.command(name="createconfig", help="logs in with specified email; run this first")
@@ -176,7 +176,7 @@ async def run_with_login(
         if isinstance(cmd_args, list):
             await util.bot.execute_command(cmd(*cmd_args))
         else:
-            await util.bot.execute_command(cmd(*cmd_args))
+            await util.bot.execute_command(cmd(**cmd_args))
     finally:
         await util.after()
 
