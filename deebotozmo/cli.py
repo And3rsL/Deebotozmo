@@ -13,7 +13,7 @@ import sys
 import time
 from dataclasses import asdict
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 import aiohttp
 import click
@@ -44,6 +44,9 @@ from deebotozmo.models import Vacuum, VacuumState
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
+SECTION_DEFAULT = "DEFAULT"
+DEVICE = "DEVICE"
+
 
 def coro(func: Callable) -> Callable:
     """Wrap around a function to run it in coroutine."""
@@ -68,14 +71,14 @@ def config_file_exists() -> bool:
     return os.path.isfile(config_file())
 
 
-def read_config() -> configparser.ConfigParser:
+def read_config() -> Mapping[str, Any]:
     """Read and parse the config file."""
     parser = configparser.ConfigParser()
     parser.read(config_file())
-    return parser
+    return parser[SECTION_DEFAULT]
 
 
-def read_config_old() -> configparser.SectionProxy:
+def read_config_old() -> Mapping[str, Any]:
     """Read and parser the config file for migration."""
     parser = configparser.ConfigParser()
     with open(config_file(), encoding="utf-8") as file:
@@ -83,11 +86,13 @@ def read_config_old() -> configparser.SectionProxy:
     return parser["global"]
 
 
-def write_config(config: configparser.ConfigParser) -> None:
+def write_config(config: Mapping[str, Any]) -> None:
     """Create a new config file."""
     os.makedirs(os.path.dirname(config_file()), exist_ok=True)
+    parser = configparser.ConfigParser()
+    parser[SECTION_DEFAULT] = config
     with open(config_file(), "w", encoding="utf-8") as file:
-        config.write(file)
+        parser.write(file)
 
 
 @click.group(chain=True, help="")
@@ -107,28 +112,7 @@ def cli(
     # by means other than the `if` block below)
     if isinstance(ctx, click.Context):
         ctx.ensure_object(dict)
-        ctx.obj["DEVICE"] = device
-
-
-# pylint: disable=too-many-arguments
-def _create_config(
-    email: str,
-    password_hash: str,
-    device_id: str,
-    continent_code: str,
-    country_code: str,
-    verify_ssl: str,
-) -> None:
-    config = configparser.ConfigParser()
-    config["account"] = {}
-    config["account"]["email"] = email
-    config["account"]["password_hash"] = password_hash
-    config["device"] = {}
-    config["device"]["device_id"] = device_id
-    config["device"]["continent"] = continent_code.lower()
-    config["device"]["country"] = country_code.lower()
-    config["device"]["verify_ssl"] = verify_ssl
-    write_config(config)
+        ctx.obj[DEVICE] = device
 
 
 @cli.command(name="createconfig", help="logs in with specified email; run this first")
@@ -161,37 +145,40 @@ async def create_config(
         except ValueError as error:
             click.echo(error.args[0])
             sys.exit(1)
-    _create_config(
-        email=email,
-        password_hash=password_hash,
-        device_id=device_id,
-        country_code=country_code,
-        continent_code=continent_code,
-        verify_ssl=verify_ssl,
+
+    write_config(
+        {
+            "email": email,
+            "password_hash": password_hash,
+            "device_id": device_id,
+            "country_code": country_code,
+            "continent_code": continent_code,
+            "verify_ssl": verify_ssl,
+        }
     )
     click.echo("Config saved.")
     sys.exit(0)
 
 
 async def run_with_login(
-    device: Optional[str],
+    context: click.Context,
     cmd: Callable,
-    cmd_list: Optional[list] = None,
-    cmd_dict: Optional[dict] = None,
+    *,
+    cmd_args: Union[list, Dict[str, Any], None] = None,
 ) -> None:
     """Execute a command only."""
-    if cmd_list is None:
-        cmd_list = []
+    if cmd_args is None:
+        cmd_args = {}
 
-    if cmd_dict is None:
-        cmd_dict = {}
-
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(device)
-        await vacbot.bot.execute_command(cmd(*cmd_list, **cmd_dict))
+        await util.before(context.obj[DEVICE])
+        if isinstance(cmd_args, list):
+            await util.bot.execute_command(cmd(*cmd_args))
+        else:
+            await util.bot.execute_command(cmd(*cmd_args))
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(name="playsound", help="Play welcome sound")
@@ -199,7 +186,7 @@ async def run_with_login(
 @coro
 async def play_sound(ctx: click.Context) -> None:
     """Click subcommand that runs the welcome sound."""
-    await run_with_login(cmd=PlaySound, device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, PlaySound)
 
 
 @cli.command(help="Auto clean")
@@ -207,7 +194,7 @@ async def play_sound(ctx: click.Context) -> None:
 @coro
 async def clean(ctx: click.Context) -> None:
     """Click subcommand that runs the auto clean command."""
-    await run_with_login(cmd=CleanStart, device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, CleanStart)
 
 
 @cli.command(
@@ -222,9 +209,9 @@ async def clean(ctx: click.Context) -> None:
 async def custom_area(ctx: click.Context, area: str, cleanings: int = 1) -> None:
     """Click subcommand that runs a clean in a custom area."""
     await run_with_login(
-        cmd=CleanCustomArea,
-        cmd_dict={"map_position": area, "cleanings": cleanings},
-        device=ctx.obj["DEVICE"],
+        ctx,
+        CleanCustomArea,
+        cmd_args={"map_position": area, "cleanings": cleanings},
     )
 
 
@@ -240,9 +227,9 @@ async def custom_area(ctx: click.Context, area: str, cleanings: int = 1) -> None
 async def spot_area(ctx: click.Context, rooms: str, cleanings: int = 1) -> None:
     """Click subcommand that runs a clean in a specific room."""
     await run_with_login(
-        cmd=CleanSpotArea,
-        cmd_dict={"area": rooms, "cleanings": cleanings},
-        device=ctx.obj["DEVICE"],
+        ctx,
+        CleanSpotArea,
+        cmd_args={"area": rooms, "cleanings": cleanings},
     )
 
 
@@ -252,7 +239,7 @@ async def spot_area(ctx: click.Context, rooms: str, cleanings: int = 1) -> None:
 @coro
 async def set_fan_speed(ctx: click.Context, speed: str) -> None:
     """Click subcommand that sets the fan speed."""
-    await run_with_login(cmd=SetFanSpeed, cmd_list=[speed], device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, SetFanSpeed, cmd_args=[speed])
 
 
 @cli.command(name="setwaterlevel", help="Set Water Level")
@@ -261,7 +248,7 @@ async def set_fan_speed(ctx: click.Context, speed: str) -> None:
 @coro
 async def set_water_level(ctx: click.Context, level: str) -> None:
     """Click subcommmand that sets the water level."""
-    await run_with_login(cmd=SetWaterLevel, cmd_list=[level], device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, SetWaterLevel, cmd_args=[level])
 
 
 @cli.command(help="Returns to charger")
@@ -269,7 +256,7 @@ async def set_water_level(ctx: click.Context, level: str) -> None:
 @coro
 async def charge(ctx: click.Context) -> None:
     """Click subcommand that returns to charger."""
-    await run_with_login(cmd=Charge, device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, Charge)
 
 
 @cli.command(help="Pause the robot")
@@ -277,7 +264,7 @@ async def charge(ctx: click.Context) -> None:
 @coro
 async def pause(ctx: click.Context) -> None:
     """Click subcommand that pauses the clean."""
-    await run_with_login(cmd=CleanPause, device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, CleanPause)
 
 
 @cli.command(help="Resume the robot")
@@ -285,7 +272,7 @@ async def pause(ctx: click.Context) -> None:
 @coro
 async def resume(ctx: click.Context) -> None:
     """Click subcommand that resumes the clean."""
-    await run_with_login(cmd=CleanResume, device=ctx.obj["DEVICE"])
+    await run_with_login(ctx, CleanResume)
 
 
 @cli.command(name="getcleanlogs", help="Get Clean Logs")
@@ -293,9 +280,9 @@ async def resume(ctx: click.Context) -> None:
 @coro
 async def get_clean_logs(ctx: click.Context) -> None:
     """Click subcommand that returns clean logs."""
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(ctx.obj["DEVICE"])
+        await util.before(ctx.obj[DEVICE])
 
         event = asyncio.Event()
 
@@ -304,11 +291,11 @@ async def get_clean_logs(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        listener = vacbot.bot.events.clean_logs.subscribe(on_clean_event)
+        listener = util.bot.events.clean_logs.subscribe(on_clean_event)
         await event.wait()
         listener.unsubscribe()
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(help="Get robot statuses [Status,Battery,FanSpeed,WaterLevel]")
@@ -316,9 +303,9 @@ async def get_clean_logs(ctx: click.Context) -> None:
 @coro
 async def statuses(ctx: click.Context) -> None:
     """Click subcommand that returns the robot status."""
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(ctx.obj["DEVICE"])
+        await util.before(ctx.obj[DEVICE])
         event = asyncio.Event()
 
         async def on_status(status_event: StatusEvent) -> None:
@@ -328,7 +315,7 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        status_listener = vacbot.bot.events.status.subscribe(on_status)
+        status_listener = util.bot.events.status.subscribe(on_status)
         await event.wait()
         status_listener.unsubscribe()
 
@@ -337,7 +324,7 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        battery_listener = vacbot.bot.events.battery.subscribe(on_battery)
+        battery_listener = util.bot.events.battery.subscribe(on_battery)
         await event.wait()
         battery_listener.unsubscribe()
 
@@ -346,7 +333,7 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        fan_speed_listener = vacbot.bot.events.fan_speed.subscribe(on_fan_event)
+        fan_speed_listener = util.bot.events.fan_speed.subscribe(on_fan_event)
         await event.wait()
         fan_speed_listener.unsubscribe()
 
@@ -355,11 +342,11 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        water_level_listener = vacbot.bot.events.water_info.subscribe(on_water_level)
+        water_level_listener = util.bot.events.water_info.subscribe(on_water_level)
         await event.wait()
         water_level_listener.unsubscribe()
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(help="Get stats")
@@ -367,9 +354,9 @@ async def statuses(ctx: click.Context) -> None:
 @coro
 async def stats(ctx: click.Context) -> None:
     """Click subcommand that returns bot stats."""
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(ctx.obj["DEVICE"])
+        await util.before(ctx.obj[DEVICE])
 
         event = asyncio.Event()
 
@@ -382,11 +369,11 @@ async def stats(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        listener = vacbot.bot.events.stats.subscribe(on_stats_event)
+        listener = util.bot.events.stats.subscribe(on_stats_event)
         await event.wait()
         listener.unsubscribe()
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(help="Get robot components life span")
@@ -394,9 +381,9 @@ async def stats(ctx: click.Context) -> None:
 @coro
 async def components(ctx: click.Context) -> None:
     """Click subcommand that returns the robot's life span."""
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(ctx.obj["DEVICE"])
+        await util.before(ctx.obj[DEVICE])
 
         event = asyncio.Event()
 
@@ -406,11 +393,11 @@ async def components(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        listener = vacbot.bot.events.lifespan.subscribe(on_lifespan_event)
+        listener = util.bot.events.lifespan.subscribe(on_lifespan_event)
         await event.wait()
         listener.unsubscribe()
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(name="getrooms", help="Get saved rooms")
@@ -418,9 +405,9 @@ async def components(ctx: click.Context) -> None:
 @coro
 async def get_rooms(ctx: click.Context) -> None:
     """Click subcommand that returns saved room."""
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(ctx.obj["DEVICE"])
+        await util.before(ctx.obj[DEVICE])
 
         event = asyncio.Event()
 
@@ -430,11 +417,11 @@ async def get_rooms(ctx: click.Context) -> None:
             event.set()
 
         event.set()
-        listener = vacbot.bot.map.events.rooms.subscribe(on_rooms)
+        listener = util.bot.map.events.rooms.subscribe(on_rooms)
         await event.wait()
         listener.unsubscribe()
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(
@@ -460,45 +447,40 @@ async def export_live_map(
         )
         return
 
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before(ctx.obj["DEVICE"])
+        await util.before(ctx.obj[DEVICE])
 
         event = asyncio.Event()
 
         async def on_map(_: MapEvent) -> None:
             with open(filepath, "wb") as file:
-                file.write(base64.decodebytes(vacbot.bot.map.get_base64_map()))
+                file.write(base64.decodebytes(util.bot.map.get_base64_map()))
             event.set()
 
         event.clear()
-        listener = vacbot.bot.events.map.subscribe(on_map)
+        listener = util.bot.events.map.subscribe(on_map)
         await event.wait()
         listener.unsubscribe()
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 @cli.command(name="getdevices", help="Get Devices")
-@click.option(
-    "--raw-data/--no-raw-data", default=False, help="Return raw data about all devices"
-)
 @coro
-async def get_devices(raw_data: bool) -> None:
+async def get_devices() -> None:
     """Click subcommand that returns all devices."""
-    vacbot = CliUtil()
+    util = CliUtil()
     try:
-        await vacbot.before()
-        if raw_data:
-            print(vacbot.devices)
-        else:
-            for device in vacbot.devices:
-                name = device.nick
-                if not name:
-                    name = device.name
-                print(f"{name} ({device.device_name}) ({device.did})")
+        await util.before()
+
+        for device in util.devices:
+            name = device.nick
+            if not name:
+                name = device.name
+            print(f"{name} ({device.device_name}) ({device.did})")
     finally:
-        await vacbot.after()
+        await util.after()
 
 
 class CliUtil:
@@ -506,35 +488,26 @@ class CliUtil:
 
     def __init__(self) -> None:
         """Init CliUtil."""
+        self._bot: Optional[VacuumBot] = None
+        self.devices: List[Vacuum] = []
+
         try:
             config = read_config()
         except configparser.MissingSectionHeaderError:
-            config_old = read_config_old()
-            config = configparser.ConfigParser()
-            _create_config(
-                email=config_old["email"],
-                password_hash=config_old["password_hash"],
-                device_id=config_old["device_id"],
-                continent_code=config_old["continent"],
-                country_code=config_old["country"],
-                verify_ssl=config_old["verify_ssl"],
-            )
-            config = read_config()
+            config = read_config_old()
+            write_config(config)
 
-        device_id = config["device"]["device_id"]
-        email = config["account"]["email"]
-        password_hash = config["account"]["password_hash"]
-        self._continent = config["device"]["continent"]
-        self._country = config["device"]["country"]
-        self._verify_ssl = config["device"]["verify_ssl"]
+        self._continent = config["continent"]
+        self._country = config["country"]
+        self._verify_ssl = config["verify_ssl"]
 
         self._session = aiohttp.ClientSession()
 
         self._api = EcovacsAPI(
             self._session,
-            device_id,
-            email,
-            password_hash,
+            config["device_id"],
+            config["email"],
+            config["password_hash"],
             continent=self._continent,
             country=self._country,
             verify_ssl=bool(self._verify_ssl),
@@ -546,8 +519,13 @@ class CliUtil:
             )
             sys.exit(1)
 
-        self.bot: VacuumBot
-        self.devices: List[Vacuum]
+    @property
+    def bot(self) -> VacuumBot:
+        """Return the vacuum bot."""
+        if self._bot is None:
+            click.echo("Bot can only called after calling 'before'!")
+            sys.exit(1)
+        return self._bot
 
     async def before(self, selected_device: Optional[str] = None) -> None:
         """Communicate with Deebot."""
@@ -557,7 +535,7 @@ class CliUtil:
         device = self._get_matched_device(selected_device)
 
         auth = await self._api.get_request_auth()
-        self.bot = VacuumBot(
+        self._bot = VacuumBot(
             self._session,
             auth,
             device,
