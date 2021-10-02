@@ -31,7 +31,7 @@ import string
 from deebotozmo.commands_old import *
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_mqtt import EcovacsMqtt
-from deebotozmo.events_old import BatteryEvent
+from deebotozmo.events import BatteryEvent
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 

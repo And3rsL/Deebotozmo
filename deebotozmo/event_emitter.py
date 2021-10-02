@@ -2,9 +2,20 @@
 import asyncio
 import logging
 from asyncio import Task
-from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
+from dataclasses import dataclass
+from typing import Awaitable, Callable, Dict, Final, Generic, List, Optional, TypeVar
 
-from deebotozmo.events_old import StatusEvent
+from deebotozmo.events import (
+    BatteryEvent,
+    CleanLogEvent,
+    ErrorEvent,
+    FanSpeedEvent,
+    MapEvent,
+    RoomsEvent,
+    StatsEvent,
+    StatusEvent,
+    WaterInfoEvent,
+)
 from deebotozmo.models import VacuumState
 
 _LOGGER = logging.getLogger(__name__)
@@ -145,3 +156,25 @@ class PollingEventEmitter(EventEmitter[T]):
 
         if len(self._subscribers) == 0:
             self._stop_refresh_task()
+
+
+@dataclass
+class MapEmitter:
+    """Class to combine all different map event emitters."""
+
+    map: EventEmitter[MapEvent]
+    rooms: EventEmitter[RoomsEvent]
+
+
+@dataclass
+class VacuumEmitter(MapEmitter):
+    """Class to combine all different vacuum event emitters."""
+
+    battery: EventEmitter[BatteryEvent]
+    clean_logs: EventEmitter[CleanLogEvent]
+    error: EventEmitter[ErrorEvent]
+    fan_speed: EventEmitter[FanSpeedEvent]
+    lifespan: EventEmitter[Dict[str, float]]
+    stats: EventEmitter[StatsEvent]
+    status: EventEmitter[StatusEvent]
+    water_info: EventEmitter[WaterInfoEvent]

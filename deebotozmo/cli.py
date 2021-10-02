@@ -29,14 +29,15 @@ from deebotozmo.commands_old import (
     PlaySound,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.events import FanSpeedEvent, WaterInfoEvent
-from deebotozmo.events_old import (
+from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
+    FanSpeedEvent,
     MapEvent,
     RoomsEvent,
     StatsEvent,
     StatusEvent,
+    WaterInfoEvent,
 )
 from deebotozmo.models import Vacuum, VacuumState
 from deebotozmo.util import md5

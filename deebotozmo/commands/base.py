@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Type, Union
 
-from deebotozmo.events import Events
+from deebotozmo.event_emitter import VacuumEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class Command(ABC):
 
     @classmethod
     @abstractmethod
-    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         """Handle body data and notify the correct event subscriber.
 
         :return: True if data was valid and no error was included
@@ -41,7 +41,7 @@ class Command(ABC):
         raise NotImplementedError
 
     @classmethod
-    def _handle_body(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def _handle_body(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         """Handle data and notify the correct event subscriber.
 
         :return: True if data was valid and no error was included
@@ -50,7 +50,7 @@ class Command(ABC):
         return cls._handle_body_data(events, data)
 
     @classmethod
-    def handle(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def handle(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         """Handle data and notify the correct event subscriber.
 
         :return: True if data was valid and no error was included
@@ -58,7 +58,7 @@ class Command(ABC):
         data_body = data.get("body", data)
         return cls._handle_body(events, data_body)
 
-    def handle_requested(self, events: Events, response: Dict[str, Any]) -> bool:
+    def handle_requested(self, events: VacuumEmitter, response: Dict[str, Any]) -> bool:
         """Handle response from a manual requested command.
 
         :return: True if data was valid and no error was included
@@ -112,7 +112,7 @@ class SetCommand(Command, ABC):
         raise NotImplementedError
 
     @classmethod
-    def _handle_body(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def _handle_body(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         """Handle data and notify the correct event subscriber.
 
         :return: True if data was valid and no error was included
@@ -125,7 +125,7 @@ class SetCommand(Command, ABC):
         return False
 
     @classmethod
-    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         # not required as we overwrite "_handle_body"
         return True
 

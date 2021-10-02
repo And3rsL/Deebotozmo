@@ -22,17 +22,18 @@ from deebotozmo.commands_old import (
 from deebotozmo.constants import COMPONENT_FROM_ECOVACS, ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
-from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter
-from deebotozmo.events import Events, FanSpeedEvent, WaterInfoEvent
-from deebotozmo.events_old import (
+from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
+from deebotozmo.events import (
     BatteryEvent,
     CleanLogEntry,
     CleanLogEvent,
     ErrorEvent,
+    FanSpeedEvent,
     StatsEvent,
     StatusEvent,
+    WaterInfoEvent,
 )
-from deebotozmo.map import Map, MapEvents
+from deebotozmo.map import Map
 from deebotozmo.models import RequestAuth, Vacuum, VacuumState
 from deebotozmo.util import get_refresh_function
 
@@ -40,48 +41,6 @@ _LOGGER = logging.getLogger(__name__)
 
 _COMMAND_REPLACE_PATTERN = "^((on)|(off)|(report))"
 _COMMAND_REPLACE_REPLACEMENT = "get"
-
-
-class VacuumEvents(Events):
-    """Vacuum events representation."""
-
-    def __init__(self, vacuum_bot: "VacuumBot", map_events: MapEvents) -> None:
-        super().__init__(
-            water_info=EventEmitter[WaterInfoEvent](
-                get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command)
-            ),
-            fan_speed=EventEmitter[FanSpeedEvent](
-                get_refresh_function([GetFanSpeed()], vacuum_bot.execute_command)
-            ),
-        )
-        self.battery: Final[EventEmitter[BatteryEvent]] = EventEmitter[BatteryEvent](
-            get_refresh_function([GetBattery()], vacuum_bot.execute_command)
-        )
-        self.clean_logs: Final[EventEmitter[CleanLogEvent]] = EventEmitter[
-            CleanLogEvent
-        ](get_refresh_function([GetCleanLogs()], vacuum_bot.execute_command))
-        self.error: Final[EventEmitter[ErrorEvent]] = EventEmitter[ErrorEvent](
-            get_refresh_function([GetError()], vacuum_bot.execute_command)
-        )
-        self.stats: Final[EventEmitter[StatsEvent]] = EventEmitter[StatsEvent](
-            get_refresh_function([GetStats()], vacuum_bot.execute_command)
-        )
-        self.status: Final[EventEmitter[StatusEvent]] = EventEmitter[StatusEvent](
-            get_refresh_function(
-                [GetChargeState(), GetCleanInfo(vacuum_bot.vacuum)],
-                vacuum_bot.execute_command,
-            )
-        )
-
-        self.lifespan: Final[EventEmitter[Dict[str, float]]] = PollingEventEmitter[
-            Dict[str, float]
-        ](
-            60,
-            get_refresh_function([GetLifeSpan()], vacuum_bot.execute_command),
-            self.status,
-        )
-        self.map: Final = map_events.map
-        self.rooms: Final = map_events.rooms
 
 
 class VacuumBot:
@@ -112,7 +71,39 @@ class VacuumBot:
         self.fw_version: Optional[str] = None
 
         self.map: Final = Map(self.execute_command)
-        self.events: Final = VacuumEvents(self, self.map.events)
+
+        status_ = EventEmitter[StatusEvent](
+            get_refresh_function(
+                [GetChargeState(), GetCleanInfo(self.vacuum)],
+                self.execute_command,
+            )
+        )
+        self.events: Final = VacuumEmitter(
+            battery=EventEmitter[BatteryEvent](
+                get_refresh_function([GetBattery()], self.execute_command)
+            ),
+            clean_logs=EventEmitter[CleanLogEvent](
+                get_refresh_function([GetCleanLogs()], self.execute_command)
+            ),
+            error=EventEmitter[ErrorEvent](
+                get_refresh_function([GetError()], self.execute_command)
+            ),
+            fan_speed=EventEmitter[FanSpeedEvent](
+                get_refresh_function([GetFanSpeed()], self.execute_command)
+            ),
+            lifespan=PollingEventEmitter[Dict[str, float]](
+                60, get_refresh_function([GetLifeSpan()], self.execute_command), status_
+            ),
+            map=self.map.events.map,
+            rooms=self.map.events.rooms,
+            stats=EventEmitter[StatsEvent](
+                get_refresh_function([GetStats()], self.execute_command)
+            ),
+            status=status_,
+            water_info=EventEmitter[WaterInfoEvent](
+                get_refresh_function([GetWaterInfo()], self.execute_command)
+            ),
+        )
 
     async def execute_command(self, command: Union[Command, OldCommand]) -> None:
         """Execute given command and handle response."""

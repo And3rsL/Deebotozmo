@@ -26,6 +26,13 @@ class ErrorEvent:
 
 
 @dataclass
+class FanSpeedEvent:
+    """Fan speed event representation."""
+
+    speed: str
+
+
+@dataclass
 class BatteryEvent:
     """Battery event representation."""
 
@@ -38,6 +45,14 @@ class StatusEvent:
 
     available: bool
     state: Optional[VacuumState]
+
+
+@dataclass
+class WaterInfoEvent:
+    """Water info event representation."""
+
+    mop_attached: bool
+    amount: str
 
 
 @dataclass

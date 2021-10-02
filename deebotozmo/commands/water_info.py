@@ -4,7 +4,7 @@ from enum import unique
 from typing import Any, Dict, Mapping, Union
 
 from ..events import WaterInfoEvent
-from .base import DisplayNameEnum, Events, GetCommand, SetCommand
+from .base import DisplayNameEnum, GetCommand, SetCommand, VacuumEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class GetWaterInfo(GetCommand):
     name = "getWaterInfo"
 
     @classmethod
-    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         """Handle body data and notify the correct event subscriber.
 
         :return: True if data was valid and no error was included

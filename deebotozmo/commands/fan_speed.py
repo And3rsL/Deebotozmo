@@ -5,7 +5,8 @@ from typing import Any, Dict, Mapping, Union
 
 from deebotozmo.commands import SetCommand
 from deebotozmo.commands.base import DisplayNameEnum, GetCommand
-from deebotozmo.events import Events, FanSpeedEvent
+from deebotozmo.event_emitter import VacuumEmitter
+from deebotozmo.events import FanSpeedEvent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class GetFanSpeed(GetCommand):
     name = "getSpeed"
 
     @classmethod
-    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
         """Handle body data and notify the correct event subscriber.
 
         :return: True if data was valid and no error was included

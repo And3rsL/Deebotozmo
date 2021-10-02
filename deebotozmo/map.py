@@ -22,8 +22,8 @@ from deebotozmo.commands_old import (
     GetPos,
 )
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
-from deebotozmo.event_emitter import EventEmitter
-from deebotozmo.events_old import MapEvent, RoomsEvent
+from deebotozmo.event_emitter import EventEmitter, MapEmitter
+from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_refresh_function
 
@@ -76,22 +76,6 @@ def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int) -> flo
     return 0.0
 
 
-class MapEvents:
-    """Map events representation."""
-
-    def __init__(
-        self, execute_command: Callable[[Union[Command, OldCommand]], Awaitable[None]]
-    ) -> None:
-        self.map: Final[EventEmitter[MapEvent]] = EventEmitter[MapEvent](
-            get_refresh_function(
-                [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
-            ),
-        )
-        self.rooms: Final[EventEmitter[RoomsEvent]] = EventEmitter[RoomsEvent](
-            get_refresh_function([GetCachedMapInfo()], execute_command)
-        )
-
-
 class Map:
     """Map representation."""
 
@@ -124,7 +108,16 @@ class Map:
         self._base64_image: Optional[bytes] = None
         self._last_requested_width: Optional[int] = None
 
-        self.events: Final = MapEvents(self._execute_command)
+        self.events: Final = MapEmitter(
+            map=EventEmitter[MapEvent](
+                get_refresh_function(
+                    [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
+                ),
+            ),
+            rooms=EventEmitter[RoomsEvent](
+                get_refresh_function([GetCachedMapInfo()], execute_command)
+            ),
+        )
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
