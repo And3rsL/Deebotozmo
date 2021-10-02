@@ -42,13 +42,12 @@ class SetWaterInfo(SetCommand):
     name = "setWaterInfo"
     get_command = GetWaterInfo
 
-    def __init__(self, amount: Union[str, int], **kwargs: Mapping[str, Any]) -> None:
+    def __init__(
+        self, amount: Union[str, int, WaterLevel], **kwargs: Mapping[str, Any]
+    ) -> None:
         # removing "enable" as we don't can set it
         remove_from_kwargs = ["enable"]
-        amount_int = amount
-        if isinstance(amount, str):
-            amount_int = get_member(WaterLevel, amount)
+        if isinstance(amount, (str, WaterLevel)):
+            amount = get_member(WaterLevel, amount)
 
-        super().__init__(
-            {"amount": amount_int, "enable": 0}, remove_from_kwargs, **kwargs
-        )
+        super().__init__({"amount": amount, "enable": 0}, remove_from_kwargs, **kwargs)

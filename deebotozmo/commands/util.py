@@ -1,11 +1,11 @@
 """Commands util module."""
-from enum import Enum
-from typing import Type, TypeVar
+from enum import IntEnum
+from typing import Type, TypeVar, Union
 
-T = TypeVar("T", bound=Enum)
+T = TypeVar("T", bound=IntEnum)
 
 
-def get_member(enum: Type[T], value: str) -> T:
+def get_member(enum: Type[T], value: Union[str, T]) -> int:
     """Return the enum member for the given "value" string.
 
     :param enum: The enum
@@ -13,8 +13,11 @@ def get_member(enum: Type[T], value: str) -> T:
     :raise ValueError: if the given value don't correspond to a enum member
     :return: The found enum member
     """
-    value = value.upper()
+    if isinstance(value, enum):
+        return value.value
+
+    value = str(value).upper()
     if value not in enum.__members__:
         raise ValueError(f"'{value}' is not a valid {enum.__name__}")
 
-    return enum[value]
+    return enum[value].value
