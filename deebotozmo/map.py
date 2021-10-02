@@ -10,8 +10,9 @@ from typing import Any, Awaitable, Callable, Dict, Final, List, Optional, Union
 from numpy import ndarray, reshape, zeros
 from PIL import Image, ImageDraw, ImageOps
 
+from deebotozmo.commands import Command
+from deebotozmo.commands_old import Command as OldCommand
 from deebotozmo.commands_old import (
-    Command,
     GetCachedMapInfo,
     GetMajorMap,
     GetMapSet,
@@ -78,7 +79,9 @@ def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int) -> flo
 class MapEvents:
     """Map events representation."""
 
-    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]) -> None:
+    def __init__(
+        self, execute_command: Callable[[Union[Command, OldCommand]], Awaitable[None]]
+    ) -> None:
         self.map: Final[EventEmitter[MapEvent]] = EventEmitter[MapEvent](
             get_refresh_function(
                 [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
@@ -106,7 +109,9 @@ class Map:
     PIXEL_WIDTH = 50
     OFFSET = 400
 
-    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]):
+    def __init__(
+        self, execute_command: Callable[[Union[Command, OldCommand]], Awaitable[None]]
+    ):
         self._execute_command = execute_command
 
         self._robot_position: Optional[Coordinate] = None

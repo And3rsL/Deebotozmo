@@ -11,7 +11,6 @@ from deebotozmo.constants import (
     COMPONENT_SIDE_BRUSH,
     FAN_SPEED_TO_ECOVACS,
     MAP_TRACE_POINT_COUNT,
-    WATER_LEVEL_TO_ECOVACS,
 )
 from deebotozmo.models import Vacuum
 
@@ -41,16 +40,6 @@ class SetFanSpeed(Command):
 
     def __init__(self, speed: str) -> None:
         super().__init__("setSpeed", {"speed": FAN_SPEED_TO_ECOVACS.get(speed, 0)})
-
-
-class SetWaterLevel(Command):
-    """Set water level command."""
-
-    def __init__(self, amount: str) -> None:
-        super().__init__(
-            "setWaterInfo",
-            {"amount": WATER_LEVEL_TO_ECOVACS.get(amount, 2), "enable": 0},
-        )
 
 
 class Relocate(Command):
@@ -183,13 +172,6 @@ class GetFanSpeed(Command):
 
     def __init__(self) -> None:
         super().__init__("getSpeed")
-
-
-class GetWaterInfo(Command):
-    """Get water info command."""
-
-    def __init__(self) -> None:
-        super().__init__("getWaterInfo")
 
 
 class GetCachedMapInfo(Command):

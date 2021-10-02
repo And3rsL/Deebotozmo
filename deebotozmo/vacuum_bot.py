@@ -1,14 +1,15 @@
 """Vacuum bot module."""
 import asyncio
 import logging
-from typing import Dict, Final, List, Optional, Union
+import re
+from typing import Any, Dict, Final, List, Optional, Union
 
 import aiohttp
 
+from deebotozmo.commands import COMMANDS, Command, GetWaterInfo
+from deebotozmo.commands_old import CleanResume, CleanStart
+from deebotozmo.commands_old import Command as OldCommand
 from deebotozmo.commands_old import (
-    CleanResume,
-    CleanStart,
-    Command,
     GetBattery,
     GetChargeState,
     GetCleanInfo,
@@ -17,17 +18,16 @@ from deebotozmo.commands_old import (
     GetFanSpeed,
     GetLifeSpan,
     GetStats,
-    GetWaterInfo,
 )
 from deebotozmo.constants import (
     COMPONENT_FROM_ECOVACS,
     ERROR_CODES,
     FAN_SPEED_FROM_ECOVACS,
-    WATER_LEVEL_FROM_ECOVACS,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter
+from deebotozmo.events import Events, WaterInfoEvent
 from deebotozmo.events_old import (
     BatteryEvent,
     CleanLogEntry,
@@ -36,7 +36,6 @@ from deebotozmo.events_old import (
     FanSpeedEvent,
     StatsEvent,
     StatusEvent,
-    WaterInfoEvent,
 )
 from deebotozmo.map import Map, MapEvents
 from deebotozmo.models import RequestAuth, Vacuum, VacuumState
@@ -44,11 +43,19 @@ from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 
+_COMMAND_REPLACE_PATTERN = "^((on)|(off)|(report))"
+_COMMAND_REPLACE_REPLACEMENT = "get"
 
-class VacuumEvents:
+
+class VacuumEvents(Events):
     """Vacuum events representation."""
 
     def __init__(self, vacuum_bot: "VacuumBot", map_events: MapEvents) -> None:
+        super().__init__(
+            water_info=EventEmitter[WaterInfoEvent](
+                get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command)
+            )
+        )
         self.battery: Final[EventEmitter[BatteryEvent]] = EventEmitter[BatteryEvent](
             get_refresh_function([GetBattery()], vacuum_bot.execute_command)
         )
@@ -70,9 +77,6 @@ class VacuumEvents:
                 vacuum_bot.execute_command,
             )
         )
-        self.water_info: Final[EventEmitter[WaterInfoEvent]] = EventEmitter[
-            WaterInfoEvent
-        ](get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command))
 
         self.lifespan: Final[EventEmitter[Dict[str, float]]] = PollingEventEmitter[
             Dict[str, float]
@@ -115,7 +119,7 @@ class VacuumBot:
         self.map: Final = Map(self.execute_command)
         self.events: Final = VacuumEvents(self, self.map.events)
 
-    async def execute_command(self, command: Command) -> None:
+    async def execute_command(self, command: Union[Command, OldCommand]) -> None:
         """Execute given command and handle response."""
         if (
             command.name == CleanResume().name
@@ -131,7 +135,7 @@ class VacuumBot:
         async with self._semaphore:
             response = await self.json.send_command(command, self.vacuum)
 
-        await self.handle(command.name, response)
+        await self.handle(command.name, response, command)
 
     def set_available(self, available: bool) -> None:
         """Set available."""
@@ -162,21 +166,38 @@ class VacuumBot:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-        self, event_name: str, event: dict, requested: bool = True
+        self,
+        command_name: str,
+        data: Dict[str, Any],
+        requested_command: Optional[Union[Command, OldCommand]],
     ) -> None:
         """Handle the given event.
 
-        :param event_name: the name of the event or request
-        :param event: the data of it
-        :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
+        :param command_name: the name of the event or request
+        :param data: the data of it
+        :param requested_command: The request command object. None -> MQTT
         :return: None
         """
+        if requested_command and isinstance(requested_command, Command):
+            requested_command.handle_requested(self.events, data)
+        else:
+            # Handle command start start with "on","off","report" the same as "get" commands
+            command_name = re.sub(
+                _COMMAND_REPLACE_PATTERN, _COMMAND_REPLACE_REPLACEMENT, command_name
+            )
 
-        await self._handle_old(event_name, event, requested)
+            command = COMMANDS.get(command_name, None)
+            if command:
+                command.handle(self.events, data)
+            else:
+                await self._handle_old(
+                    command_name, data, requested_command is not None
+                )
 
     async def _handle_old(
         self, event_name: str, event: dict, requested: bool = True
     ) -> None:
+        # pylint: disable=too-many-branches
 
         _LOGGER.debug("Handle %s: %s", event_name, event)
         event_name = event_name.lower()
@@ -238,7 +259,7 @@ class VacuumBot:
         elif event_name == "cleaninfo":
             await self._handle_clean_info(event_data)
         elif event_name == "waterinfo":
-            await self._handle_water_info(event_data)
+            raise NotImplementedError()
         elif "map" in event_name or event_name == "pos":
             await self.map.handle(event_name, event_data, requested)
         elif event_name.startswith("set"):
@@ -340,17 +361,6 @@ class VacuumBot:
                 _LOGGER.warning("Could not parse life span event with %s", event_data)
 
         self.events.lifespan.notify(components)
-
-    async def _handle_water_info(self, event_data: dict) -> None:
-        amount = event_data.get("amount")
-        mop_attached = bool(event_data.get("enable"))
-
-        if amount:
-            self.events.water_info.notify(
-                WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount))
-            )
-        else:
-            _LOGGER.warning("Could not parse water info event with %s", event_data)
 
     async def _handle_clean_logs(self, event: Dict) -> None:
         response: Optional[List[dict]] = event.get("logs")

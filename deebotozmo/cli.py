@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 import aiohttp
 import click
 
+from deebotozmo.commands import SetWaterInfo
 from deebotozmo.commands_old import (
     Charge,
     CleanCustomArea,
@@ -27,9 +28,9 @@ from deebotozmo.commands_old import (
     CleanStart,
     PlaySound,
     SetFanSpeed,
-    SetWaterLevel,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
+from deebotozmo.events import WaterInfoEvent
 from deebotozmo.events_old import (
     BatteryEvent,
     CleanLogEvent,
@@ -38,7 +39,6 @@ from deebotozmo.events_old import (
     RoomsEvent,
     StatsEvent,
     StatusEvent,
-    WaterInfoEvent,
 )
 from deebotozmo.models import Vacuum, VacuumState
 from deebotozmo.util import md5
@@ -248,7 +248,7 @@ async def set_fan_speed(ctx: click.Context, speed: str) -> None:
 @coro
 async def set_water_level(ctx: click.Context, level: str) -> None:
     """Click subcommmand that sets the water level."""
-    await run_with_login(ctx, SetWaterLevel, cmd_args=[level])
+    await run_with_login(ctx, SetWaterInfo, cmd_args=[level])
 
 
 @cli.command(help="Returns to charger")
@@ -338,7 +338,7 @@ async def statuses(ctx: click.Context) -> None:
         fan_speed_listener.unsubscribe()
 
         async def on_water_level(water_info_event: WaterInfoEvent) -> None:
-            print(f"Water Level: {water_info_event.amount}")
+            print(f"Water Level: {water_info_event.amount.name.lower()}")
             event.set()
 
         event.clear()

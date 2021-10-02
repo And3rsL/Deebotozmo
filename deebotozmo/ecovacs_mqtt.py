@@ -57,7 +57,7 @@ class EcovacsMqtt:
                 bot = self._subscribers.get(topic_split[3])
                 if bot:
                     data = json.loads(payload)
-                    await bot.handle(topic_split[2], data, False)
+                    await bot.handle(topic_split[2], data, None)
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.error("An exception occurred", exc_info=True)
 

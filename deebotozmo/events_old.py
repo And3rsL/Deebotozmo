@@ -48,14 +48,6 @@ class StatusEvent:
 
 
 @dataclass
-class WaterInfoEvent:
-    """Water info event representation."""
-
-    mop_attached: bool
-    amount: Optional[str]
-
-
-@dataclass
 class CleanLogEntry:
     """Clean log entry representation."""
 
