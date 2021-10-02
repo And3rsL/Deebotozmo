@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 import aiohttp
 import click
 
-from deebotozmo.commands import SetWaterInfo
+from deebotozmo.commands import SetFanSpeed, SetWaterInfo
 from deebotozmo.commands_old import (
     Charge,
     CleanCustomArea,
@@ -27,14 +27,12 @@ from deebotozmo.commands_old import (
     CleanSpotArea,
     CleanStart,
     PlaySound,
-    SetFanSpeed,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.events import WaterInfoEvent
+from deebotozmo.events import FanSpeedEvent, WaterInfoEvent
 from deebotozmo.events_old import (
     BatteryEvent,
     CleanLogEvent,
-    FanSpeedEvent,
     MapEvent,
     RoomsEvent,
     StatsEvent,
@@ -338,7 +336,7 @@ async def statuses(ctx: click.Context) -> None:
         fan_speed_listener.unsubscribe()
 
         async def on_water_level(water_info_event: WaterInfoEvent) -> None:
-            print(f"Water Level: {water_info_event.amount.name.lower()}")
+            print(f"Water Level: {water_info_event.amount}")
             event.set()
 
         event.clear()

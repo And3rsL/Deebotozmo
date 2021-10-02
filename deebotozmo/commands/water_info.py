@@ -1,12 +1,22 @@
 """Water info commands."""
 import logging
+from enum import unique
 from typing import Any, Dict, Mapping, Union
 
-from ..events import WaterInfoEvent, WaterLevel
-from .base import Events, GetCommand, SetCommand
-from .util import get_member
+from ..events import WaterInfoEvent
+from .base import DisplayNameEnum, Events, GetCommand, SetCommand
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@unique
+class WaterLevel(DisplayNameEnum):
+    """Enum class for all possible water levels."""
+
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    ULTRAHIGH = 4
 
 
 class GetWaterInfo(GetCommand):
@@ -23,16 +33,16 @@ class GetWaterInfo(GetCommand):
         amount = data.get("amount", None)
         mop_attached = bool(data.get("enable"))
 
-        if amount:
+        if amount is not None:
             try:
                 events.water_info.notify(
-                    WaterInfoEvent(mop_attached, WaterLevel(int(amount)))
+                    WaterInfoEvent(mop_attached, WaterLevel(int(amount)).display_name)
                 )
                 return True
             except ValueError:
                 _LOGGER.warning("Could not parse correctly water info amount: %s", data)
 
-        _LOGGER.warning("Could not parse water info event with %s", data)
+        _LOGGER.warning("Could not parse %s with %s", cls.name, data)
         return False
 
 
@@ -47,7 +57,9 @@ class SetWaterInfo(SetCommand):
     ) -> None:
         # removing "enable" as we don't can set it
         remove_from_kwargs = ["enable"]
-        if isinstance(amount, (str, WaterLevel)):
-            amount = get_member(WaterLevel, amount)
+        if isinstance(amount, str):
+            amount = WaterLevel.get(amount)
+        if isinstance(amount, WaterLevel):
+            amount = amount.value
 
         super().__init__({"amount": amount, "enable": 0}, remove_from_kwargs, **kwargs)

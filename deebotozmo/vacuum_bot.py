@@ -7,6 +7,7 @@ from typing import Any, Dict, Final, List, Optional, Union
 import aiohttp
 
 from deebotozmo.commands import COMMANDS, Command, GetWaterInfo
+from deebotozmo.commands.fan_speed import GetFanSpeed
 from deebotozmo.commands_old import CleanResume, CleanStart
 from deebotozmo.commands_old import Command as OldCommand
 from deebotozmo.commands_old import (
@@ -15,25 +16,19 @@ from deebotozmo.commands_old import (
     GetCleanInfo,
     GetCleanLogs,
     GetError,
-    GetFanSpeed,
     GetLifeSpan,
     GetStats,
 )
-from deebotozmo.constants import (
-    COMPONENT_FROM_ECOVACS,
-    ERROR_CODES,
-    FAN_SPEED_FROM_ECOVACS,
-)
+from deebotozmo.constants import COMPONENT_FROM_ECOVACS, ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter
-from deebotozmo.events import Events, WaterInfoEvent
+from deebotozmo.events import Events, FanSpeedEvent, WaterInfoEvent
 from deebotozmo.events_old import (
     BatteryEvent,
     CleanLogEntry,
     CleanLogEvent,
     ErrorEvent,
-    FanSpeedEvent,
     StatsEvent,
     StatusEvent,
 )
@@ -54,7 +49,10 @@ class VacuumEvents(Events):
         super().__init__(
             water_info=EventEmitter[WaterInfoEvent](
                 get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command)
-            )
+            ),
+            fan_speed=EventEmitter[FanSpeedEvent](
+                get_refresh_function([GetFanSpeed()], vacuum_bot.execute_command)
+            ),
         )
         self.battery: Final[EventEmitter[BatteryEvent]] = EventEmitter[BatteryEvent](
             get_refresh_function([GetBattery()], vacuum_bot.execute_command)
@@ -65,9 +63,6 @@ class VacuumEvents(Events):
         self.error: Final[EventEmitter[ErrorEvent]] = EventEmitter[ErrorEvent](
             get_refresh_function([GetError()], vacuum_bot.execute_command)
         )
-        self.fan_speed: Final[EventEmitter[FanSpeedEvent]] = EventEmitter[
-            FanSpeedEvent
-        ](get_refresh_function([GetFanSpeed()], vacuum_bot.execute_command))
         self.stats: Final[EventEmitter[StatsEvent]] = EventEmitter[StatsEvent](
             get_refresh_function([GetStats()], vacuum_bot.execute_command)
         )
@@ -246,7 +241,7 @@ class VacuumBot:
         elif event_name == "error":
             await self._handle_error(event, event_data)
         elif event_name == "speed":
-            await self._handle_fan_speed(event_data)
+            raise NotImplementedError()
         elif event_name.startswith("battery"):
             await self._handle_battery(event_data)
         elif event_name == "chargestate":
@@ -305,16 +300,6 @@ class VacuumBot:
         else:
             _LOGGER.warning(
                 "Could not process error event with received data: %s", event
-            )
-
-    async def _handle_fan_speed(self, event_data: Dict[str, int]) -> None:
-        speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed", -1))
-
-        if speed:
-            self.events.fan_speed.notify(FanSpeedEvent(speed))
-        else:
-            _LOGGER.warning(
-                "Could not process fan speed event with received data: %s", event_data
             )
 
     async def _handle_battery(self, event_data: dict) -> None:

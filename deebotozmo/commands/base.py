@@ -1,7 +1,8 @@
 """Base commands."""
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Mapping, Optional, Type, Union
+from enum import IntEnum
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Type, Union
 
 from deebotozmo.events import Events
 
@@ -91,8 +92,8 @@ class SetCommand(Command, ABC):
 
     def __init__(
         self,
-        args: Union[Dict, List, None] = None,
-        remove_from_kwargs: Optional[List[str]] = None,
+        args: Union[Dict, List, None],
+        remove_from_kwargs: List[str],
         **kwargs: Mapping[str, Any],
     ) -> None:
         if remove_from_kwargs:
@@ -127,3 +128,38 @@ class SetCommand(Command, ABC):
     def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
         # not required as we overwrite "_handle_body"
         return True
+
+
+class DisplayNameEnum(IntEnum):
+    """Int enum with a property "display_name"."""
+
+    def __new__(cls, *args: Tuple, **_: Mapping) -> "DisplayNameEnum":
+        """Create new enum."""
+        obj = int.__new__(cls)
+        obj._value_ = args[0]
+        return obj
+
+    def __init__(self, _: int, display_name: Optional[str] = None):
+        super().__init__()
+        self._display_name = display_name
+
+    @property
+    def display_name(self) -> str:
+        """Return the custom display name or the lowered name property."""
+        if self._display_name:
+            return self._display_name
+
+        return self.name.lower()
+
+    @classmethod
+    def get(cls, value: str) -> "DisplayNameEnum":
+        """Get enum member from name or display_name."""
+        value = str(value).upper()
+        if value in cls.__members__:
+            return cls[value]
+
+        for member in cls:
+            if value == member.display_name.upper():
+                return member
+
+        raise ValueError(f"'{value}' is not a valid {cls.__name__} member")

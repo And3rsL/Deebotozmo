@@ -26,13 +26,6 @@ class ErrorEvent:
 
 
 @dataclass
-class FanSpeedEvent:
-    """Fan speed event representation."""
-
-    speed: str
-
-
-@dataclass
 class BatteryEvent:
     """Battery event representation."""
 

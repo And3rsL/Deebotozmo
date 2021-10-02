@@ -2,12 +2,20 @@
 from typing import Dict, List, Type
 
 from .base import Command, SetCommand
+from .fan_speed import GetFanSpeed, SetFanSpeed
 from .water_info import GetWaterInfo, SetWaterInfo
 
-COMMANDS: Dict[str, Type[Command]] = {
-    GetWaterInfo.name: GetWaterInfo,
-    SetWaterInfo.name: SetWaterInfo,
-}
+# fmt: off
+_COMMANDS: List[Type[Command]] = [
+    GetWaterInfo,
+    SetWaterInfo,
+
+    GetFanSpeed,
+    SetFanSpeed
+]
+# fmt: on
+
+COMMANDS: Dict[str, Type[Command]] = {cmd.name: cmd for cmd in _COMMANDS}  # type: ignore
 
 SET_COMMAND_NAMES: List[str] = [
     cmd.name for cmd in COMMANDS.values() if issubclass(cmd, SetCommand)
