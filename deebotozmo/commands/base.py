@@ -32,31 +32,42 @@ class Command(ABC):
 
     @classmethod
     @abstractmethod
-    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> None:
-        """Handle body data and notify the correct event subscriber."""
+    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+        """Handle body data and notify the correct event subscriber.
+
+        :return: True if data was valid and no error was included
+        """
         raise NotImplementedError
 
     @classmethod
-    def _handle_body(cls, events: Events, body: Dict[str, Any]) -> None:
-        """Handle data and notify the correct event subscriber."""
-        data = body.get("data", {})
-        cls._handle_body_data(events, data)
+    def _handle_body(cls, events: Events, data: Dict[str, Any]) -> bool:
+        """Handle data and notify the correct event subscriber.
+
+        :return: True if data was valid and no error was included
+        """
+        data = data.get("data", data)
+        return cls._handle_body_data(events, data)
 
     @classmethod
-    def handle(cls, events: Events, data: Dict[str, Any]) -> None:
-        """Handle data and notify the correct event subscriber."""
-        data_body = data.get("body", {})
-        cls._handle_body(events, data_body)
+    def handle(cls, events: Events, data: Dict[str, Any]) -> bool:
+        """Handle data and notify the correct event subscriber.
 
-    def handle_requested(self, events: Events, response: Dict[str, Any]) -> None:
-        """Handle response from a manual requested command."""
+        :return: True if data was valid and no error was included
+        """
+        data_body = data.get("body", data)
+        return cls._handle_body(events, data_body)
+
+    def handle_requested(self, events: Events, response: Dict[str, Any]) -> bool:
+        """Handle response from a manual requested command.
+
+        :return: True if data was valid and no error was included
+        """
         if response.get("ret") == "ok":
             data = response.get("resp", response)
-            self.handle(events, data)
-        else:
-            _LOGGER.warning(
-                'Command "%s" was not successfully: %s', self.name, response
-            )
+            return self.handle(events, data)
+
+        _LOGGER.warning('Command "%s" was not successfully: %s', self.name, response)
+        return False
 
 
 class GetCommand(Command, ABC):
@@ -99,14 +110,20 @@ class SetCommand(Command, ABC):
         """Return the corresponding "get" command."""
         raise NotImplementedError
 
-    def _handle_body(  # type: ignore[override]
-        self, events: Events, body: Dict[str, Any]
-    ) -> None:
-        """When set was successfully, handle command args with the "get" command."""
-        # Success event looks like { "code": 0, "msg": "ok" }
-        if _CODE not in body:
-            # todo maybe throw a CommandException instead?
-            raise ValueError(f'Expecting "code" to be in {body}')
+    @classmethod
+    def _handle_body(cls, events: Events, data: Dict[str, Any]) -> bool:
+        """Handle data and notify the correct event subscriber.
 
-        if body[_CODE] == 0 and isinstance(self.args, dict):
-            self.get_command.handle(events, self.args)
+        :return: True if data was valid and no error was included
+        """
+        # Success event looks like { "code": 0, "msg": "ok" }
+        if data.get(_CODE, -1) == 0:
+            return True
+
+        _LOGGER.warning('Command "%s" was not successfully. data=%s', cls.name, data)
+        return False
+
+    @classmethod
+    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+        # not required as we overwrite "_handle_body"
+        return True

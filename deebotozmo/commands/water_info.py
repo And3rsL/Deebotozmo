@@ -1,6 +1,6 @@
 """Water info commands."""
 import logging
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Union
 
 from ..events import WaterInfoEvent, WaterLevel
 from .base import Events, GetCommand, SetCommand
@@ -15,7 +15,11 @@ class GetWaterInfo(GetCommand):
     name = "getWaterInfo"
 
     @classmethod
-    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> None:
+    def _handle_body_data(cls, events: Events, data: Dict[str, Any]) -> bool:
+        """Handle body data and notify the correct event subscriber.
+
+        :return: True if data was valid and no error was included
+        """
         amount = data.get("amount", None)
         mop_attached = bool(data.get("enable"))
 
@@ -24,10 +28,12 @@ class GetWaterInfo(GetCommand):
                 events.water_info.notify(
                     WaterInfoEvent(mop_attached, WaterLevel(int(amount)))
                 )
+                return True
             except ValueError:
                 _LOGGER.warning("Could not parse correctly water info amount: %s", data)
-        else:
-            _LOGGER.warning("Could not parse water info event with %s", data)
+
+        _LOGGER.warning("Could not parse water info event with %s", data)
+        return False
 
 
 class SetWaterInfo(SetCommand):
@@ -36,11 +42,13 @@ class SetWaterInfo(SetCommand):
     name = "setWaterInfo"
     get_command = GetWaterInfo
 
-    def __init__(self, amount: str, **kwargs: Mapping[str, Any]) -> None:
+    def __init__(self, amount: Union[str, int], **kwargs: Mapping[str, Any]) -> None:
         # removing "enable" as we don't can set it
         remove_from_kwargs = ["enable"]
+        amount_int = amount
+        if isinstance(amount, str):
+            amount_int = get_member(WaterLevel, amount)
+
         super().__init__(
-            {"amount": get_member(WaterLevel, amount), "enable": 0},
-            remove_from_kwargs,
-            **kwargs
+            {"amount": amount_int, "enable": 0}, remove_from_kwargs, **kwargs
         )
