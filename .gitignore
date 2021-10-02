@@ -18,3 +18,5 @@ cover/
 deebotozmo.egg-info
 .noseids
 nosetests.xml
+
+.mypy_cache
