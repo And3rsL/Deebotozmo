@@ -7,7 +7,7 @@ from typing import Any, Dict, Tuple, Union
 import aiohttp
 from aiohttp import ClientResponseError
 
-from deebotozmo.commands import Command, GetCleanLogs
+from deebotozmo.commands_old import Command, GetCleanLogs
 from deebotozmo.models import RequestAuth, Vacuum
 from deebotozmo.util import sanitize_data
 

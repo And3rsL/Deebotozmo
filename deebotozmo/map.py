@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable, Dict, Final, List, Optional, Union
 from numpy import ndarray, reshape, zeros
 from PIL import Image, ImageDraw, ImageOps
 
-from deebotozmo.commands import (
+from deebotozmo.commands_old import (
     Command,
     GetCachedMapInfo,
     GetMajorMap,
@@ -22,7 +22,7 @@ from deebotozmo.commands import (
 )
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
 from deebotozmo.event_emitter import EventEmitter
-from deebotozmo.events import MapEvent, RoomsEvent
+from deebotozmo.events_old import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_refresh_function
 

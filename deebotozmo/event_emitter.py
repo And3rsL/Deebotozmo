@@ -4,7 +4,7 @@ import logging
 from asyncio import Task
 from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
 
-from deebotozmo.events import StatusEvent
+from deebotozmo.events_old import StatusEvent
 from deebotozmo.models import VacuumState
 
 _LOGGER = logging.getLogger(__name__)

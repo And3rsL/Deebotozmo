@@ -5,7 +5,7 @@ import hashlib
 import os
 from typing import Awaitable, Callable, List, Union
 
-from deebotozmo.commands import Command
+from deebotozmo.commands_old import Command
 
 
 def str_to_bool_or_cert(string: Union[bool, str]) -> Union[bool, str]:

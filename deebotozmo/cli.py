@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 import aiohttp
 import click
 
-from deebotozmo.commands import (
+from deebotozmo.commands_old import (
     Charge,
     CleanCustomArea,
     CleanPause,
@@ -30,7 +30,7 @@ from deebotozmo.commands import (
     SetWaterLevel,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.events import (
+from deebotozmo.events_old import (
     BatteryEvent,
     CleanLogEvent,
     FanSpeedEvent,

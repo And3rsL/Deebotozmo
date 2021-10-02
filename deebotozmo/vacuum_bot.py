@@ -5,7 +5,7 @@ from typing import Dict, Final, List, Optional, Union
 
 import aiohttp
 
-from deebotozmo.commands import (
+from deebotozmo.commands_old import (
     CleanResume,
     CleanStart,
     Command,
@@ -28,7 +28,7 @@ from deebotozmo.constants import (
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter
-from deebotozmo.events import (
+from deebotozmo.events_old import (
     BatteryEvent,
     CleanLogEntry,
     CleanLogEvent,
@@ -171,8 +171,12 @@ class VacuumBot:
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
         :return: None
         """
-        # pylint: disable=too-many-branches
-        # Todo fix too-many-branches # pylint: disable=fixme
+
+        await self._handle_old(event_name, event, requested)
+
+    async def _handle_old(
+        self, event_name: str, event: dict, requested: bool = True
+    ) -> None:
 
         _LOGGER.debug("Handle %s: %s", event_name, event)
         event_name = event_name.lower()
