@@ -1,5 +1,5 @@
 """Handles Ecovacs JSON API."""
-
+import asyncio
 import datetime
 import logging
 from typing import Any, Dict, Tuple, Union
@@ -59,6 +59,8 @@ class EcovacsJSON:
                 json = await res.json()
                 _LOGGER.debug("Got %s", json)
                 return json
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Timeout reached while sending command: %s", command)
         except ClientResponseError as err:
             if err.status == 502:
                 _LOGGER.info(
