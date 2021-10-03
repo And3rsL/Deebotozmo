@@ -12,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @unique
-class CleanAction(Enum):
+class CleanAction(str, Enum):
     """Enum class for all possible clean actions."""
 
     START = "start"
@@ -22,7 +22,7 @@ class CleanAction(Enum):
 
 
 @unique
-class CleanMode(Enum):
+class CleanMode(str, Enum):
     """Enum class for all possible clean modes."""
 
     AUTO = "auto"

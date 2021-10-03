@@ -10,7 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @unique
-class LifeSpan(Enum):
+class LifeSpan(str, Enum):
     """Enum class for all possible life span components."""
 
     SIDE_BRUSH = "sideBrush"
@@ -50,7 +50,7 @@ class GetLifeSpan(CommandWithHandling):
 
             if component_type and total > 0:
                 percent = round((left / total) * 100, 2)
-                components[component_type.name.lower()] = percent  # type: ignore
+                components[component_type.value] = percent  # type: ignore
             else:
                 _LOGGER.warning("Could not parse life span event with %s", data)
                 handle_all_components = False

@@ -1,6 +1,6 @@
 """Models module."""
 from dataclasses import dataclass
-from enum import Enum, unique
+from enum import IntEnum, unique
 from typing import Optional
 
 
@@ -86,7 +86,7 @@ class RequestAuth:
 
 
 @unique
-class VacuumState(Enum):
+class VacuumState(IntEnum):
     """Vacuum state representation."""
 
     IDLE = 1
