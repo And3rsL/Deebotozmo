@@ -2,16 +2,16 @@
 import logging
 from typing import Any, Dict
 
-from ..events import StatsEvent
+from ..events import BatteryEvent
 from .base import VacuumEmitter, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class GetStats(_NoArgsCommand):
-    """Get stats command."""
+class GetBattery(_NoArgsCommand):
+    """Get battery command."""
 
-    name = "getStats"
+    name = "getBattery"
 
     @classmethod
     def _handle_body_data_dict(
@@ -21,12 +21,8 @@ class GetStats(_NoArgsCommand):
 
         :return: True if data was valid and no error was included
         """
-        stats_event = StatsEvent(
-            data.get("area"),
-            data.get("cid"),
-            data.get("time"),
-            data.get("type"),
-            data.get("start"),
-        )
-        events.stats.notify(stats_event)
+        try:
+            events.battery.notify(BatteryEvent(data["value"]))
+        except ValueError:
+            _LOGGER.warning("Couldn't parse battery status: %s", data)
         return True

@@ -2,6 +2,7 @@
 from typing import Dict, List, Type
 
 from .base import Command, SetCommand
+from .battery import GetBattery
 from .fan_speed import FanSpeedLevel, GetFanSpeed, SetFanSpeed
 from .life_span import GetLifeSpan
 from .stats import GetStats
@@ -17,7 +18,9 @@ _COMMANDS: List[Type[Command]] = [
 
     GetLifeSpan,
 
-    GetStats
+    GetStats,
+
+    GetBattery
 ]
 # fmt: on
 
