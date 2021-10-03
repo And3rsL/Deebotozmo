@@ -18,7 +18,8 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 import aiohttp
 import click
 
-from deebotozmo.commands import (
+from deebotozmo.commands import SetFanSpeed, SetWaterInfo
+from deebotozmo.commands_old import (
     Charge,
     CleanCustomArea,
     CleanPause,
@@ -26,8 +27,6 @@ from deebotozmo.commands import (
     CleanSpotArea,
     CleanStart,
     PlaySound,
-    SetFanSpeed,
-    SetWaterLevel,
 )
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.events import (
@@ -248,7 +247,7 @@ async def set_fan_speed(ctx: click.Context, speed: str) -> None:
 @coro
 async def set_water_level(ctx: click.Context, level: str) -> None:
     """Click subcommmand that sets the water level."""
-    await run_with_login(ctx, SetWaterLevel, cmd_args=[level])
+    await run_with_login(ctx, SetWaterInfo, cmd_args=[level])
 
 
 @cli.command(help="Returns to charger")

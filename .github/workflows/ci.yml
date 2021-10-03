@@ -32,3 +32,21 @@ jobs:
       - name: Pylint review
         run: |
           pylint deebotozmo
+
+  tests:
+    runs-on: "ubuntu-latest"
+    name: Run tests
+    steps:
+      - uses: "actions/checkout@v2"
+      - name: Set up Python ${{ env.DEFAULT_PYTHON }}
+        id: python
+        uses: actions/setup-python@v2.2.2
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+      - name: Run pytest
+        run: |
+          pytest

@@ -28,14 +28,12 @@ import logging
 import random
 import string
 
-from deebotozmo.commands import *
+from deebotozmo.commands_old import *
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_mqtt import EcovacsMqtt
-from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.events import BatteryEvent
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
-
 
 device_id = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
 email = "your email or phonenumber (cn)"
@@ -45,38 +43,39 @@ country = "de"
 
 
 async def main():
-    async with aiohttp.ClientSession() as session:
-        logging.basicConfig(level=logging.DEBUG)
-        api = EcovacsAPI(session, device_id, email, password_hash, continent=continent, country=country, verify_ssl=False)
-        await api.login()
+  async with aiohttp.ClientSession() as session:
+    logging.basicConfig(level=logging.DEBUG)
+    api = EcovacsAPI(session, device_id, email, password_hash, continent=continent, country=country,
+                     verify_ssl=False)
+    await api.login()
 
-        devices_ = await api.get_devices()
+    devices_ = await api.get_devices()
 
-        auth = await api.get_request_auth()
-        bot = VacuumBot(session, auth, devices_[0], continent=continent, country=country, verify_ssl=False)
+    auth = await api.get_request_auth()
+    bot = VacuumBot(session, auth, devices_[0], continent=continent, country=country, verify_ssl=False)
 
-        mqtt = EcovacsMqtt(auth, continent=continent)
-        await mqtt.subscribe(bot)
+    mqtt = EcovacsMqtt(auth, continent=continent)
+    await mqtt.subscribe(bot)
 
-        async def on_battery(event: BatteryEvent):
-            # Do stuff on battery event
-            if event.value == 100:
-                # Battery full
-                pass
+    async def on_battery(event: BatteryEvent):
+      # Do stuff on battery event
+      if event.value == 100:
+        # Battery full
+        pass
 
-        # Subscribe for events (more events available)
-        bot.batteryEvents.subscribe(on_battery)
+    # Subscribe for events (more events available)
+    bot.batteryEvents.subscribe(on_battery)
 
-        # Execute commands
-        await bot.execute_command(CleanStart())
-        await asyncio.sleep(900)  # Wait for...
-        await bot.execute_command(Charge())
+    # Execute commands
+    await bot.execute_command(CleanStart())
+    await asyncio.sleep(900)  # Wait for...
+    await bot.execute_command(Charge())
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    loop.run_forever()
+  loop = asyncio.get_event_loop()
+  loop.create_task(main())
+  loop.run_forever()
 ```
 
 A more advanced example can be found [here](https://github.com/And3rsL/Deebot-for-Home-Assistant).

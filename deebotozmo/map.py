@@ -10,8 +10,9 @@ from typing import Any, Awaitable, Callable, Dict, Final, List, Optional, Union
 from numpy import ndarray, reshape, zeros
 from PIL import Image, ImageDraw, ImageOps
 
-from deebotozmo.commands import (
-    Command,
+from deebotozmo.commands import Command
+from deebotozmo.commands_old import Command as OldCommand
+from deebotozmo.commands_old import (
     GetCachedMapInfo,
     GetMajorMap,
     GetMapSet,
@@ -21,7 +22,7 @@ from deebotozmo.commands import (
     GetPos,
 )
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
-from deebotozmo.event_emitter import EventEmitter
+from deebotozmo.event_emitter import EventEmitter, MapEmitter
 from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
 from deebotozmo.util import get_refresh_function
@@ -75,20 +76,6 @@ def _calc_coordinate(value: Optional[str], pixel_width: int, offset: int) -> flo
     return 0.0
 
 
-class MapEvents:
-    """Map events representation."""
-
-    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]) -> None:
-        self.map: Final[EventEmitter[MapEvent]] = EventEmitter[MapEvent](
-            get_refresh_function(
-                [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
-            ),
-        )
-        self.rooms: Final[EventEmitter[RoomsEvent]] = EventEmitter[RoomsEvent](
-            get_refresh_function([GetCachedMapInfo()], execute_command)
-        )
-
-
 class Map:
     """Map representation."""
 
@@ -106,7 +93,9 @@ class Map:
     PIXEL_WIDTH = 50
     OFFSET = 400
 
-    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]):
+    def __init__(
+        self, execute_command: Callable[[Union[Command, OldCommand]], Awaitable[None]]
+    ):
         self._execute_command = execute_command
 
         self._robot_position: Optional[Coordinate] = None
@@ -119,7 +108,16 @@ class Map:
         self._base64_image: Optional[bytes] = None
         self._last_requested_width: Optional[int] = None
 
-        self.events: Final = MapEvents(self._execute_command)
+        self.events: Final = MapEmitter(
+            map=EventEmitter[MapEvent](
+                get_refresh_function(
+                    [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
+                ),
+            ),
+            rooms=EventEmitter[RoomsEvent](
+                get_refresh_function([GetCachedMapInfo()], execute_command)
+            ),
+        )
 
     # ---------------------------- EVENT HANDLING ----------------------------
 

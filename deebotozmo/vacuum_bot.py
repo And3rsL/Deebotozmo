@@ -1,33 +1,28 @@
 """Vacuum bot module."""
 import asyncio
 import logging
-from typing import Dict, Final, List, Optional, Union
+import re
+from typing import Any, Dict, Final, List, Optional, Union
 
 import aiohttp
 
-from deebotozmo.commands import (
-    CleanResume,
-    CleanStart,
-    Command,
+from deebotozmo.commands import COMMANDS, Command, GetWaterInfo
+from deebotozmo.commands.fan_speed import GetFanSpeed
+from deebotozmo.commands_old import CleanResume, CleanStart
+from deebotozmo.commands_old import Command as OldCommand
+from deebotozmo.commands_old import (
     GetBattery,
     GetChargeState,
     GetCleanInfo,
     GetCleanLogs,
     GetError,
-    GetFanSpeed,
     GetLifeSpan,
     GetStats,
-    GetWaterInfo,
 )
-from deebotozmo.constants import (
-    COMPONENT_FROM_ECOVACS,
-    ERROR_CODES,
-    FAN_SPEED_FROM_ECOVACS,
-    WATER_LEVEL_FROM_ECOVACS,
-)
+from deebotozmo.constants import COMPONENT_FROM_ECOVACS, ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
-from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter
+from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEntry,
@@ -38,51 +33,14 @@ from deebotozmo.events import (
     StatusEvent,
     WaterInfoEvent,
 )
-from deebotozmo.map import Map, MapEvents
+from deebotozmo.map import Map
 from deebotozmo.models import RequestAuth, Vacuum, VacuumState
 from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 
-
-class VacuumEvents:
-    """Vacuum events representation."""
-
-    def __init__(self, vacuum_bot: "VacuumBot", map_events: MapEvents) -> None:
-        self.battery: Final[EventEmitter[BatteryEvent]] = EventEmitter[BatteryEvent](
-            get_refresh_function([GetBattery()], vacuum_bot.execute_command)
-        )
-        self.clean_logs: Final[EventEmitter[CleanLogEvent]] = EventEmitter[
-            CleanLogEvent
-        ](get_refresh_function([GetCleanLogs()], vacuum_bot.execute_command))
-        self.error: Final[EventEmitter[ErrorEvent]] = EventEmitter[ErrorEvent](
-            get_refresh_function([GetError()], vacuum_bot.execute_command)
-        )
-        self.fan_speed: Final[EventEmitter[FanSpeedEvent]] = EventEmitter[
-            FanSpeedEvent
-        ](get_refresh_function([GetFanSpeed()], vacuum_bot.execute_command))
-        self.stats: Final[EventEmitter[StatsEvent]] = EventEmitter[StatsEvent](
-            get_refresh_function([GetStats()], vacuum_bot.execute_command)
-        )
-        self.status: Final[EventEmitter[StatusEvent]] = EventEmitter[StatusEvent](
-            get_refresh_function(
-                [GetChargeState(), GetCleanInfo(vacuum_bot.vacuum)],
-                vacuum_bot.execute_command,
-            )
-        )
-        self.water_info: Final[EventEmitter[WaterInfoEvent]] = EventEmitter[
-            WaterInfoEvent
-        ](get_refresh_function([GetWaterInfo()], vacuum_bot.execute_command))
-
-        self.lifespan: Final[EventEmitter[Dict[str, float]]] = PollingEventEmitter[
-            Dict[str, float]
-        ](
-            60,
-            get_refresh_function([GetLifeSpan()], vacuum_bot.execute_command),
-            self.status,
-        )
-        self.map: Final = map_events.map
-        self.rooms: Final = map_events.rooms
+_COMMAND_REPLACE_PATTERN = "^((on)|(off)|(report))"
+_COMMAND_REPLACE_REPLACEMENT = "get"
 
 
 class VacuumBot:
@@ -113,9 +71,41 @@ class VacuumBot:
         self.fw_version: Optional[str] = None
 
         self.map: Final = Map(self.execute_command)
-        self.events: Final = VacuumEvents(self, self.map.events)
 
-    async def execute_command(self, command: Command) -> None:
+        status_ = EventEmitter[StatusEvent](
+            get_refresh_function(
+                [GetChargeState(), GetCleanInfo(self.vacuum)],
+                self.execute_command,
+            )
+        )
+        self.events: Final = VacuumEmitter(
+            battery=EventEmitter[BatteryEvent](
+                get_refresh_function([GetBattery()], self.execute_command)
+            ),
+            clean_logs=EventEmitter[CleanLogEvent](
+                get_refresh_function([GetCleanLogs()], self.execute_command)
+            ),
+            error=EventEmitter[ErrorEvent](
+                get_refresh_function([GetError()], self.execute_command)
+            ),
+            fan_speed=EventEmitter[FanSpeedEvent](
+                get_refresh_function([GetFanSpeed()], self.execute_command)
+            ),
+            lifespan=PollingEventEmitter[Dict[str, float]](
+                60, get_refresh_function([GetLifeSpan()], self.execute_command), status_
+            ),
+            map=self.map.events.map,
+            rooms=self.map.events.rooms,
+            stats=EventEmitter[StatsEvent](
+                get_refresh_function([GetStats()], self.execute_command)
+            ),
+            status=status_,
+            water_info=EventEmitter[WaterInfoEvent](
+                get_refresh_function([GetWaterInfo()], self.execute_command)
+            ),
+        )
+
+    async def execute_command(self, command: Union[Command, OldCommand]) -> None:
         """Execute given command and handle response."""
         if (
             command.name == CleanResume().name
@@ -131,7 +121,7 @@ class VacuumBot:
         async with self._semaphore:
             response = await self.json.send_command(command, self.vacuum)
 
-        await self.handle(command.name, response)
+        await self.handle(command.name, response, command)
 
     def set_available(self, available: bool) -> None:
         """Set available."""
@@ -162,17 +152,38 @@ class VacuumBot:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-        self, event_name: str, event: dict, requested: bool = True
+        self,
+        command_name: str,
+        data: Dict[str, Any],
+        requested_command: Optional[Union[Command, OldCommand]],
     ) -> None:
         """Handle the given event.
 
-        :param event_name: the name of the event or request
-        :param event: the data of it
-        :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
+        :param command_name: the name of the event or request
+        :param data: the data of it
+        :param requested_command: The request command object. None -> MQTT
         :return: None
         """
+        if requested_command and isinstance(requested_command, Command):
+            requested_command.handle_requested(self.events, data)
+        else:
+            # Handle command start start with "on","off","report" the same as "get" commands
+            command_name = re.sub(
+                _COMMAND_REPLACE_PATTERN, _COMMAND_REPLACE_REPLACEMENT, command_name
+            )
+
+            command = COMMANDS.get(command_name, None)
+            if command:
+                command.handle(self.events, data)
+            else:
+                await self._handle_old(
+                    command_name, data, requested_command is not None
+                )
+
+    async def _handle_old(
+        self, event_name: str, event: dict, requested: bool = True
+    ) -> None:
         # pylint: disable=too-many-branches
-        # Todo fix too-many-branches # pylint: disable=fixme
 
         _LOGGER.debug("Handle %s: %s", event_name, event)
         event_name = event_name.lower()
@@ -221,7 +232,7 @@ class VacuumBot:
         elif event_name == "error":
             await self._handle_error(event, event_data)
         elif event_name == "speed":
-            await self._handle_fan_speed(event_data)
+            raise NotImplementedError()
         elif event_name.startswith("battery"):
             await self._handle_battery(event_data)
         elif event_name == "chargestate":
@@ -234,7 +245,7 @@ class VacuumBot:
         elif event_name == "cleaninfo":
             await self._handle_clean_info(event_data)
         elif event_name == "waterinfo":
-            await self._handle_water_info(event_data)
+            raise NotImplementedError()
         elif "map" in event_name or event_name == "pos":
             await self.map.handle(event_name, event_data, requested)
         elif event_name.startswith("set"):
@@ -282,16 +293,6 @@ class VacuumBot:
                 "Could not process error event with received data: %s", event
             )
 
-    async def _handle_fan_speed(self, event_data: Dict[str, int]) -> None:
-        speed = FAN_SPEED_FROM_ECOVACS.get(event_data.get("speed", -1))
-
-        if speed:
-            self.events.fan_speed.notify(FanSpeedEvent(speed))
-        else:
-            _LOGGER.warning(
-                "Could not process fan speed event with received data: %s", event_data
-            )
-
     async def _handle_battery(self, event_data: dict) -> None:
         try:
             self.events.battery.notify(BatteryEvent(event_data["value"]))
@@ -336,17 +337,6 @@ class VacuumBot:
                 _LOGGER.warning("Could not parse life span event with %s", event_data)
 
         self.events.lifespan.notify(components)
-
-    async def _handle_water_info(self, event_data: dict) -> None:
-        amount = event_data.get("amount")
-        mop_attached = bool(event_data.get("enable"))
-
-        if amount:
-            self.events.water_info.notify(
-                WaterInfoEvent(mop_attached, WATER_LEVEL_FROM_ECOVACS.get(amount))
-            )
-        else:
-            _LOGGER.warning("Could not parse water info event with %s", event_data)
 
     async def _handle_clean_logs(self, event: Dict) -> None:
         response: Optional[List[dict]] = event.get("logs")

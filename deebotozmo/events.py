@@ -52,7 +52,7 @@ class WaterInfoEvent:
     """Water info event representation."""
 
     mop_attached: bool
-    amount: Optional[str]
+    amount: str
 
 
 @dataclass
