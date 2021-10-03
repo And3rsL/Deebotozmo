@@ -24,13 +24,6 @@ class Command:
         return self._args
 
 
-class Relocate(Command):
-    """Relocate command."""
-
-    def __init__(self) -> None:
-        super().__init__("setRelocationState", {"mode": "manu"})
-
-
 class GetCachedMapInfo(Command):
     """Get cached map info command."""
 

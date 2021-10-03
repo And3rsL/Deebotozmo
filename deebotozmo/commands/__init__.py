@@ -11,6 +11,7 @@ from .error import GetError
 from .fan_speed import FanSpeedLevel, GetFanSpeed, SetFanSpeed
 from .life_span import GetLifeSpan
 from .play_sound import PlaySound
+from .relocation import SetRelocationState
 from .stats import GetStats
 from .water_info import GetWaterInfo, SetWaterInfo, WaterLevel
 
@@ -37,6 +38,8 @@ _COMMANDS: List[Type[Command]] = [
     GetLifeSpan,
 
     PlaySound,
+
+    SetRelocationState,
 
     GetStats,
 
