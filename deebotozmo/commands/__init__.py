@@ -3,6 +3,7 @@ from typing import Dict, List, Type
 
 from .base import Command, SetCommand
 from .battery import GetBattery
+from .charge import Charge
 from .charge_state import GetChargeState
 from .fan_speed import FanSpeedLevel, GetFanSpeed, SetFanSpeed
 from .life_span import GetLifeSpan
@@ -13,6 +14,8 @@ from .water_info import GetWaterInfo, SetWaterInfo, WaterLevel
 # ordered by file asc
 _COMMANDS: List[Type[Command]] = [
     GetBattery,
+
+    Charge,
 
     GetChargeState,
 

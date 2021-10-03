@@ -104,7 +104,27 @@ class _NoArgsCommand(Command, ABC):
         super().__init__()
 
 
-class SetCommand(Command, ABC):
+class _ExecuteCommand(Command, ABC):
+    """Command, which is executing something (ex. Charge)."""
+
+    # required as name is class variable, will be overwritten in subclasses
+    name = "__invalid__"
+
+    @classmethod
+    def _handle_body(cls, events: VacuumEmitter, body: Dict[str, Any]) -> bool:
+        """Handle message->body and notify the correct event subscribers.
+
+        :return: True if data was valid and no error was included
+        """
+        # Success event looks like { "code": 0, "msg": "ok" }
+        if body.get(_CODE, -1) == 0:
+            return True
+
+        _LOGGER.warning('Command "%s" was not successfully. body=%s', cls.name, body)
+        return False
+
+
+class SetCommand(_ExecuteCommand, ABC):
     """Base set command.
 
     Command needs to be linked to the "get" command, for handling (updating) the sensors.
@@ -133,19 +153,6 @@ class SetCommand(Command, ABC):
     def get_command(self) -> Type[Command]:
         """Return the corresponding "get" command."""
         raise NotImplementedError
-
-    @classmethod
-    def _handle_body(cls, events: VacuumEmitter, body: Dict[str, Any]) -> bool:
-        """Handle message->body and notify the correct event subscribers.
-
-        :return: True if data was valid and no error was included
-        """
-        # Success event looks like { "code": 0, "msg": "ok" }
-        if body.get(_CODE, -1) == 0:
-            return True
-
-        _LOGGER.warning('Command "%s" was not successfully. body=%s', cls.name, body)
-        return False
 
 
 @unique

@@ -45,13 +45,6 @@ class PlaySound(Command):
         super().__init__("playSound", {"count": 1, "sid": 30})
 
 
-class Charge(Command):
-    """Charge command."""
-
-    def __init__(self) -> None:
-        super().__init__("charge", {"act": "go"})
-
-
 class CleanStart(Command):
     """Clean start command."""
 
