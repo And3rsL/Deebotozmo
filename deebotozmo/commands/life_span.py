@@ -4,7 +4,7 @@ from enum import Enum, unique
 from typing import List
 
 from ..events import LifeSpanEvent
-from .base import Command, VacuumEmitter
+from .base import CommandWithHandling, VacuumEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class LifeSpan(Enum):
     FILTER = "heap"
 
 
-class GetLifeSpan(Command):
+class GetLifeSpan(CommandWithHandling):
     """Get life span command."""
 
     name = "getLifeSpan"

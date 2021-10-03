@@ -3,12 +3,12 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from ..events import CleanLogEntry, CleanLogEvent
-from .base import Command, VacuumEmitter
+from .base import CommandWithHandling, VacuumEmitter
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class GetCleanLogs(Command):
+class GetCleanLogs(CommandWithHandling):
     """Get clean logs command."""
 
     name = "GetCleanLogs"

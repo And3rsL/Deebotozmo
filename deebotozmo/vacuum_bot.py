@@ -11,6 +11,7 @@ from deebotozmo.commands import (
     COMMANDS,
     Clean,
     Command,
+    CommandWithHandling,
     GetBattery,
     GetChargeState,
     GetCleanInfo,
@@ -18,11 +19,11 @@ from deebotozmo.commands import (
     GetError,
     GetFanSpeed,
     GetLifeSpan,
+    GetPos,
     GetStats,
     GetWaterInfo,
 )
 from deebotozmo.commands.clean import CleanAction
-from deebotozmo.commands_old import Command as OldCommand
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
@@ -126,7 +127,7 @@ class VacuumBot:
 
         self.events.status.subscribe(on_status)
 
-    async def execute_command(self, command: Union[Command, OldCommand]) -> None:
+    async def execute_command(self, command: Command) -> None:
         """Execute given command and handle response."""
         if (
             command == Clean(CleanAction.RESUME)
@@ -157,98 +158,48 @@ class VacuumBot:
     async def handle(
         self,
         command_name: str,
-        data: Dict[str, Any],
-        requested_command: Optional[Union[Command, OldCommand]],
+        message: Dict[str, Any],
+        requested_command: Optional[Command],
     ) -> None:
         """Handle the given event.
 
         :param command_name: the name of the event or request
-        :param data: the data of it
+        :param message: the message (data) of it
         :param requested_command: The request command object. None -> MQTT
         :return: None
         """
-        _LOGGER.debug("Handle %s: %s", command_name, data)
+        _LOGGER.debug("Handle %s: %s", command_name, message)
 
-        if requested_command and isinstance(requested_command, Command):
-            requested_command.handle_requested(self.events, data)
+        if requested_command and isinstance(requested_command, CommandWithHandling):
+            requested_command.handle_requested(self.events, message)
         else:
+            fw_version = message.get("header", {}).get("fwVer", None)
+            if fw_version:
+                self.fw_version = fw_version
+
             # Handle command start start with "on","off","report" the same as "get" commands
             command_name = re.sub(
-                _COMMAND_REPLACE_PATTERN, _COMMAND_REPLACE_REPLACEMENT, command_name
+                _COMMAND_REPLACE_PATTERN,
+                _COMMAND_REPLACE_REPLACEMENT,
+                command_name.lower(),
             )
+
+            # T8 series and newer
+            if command_name.endswith("_V2"):
+                command_name = command_name[:-3]
 
             command = COMMANDS.get(command_name, None)
             if command:
-                command.handle(self.events, data)
+                command.handle(self.events, message)
             else:
-                await self._handle_old(
-                    command_name, data, requested_command is not None
-                )
+                if command_name in COMMANDS.keys():
+                    raise RuntimeError(
+                        "Command support new format. Should never happen! Please contact developers."
+                    )
 
-    async def _handle_old(
-        self, event_name: str, event: dict, requested: bool = True
-    ) -> None:
-        # pylint: disable=too-many-branches
-
-        event_name = event_name.lower()
-
-        prefixes = [
-            "on",  # incoming events (on)
-            "off",  # incoming events for (3rd) unknown/unsaved map
-            "report",  # incoming events (report)
-            "get",  # remove from "get" commands
-        ]
-
-        for prefix in prefixes:
-            if event_name.startswith(prefix):
-                event_name = event_name[len(prefix) :]
-
-        # OZMO T8 series and newer
-        if event_name.endswith("_V2".lower()):
-            event_name = event_name[:-3]
-
-        if event_name in [
-            "speed",
-            "waterinfo",
-            "lifespan",
-            "stats",
-            "battery",
-            "chargestate",
-            "charge",
-            "clean",
-            "cleanlogs",
-            "error",
-            "playsound",
-            "cleaninfo",
-        ]:
-            raise RuntimeError(
-                "Commands support new format. Should never happen! Please contact developers."
-            )
-
-        if requested:
-            if event.get("ret") == "ok":
-                event = event.get("resp", event)
-            else:
-                _LOGGER.warning('Event %s where ret != "ok": %s', event_name, event)
-                return
-
-        event_body = event.get("body", {})
-        event_header = event.get("header", {})
-
-        if not (event_body and event_header):
-            _LOGGER.warning("Invalid Event %s: %s", event_name, event)
-            return
-
-        event_data = event_body.get("data", {})
-
-        fw_version = event_header.get("fwVer")
-        if fw_version:
-            self.fw_version = fw_version
-
-        if "map" in event_name or event_name == "pos":
-            await self.map.handle(event_name, event_data, requested)
-        elif event_name.startswith("set"):
-            # ignore set commands for now
-            pass
-        else:
-            _LOGGER.debug("Unknown event: %s with %s", event_name, event)
+                if "map" in command_name or command_name == GetPos.name:
+                    await self.map.handle(
+                        command_name, message, requested_command is not None
+                    )
+                else:
+                    _LOGGER.debug('Unknown command "%s" with %s', command_name, message)
