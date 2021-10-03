@@ -201,6 +201,10 @@ class Map:
                 await asyncio.gather(*tasks)
 
     def _handle_map_sub_set(self, event_data: dict) -> None:
+        if event_data.get("type", None) != "ar":
+            _LOGGER.debug('Currently supporting only type="ar": event=%s', event_data)
+            return
+
         subtype = int(event_data["subtype"])
         self._rooms.append(
             Room(
