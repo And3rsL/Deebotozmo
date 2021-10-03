@@ -18,9 +18,8 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 import aiohttp
 import click
 
-from deebotozmo.commands import Charge, Clean, SetFanSpeed, SetWaterInfo
+from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
 from deebotozmo.commands.clean import CleanAction, CleanArea, CleanMode
-from deebotozmo.commands_old import PlaySound
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.events import (
     BatteryEvent,

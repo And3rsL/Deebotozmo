@@ -10,6 +10,7 @@ from .clean_logs import GetCleanLogs
 from .error import GetError
 from .fan_speed import FanSpeedLevel, GetFanSpeed, SetFanSpeed
 from .life_span import GetLifeSpan
+from .play_sound import PlaySound
 from .stats import GetStats
 from .water_info import GetWaterInfo, SetWaterInfo, WaterLevel
 
@@ -33,6 +34,8 @@ _COMMANDS: List[Type[Command]] = [
     SetFanSpeed,
 
     GetLifeSpan,
+
+    PlaySound,
 
     GetStats,
 

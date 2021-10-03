@@ -32,13 +32,6 @@ class Relocate(Command):
         super().__init__("setRelocationState", {"mode": "manu"})
 
 
-class PlaySound(Command):
-    """Play sound command."""
-
-    def __init__(self) -> None:
-        super().__init__("playSound", {"count": 1, "sid": 30})
-
-
 class GetCleanInfo(Command):
     """Get clean info command."""
 
