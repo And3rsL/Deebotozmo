@@ -1,7 +1,7 @@
 """Deebot events."""
 
 from dataclasses import dataclass
-from typing import List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
 from deebotozmo.models import Room, VacuumState
 
@@ -99,3 +99,11 @@ class WaterInfoEvent:
 
     mop_attached: bool
     amount: str
+
+
+@dataclass
+class CustomCommandEvent:
+    """Custom command event representation."""
+
+    name: str
+    response: Dict[str, Any]

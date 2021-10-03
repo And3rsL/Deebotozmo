@@ -8,6 +8,7 @@ import aiohttp
 from aiohttp import ClientResponseError
 
 from deebotozmo.commands import Command, GetCleanLogs
+from deebotozmo.commands.custom import CustomCommand
 from deebotozmo.models import RequestAuth, Vacuum
 from deebotozmo.util import sanitize_data
 
@@ -33,7 +34,9 @@ class EcovacsJSON:
         self.portal_url = portal_url
         self.verify_ssl = verify_ssl
 
-    async def send_command(self, command: Command, vacuum: Vacuum) -> dict:
+    async def send_command(
+        self, command: Union[Command, CustomCommand], vacuum: Vacuum
+    ) -> dict:
         """Send json command for given vacuum to the api."""
         json, base_url, url_with_params = self._get_json_and_url(command, vacuum)
 
@@ -68,7 +71,7 @@ class EcovacsJSON:
         return {}
 
     def _get_json_and_url(
-        self, command: Command, vacuum: Vacuum
+        self, command: Union[Command, CustomCommand], vacuum: Vacuum
     ) -> Tuple[Dict[str, Any], str, str]:
         json: Dict[str, Any] = {"auth": self._auth.to_dict()}
         base_url = self.portal_url

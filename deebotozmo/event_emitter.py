@@ -8,6 +8,7 @@ from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
+    CustomCommandEvent,
     ErrorEvent,
     FanSpeedEvent,
     LifeSpanEvent,
@@ -43,11 +44,13 @@ class EventEmitter(Generic[T]):
 
     def __init__(
         self,
-        refresh_function: Callable[[], Awaitable[None]],
+        refresh_function: Optional[Callable[[], Awaitable[None]]] = None,
         notify_on_equal_event: bool = False,
     ):
         self._subscribers: List[EventListener] = []
-        self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
+        self._refresh_function: Optional[
+            Callable[[], Awaitable[None]]
+        ] = refresh_function
         self._semaphore = asyncio.Semaphore(1)
         self._last_event: Optional[T] = None
         self._notify_on_equal_event = notify_on_equal_event
@@ -97,7 +100,8 @@ class EventEmitter(Generic[T]):
             return
 
         async with self._semaphore:
-            await self._refresh_function()
+            if self._refresh_function:
+                await self._refresh_function()
 
     def request_refresh(self) -> None:
         """Request manual refresh."""
@@ -179,3 +183,4 @@ class VacuumEmitter(MapEmitter):
     stats: EventEmitter[StatsEvent]
     status: EventEmitter[StatusEvent]
     water_info: EventEmitter[WaterInfoEvent]
+    custom_command: EventEmitter[CustomCommandEvent]

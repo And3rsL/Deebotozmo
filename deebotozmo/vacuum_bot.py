@@ -24,12 +24,14 @@ from deebotozmo.commands import (
     GetWaterInfo,
 )
 from deebotozmo.commands.clean import CleanAction
+from deebotozmo.commands.custom import CustomCommand
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
+    CustomCommandEvent,
     ErrorEvent,
     FanSpeedEvent,
     LifeSpanEvent,
@@ -107,6 +109,7 @@ class VacuumBot:
             water_info=EventEmitter[WaterInfoEvent](
                 get_refresh_function([GetWaterInfo()], self.execute_command)
             ),
+            custom_command=EventEmitter[CustomCommandEvent](),
         )
 
         async def on_status(event: StatusEvent) -> None:
@@ -127,7 +130,7 @@ class VacuumBot:
 
         self.events.status.subscribe(on_status)
 
-    async def execute_command(self, command: Command) -> None:
+    async def execute_command(self, command: Union[Command, CustomCommand]) -> None:
         """Execute given command and handle response."""
         if (
             command == Clean(CleanAction.RESUME)
@@ -159,7 +162,7 @@ class VacuumBot:
         self,
         command_name: str,
         message: Dict[str, Any],
-        requested_command: Optional[Command],
+        requested_command: Optional[Union[Command, CustomCommand]],
     ) -> None:
         """Handle the given event.
 
@@ -169,8 +172,9 @@ class VacuumBot:
         :return: None
         """
         _LOGGER.debug("Handle %s: %s", command_name, message)
-
-        if requested_command and isinstance(requested_command, CommandWithHandling):
+        if requested_command and isinstance(
+            requested_command, (CommandWithHandling, CustomCommand)
+        ):
             requested_command.handle_requested(self.events, message)
         else:
             fw_version = message.get("header", {}).get("fwVer", None)
