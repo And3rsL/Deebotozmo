@@ -25,6 +25,6 @@ class Charge(_ExecuteCommand):
         """
         success = super()._handle_body(events, body)
         if success:
-            events.status.notify(StatusEvent(True, VacuumState.STATE_RETURNING))
+            events.status.notify(StatusEvent(True, VacuumState.RETURNING))
 
         return success

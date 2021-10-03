@@ -2,7 +2,6 @@
 from typing import Dict, List, Optional, Union
 
 from deebotozmo.constants import MAP_TRACE_POINT_COUNT
-from deebotozmo.models import Vacuum
 
 
 class Command:
@@ -30,22 +29,6 @@ class Relocate(Command):
 
     def __init__(self) -> None:
         super().__init__("setRelocationState", {"mode": "manu"})
-
-
-class GetCleanInfo(Command):
-    """Get clean info command."""
-
-    def __init__(self, vacuum: Vacuum) -> None:
-        command_name = "getCleanInfo"
-        if vacuum and vacuum.get_class in [
-            "bs40nz",  # DEEBOT T8 AIVI
-            "a1nNMoAGAsH",  # DEEBOT T8 MAX
-            "vdehg6",  # DEEBOT T8 AIVI +
-            "no61kx",  # DEEBOT T8 POWER
-            "a7lhb1",  # DEEBOT N9+
-        ]:
-            command_name = "getCleanInfo_V2"
-        super().__init__(command_name)
 
 
 class GetCachedMapInfo(Command):

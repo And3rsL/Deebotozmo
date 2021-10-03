@@ -1,8 +1,12 @@
 """Clean commands."""
 import logging
 from enum import Enum, unique
+from typing import Any, Dict, Optional
 
-from .base import _ExecuteCommand
+from ..event_emitter import VacuumEmitter
+from ..events import StatusEvent
+from ..models import VacuumState
+from .base import _ExecuteCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,3 +53,51 @@ class CleanArea(Clean):
         self.args["type"] = mode.value
         self.args["content"] = str(area)
         self.args["count"] = cleanings
+
+
+class GetCleanInfo(_NoArgsCommand):
+    """Get clean info command."""
+
+    name = "getCleanInfo"
+
+    @classmethod
+    def _handle_body_data_dict(
+        cls, events: VacuumEmitter, data: Dict[str, Any]
+    ) -> bool:
+        """Handle message->body->data and notify the correct event subscribers.
+
+        :return: True if data was valid and no error was included
+        """
+
+        status: Optional[VacuumState] = None
+        if data.get("trigger") == "alert":
+            status = VacuumState.ERROR
+        elif data.get("state") == "clean":
+            clean_state = data.get("cleanState", {})
+            motion_state = clean_state.get("motionState")
+            if motion_state == "working":
+                status = VacuumState.CLEANING
+            elif motion_state == "pause":
+                status = VacuumState.PAUSED
+            elif motion_state == "goCharging":
+                status = VacuumState.RETURNING
+
+            clean_type = clean_state.get("type")
+            content = clean_state.get("content", {})
+            if "type" in content:
+                clean_type = content.get("type")
+
+            if clean_type == "customArea":
+                area_values = content
+                if "value" in content:
+                    area_values = content.get("value")
+
+                _LOGGER.debug("Last custom area values (x1,y1,x2,y2): %s", area_values)
+
+        elif data.get("state") == "goCharging":
+            status = VacuumState.RETURNING
+
+        if status:
+            events.status.notify(StatusEvent(True, status))
+
+        return True

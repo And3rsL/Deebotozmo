@@ -13,16 +13,16 @@ from deebotozmo.commands import (
     Command,
     GetBattery,
     GetChargeState,
+    GetCleanInfo,
     GetCleanLogs,
     GetError,
+    GetFanSpeed,
+    GetLifeSpan,
     GetStats,
     GetWaterInfo,
 )
 from deebotozmo.commands.clean import CleanAction
-from deebotozmo.commands.fan_speed import GetFanSpeed
-from deebotozmo.commands.life_span import GetLifeSpan
 from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import GetCleanInfo
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
@@ -77,7 +77,7 @@ class VacuumBot:
 
         status_ = EventEmitter[StatusEvent](
             get_refresh_function(
-                [GetChargeState(), GetCleanInfo(self.vacuum)],
+                [GetChargeState(), GetCleanInfo()],
                 self.execute_command,
             )
         )
@@ -118,6 +118,11 @@ class VacuumBot:
                 ):
                     if name != "status":
                         obj.request_refresh()
+            elif (
+                last_status.state != VacuumState.DOCKED
+                and event.state == VacuumState.DOCKED
+            ):
+                self.events.clean_logs.request_refresh()
 
         self.events.status.subscribe(on_status)
 
@@ -125,12 +130,12 @@ class VacuumBot:
         """Execute given command and handle response."""
         if (
             command == Clean(CleanAction.RESUME)
-            and self._status.state != VacuumState.STATE_PAUSED
+            and self._status.state != VacuumState.PAUSED
         ):
             command = Clean(CleanAction.START)
         elif (
             command == Clean(CleanAction.START)
-            and self._status.state == VacuumState.STATE_PAUSED
+            and self._status.state == VacuumState.PAUSED
         ):
             command = Clean(CleanAction.RESUME)
 
@@ -213,6 +218,8 @@ class VacuumBot:
             "clean",
             "cleanlogs",
             "error",
+            "playsound",
+            "cleaninfo",
         ]:
             raise RuntimeError(
                 "Commands support new format. Should never happen! Please contact developers."
@@ -238,50 +245,10 @@ class VacuumBot:
         if fw_version:
             self.fw_version = fw_version
 
-        if event_name == "cleaninfo":
-            await self._handle_clean_info(event_data)
-        elif "map" in event_name or event_name == "pos":
+        if "map" in event_name or event_name == "pos":
             await self.map.handle(event_name, event_data, requested)
         elif event_name.startswith("set"):
             # ignore set commands for now
             pass
-        elif event_name == "playsound":
-            # ignore this events
-            pass
         else:
             _LOGGER.debug("Unknown event: %s with %s", event_name, event)
-
-    async def _handle_clean_info(self, event_data: dict) -> None:
-        status: Optional[VacuumState] = None
-        if event_data.get("trigger") == "alert":
-            status = VacuumState.STATE_ERROR
-        elif event_data.get("state") == "clean":
-            clean_state = event_data.get("cleanState", {})
-            motion_state = clean_state.get("motionState")
-            if motion_state == "working":
-                status = VacuumState.STATE_CLEANING
-            elif motion_state == "pause":
-                status = VacuumState.STATE_PAUSED
-            elif motion_state == "goCharging":
-                status = VacuumState.STATE_RETURNING
-
-            clean_type = clean_state.get("type")
-            content = clean_state.get("content", {})
-            if "type" in content:
-                clean_type = content.get("type")
-
-            if clean_type == "customArea":
-                area_values = content
-                if "value" in content:
-                    area_values = content.get("value")
-
-                _LOGGER.debug("Last custom area values (x1,y1,x2,y2): %s", area_values)
-
-        elif event_data.get("state") == "goCharging":
-            status = VacuumState.STATE_RETURNING
-
-        if status:
-            self._set_state(status)
-
-        if self._status.state == VacuumState.STATE_DOCKED:
-            self.events.clean_logs.request_refresh()

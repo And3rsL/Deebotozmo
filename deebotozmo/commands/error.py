@@ -35,7 +35,7 @@ class GetError(_NoArgsCommand):
                         error,
                         description,
                     )
-                    events.status.notify(StatusEvent(True, VacuumState.STATE_ERROR))
+                    events.status.notify(StatusEvent(True, VacuumState.ERROR))
                 events.error.notify(ErrorEvent(error, description))
                 return True
 

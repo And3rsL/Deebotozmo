@@ -23,7 +23,7 @@ class GetChargeState(_NoArgsCommand):
         :return: True if data was valid and no error was included
         """
         if data.get("isCharging") == 1:
-            events.status.notify(StatusEvent(True, VacuumState.STATE_DOCKED))
+            events.status.notify(StatusEvent(True, VacuumState.DOCKED))
         return True
 
     @classmethod
@@ -34,14 +34,14 @@ class GetChargeState(_NoArgsCommand):
         status: Optional[VacuumState] = None
         if body.get("msg", None) == "fail":
             if body["code"] == "30007":  # Already charging
-                status = VacuumState.STATE_DOCKED
+                status = VacuumState.DOCKED
             elif body["code"] == "5":  # Busy with another command
-                status = VacuumState.STATE_ERROR
+                status = VacuumState.ERROR
             elif body["code"] == "3":  # Bot in stuck state, example dust bin out
-                status = VacuumState.STATE_ERROR
+                status = VacuumState.ERROR
 
         if status:
-            events.status.notify(StatusEvent(True, VacuumState.STATE_DOCKED))
+            events.status.notify(StatusEvent(True, VacuumState.DOCKED))
             return True
 
         return False
