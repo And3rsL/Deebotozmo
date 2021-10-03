@@ -7,9 +7,8 @@ from typing import Any, Dict, Tuple, Union
 import aiohttp
 from aiohttp import ClientResponseError
 
-from deebotozmo.commands import Command
+from deebotozmo.commands import Command, GetCleanLogs
 from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import GetCleanLogs
 from deebotozmo.models import RequestAuth, Vacuum
 from deebotozmo.util import sanitize_data
 
@@ -78,7 +77,7 @@ class EcovacsJSON:
         base_url = self.portal_url
         params = "?"
 
-        if command.name == GetCleanLogs().name:
+        if command.name == GetCleanLogs.name:
             json.update(
                 {
                     "td": command.name,

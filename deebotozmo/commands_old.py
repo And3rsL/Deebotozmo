@@ -39,13 +39,6 @@ class PlaySound(Command):
         super().__init__("playSound", {"count": 1, "sid": 30})
 
 
-class GetCleanLogs(Command):
-    """Get clean logs command."""
-
-    def __init__(self) -> None:
-        super().__init__("GetCleanLogs")
-
-
 class GetCleanInfo(Command):
     """Get clean info command."""
 

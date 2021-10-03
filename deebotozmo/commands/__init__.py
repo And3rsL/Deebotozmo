@@ -6,6 +6,7 @@ from .battery import GetBattery
 from .charge import Charge
 from .charge_state import GetChargeState
 from .clean import Clean, CleanArea
+from .clean_logs import GetCleanLogs
 from .fan_speed import FanSpeedLevel, GetFanSpeed, SetFanSpeed
 from .life_span import GetLifeSpan
 from .stats import GetStats
@@ -22,6 +23,8 @@ _COMMANDS: List[Type[Command]] = [
 
     Clean,
     CleanArea,
+
+    GetCleanLogs,
 
     GetFanSpeed,
     SetFanSpeed,

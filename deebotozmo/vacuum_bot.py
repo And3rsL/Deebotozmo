@@ -3,7 +3,7 @@ import asyncio
 import inspect
 import logging
 import re
-from typing import Any, Dict, Final, List, Optional, Union
+from typing import Any, Dict, Final, Optional, Union
 
 import aiohttp
 
@@ -13,6 +13,7 @@ from deebotozmo.commands import (
     Command,
     GetBattery,
     GetChargeState,
+    GetCleanLogs,
     GetStats,
     GetWaterInfo,
 )
@@ -20,14 +21,13 @@ from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.fan_speed import GetFanSpeed
 from deebotozmo.commands.life_span import GetLifeSpan
 from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import GetCleanInfo, GetCleanLogs, GetError
+from deebotozmo.commands_old import GetCleanInfo, GetError
 from deebotozmo.constants import ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
 from deebotozmo.events import (
     BatteryEvent,
-    CleanLogEntry,
     CleanLogEvent,
     ErrorEvent,
     FanSpeedEvent,
@@ -162,6 +162,8 @@ class VacuumBot:
         :param requested_command: The request command object. None -> MQTT
         :return: None
         """
+        _LOGGER.debug("Handle %s: %s", command_name, data)
+
         if requested_command and isinstance(requested_command, Command):
             requested_command.handle_requested(self.events, data)
         else:
@@ -183,7 +185,6 @@ class VacuumBot:
     ) -> None:
         # pylint: disable=too-many-branches
 
-        _LOGGER.debug("Handle %s: %s", event_name, event)
         event_name = event_name.lower()
 
         prefixes = [
@@ -201,12 +202,23 @@ class VacuumBot:
         if event_name.endswith("_V2".lower()):
             event_name = event_name[:-3]
 
+        if event_name in [
+            "speed",
+            "waterinfo",
+            "lifespan",
+            "stats",
+            "battery",
+            "chargestate",
+            "charge",
+            "clean",
+            "cleanlogs",
+        ]:
+            raise RuntimeError(
+                "Commands support new format. Should never happen! Please contact developers."
+            )
+
         if requested:
             if event.get("ret") == "ok":
-                if event_name == "cleanlogs":
-                    await self._handle_clean_logs(event)
-                    return
-
                 event = event.get("resp", event)
             else:
                 _LOGGER.warning('Event %s where ret != "ok": %s', event_name, event)
@@ -224,20 +236,6 @@ class VacuumBot:
         fw_version = event_header.get("fwVer")
         if fw_version:
             self.fw_version = fw_version
-
-        if event_name in [
-            "speed",
-            "waterinfo",
-            "lifespan",
-            "stats",
-            "battery",
-            "chargestate",
-            "charge",
-            "clean",
-        ]:
-            raise RuntimeError(
-                "Commands support new format. Should never happen! Please contact developers."
-            )
 
         if event_name == "error":
             await self._handle_error(event, event_data)
@@ -278,28 +276,6 @@ class VacuumBot:
             _LOGGER.warning(
                 "Could not process error event with received data: %s", event
             )
-
-    async def _handle_clean_logs(self, event: Dict) -> None:
-        response: Optional[List[dict]] = event.get("logs")
-
-        # Ecovacs API is changing their API, this request may not working properly
-        if response is not None and len(response) >= 0:
-            logs: List[CleanLogEntry] = []
-            for log in response:
-                logs.append(
-                    CleanLogEntry(
-                        timestamp=log.get("ts"),
-                        image_url=log.get("imageUrl"),
-                        type=log.get("type"),
-                        area=log.get("area"),
-                        stop_reason=log.get("stopReason"),
-                        total_time=log.get("last"),
-                    )
-                )
-
-            self.events.clean_logs.notify(CleanLogEvent(logs))
-        else:
-            _LOGGER.warning("Could not parse clean logs event with %s", event)
 
     async def _handle_clean_info(self, event_data: dict) -> None:
         status: Optional[VacuumState] = None
