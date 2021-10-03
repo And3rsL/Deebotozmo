@@ -33,6 +33,7 @@ from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
     FanSpeedEvent,
+    LifeSpanEvent,
     MapEvent,
     RoomsEvent,
     StatsEvent,
@@ -386,7 +387,7 @@ async def components(ctx: click.Context) -> None:
 
         event = asyncio.Event()
 
-        async def on_lifespan_event(lifespan_event: dict) -> None:
+        async def on_lifespan_event(lifespan_event: LifeSpanEvent) -> None:
             for key, value in lifespan_event.items():
                 print(f"{key}: {value}%")
             event.set()

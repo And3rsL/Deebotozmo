@@ -1,10 +1,10 @@
 from typing import Set, Type
 
-from deebotozmo.commands.base import DisplayNameEnum
+from deebotozmo.commands.base import DisplayNameIntEnum
 
 
-def verify_DisplayNameEnum_unique(enum: Type[DisplayNameEnum]):
-    assert issubclass(enum, DisplayNameEnum)
+def verify_DisplayNameEnum_unique(enum: Type[DisplayNameIntEnum]):
+    assert issubclass(enum, DisplayNameIntEnum)
     names: Set[str] = set()
     values: Set[int] = set()
     for member in enum:

@@ -1,35 +1,9 @@
 """Deebot events."""
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 from deebotozmo.models import Room, VacuumState
-
-
-@dataclass
-class StatsEvent:
-    """Stats event representation."""
-
-    area: Optional[int]
-    clean_id: Optional[str]
-    time: Optional[int]
-    type: Optional[str]
-    start: Optional[int]
-
-
-@dataclass
-class ErrorEvent:
-    """Error event representation."""
-
-    code: int
-    description: Optional[str]
-
-
-@dataclass
-class FanSpeedEvent:
-    """Fan speed event representation."""
-
-    speed: str
 
 
 @dataclass
@@ -37,22 +11,6 @@ class BatteryEvent:
     """Battery event representation."""
 
     value: int
-
-
-@dataclass
-class StatusEvent:
-    """Status event representation."""
-
-    available: bool
-    state: Optional[VacuumState]
-
-
-@dataclass
-class WaterInfoEvent:
-    """Water info event representation."""
-
-    mop_attached: bool
-    amount: str
 
 
 @dataclass
@@ -79,6 +37,37 @@ class CleanLogEvent:
 
 
 @dataclass
+class ErrorEvent:
+    """Error event representation."""
+
+    code: int
+    description: Optional[str]
+
+
+@dataclass
+class FanSpeedEvent:
+    """Fan speed event representation."""
+
+    speed: str
+
+
+class LifeSpanEvent(TypedDict, total=False):
+    """Life span event representation.
+
+    Must be in sync with the enum :class:`~LifeSpan`.
+    """
+
+    sideBrush: float
+    brush: float
+    filter: float
+
+
+@dataclass
+class MapEvent:
+    """Map event representation."""
+
+
+@dataclass
 class RoomsEvent:
     """Room event representation."""
 
@@ -86,5 +75,27 @@ class RoomsEvent:
 
 
 @dataclass
-class MapEvent:
-    """Map event representation."""
+class StatsEvent:
+    """Stats event representation."""
+
+    area: Optional[int]
+    clean_id: Optional[str]
+    time: Optional[int]
+    type: Optional[str]
+    start: Optional[int]
+
+
+@dataclass
+class StatusEvent:
+    """Status event representation."""
+
+    available: bool
+    state: Optional[VacuumState]
+
+
+@dataclass
+class WaterInfoEvent:
+    """Water info event representation."""
+
+    mop_attached: bool
+    amount: str

@@ -3,6 +3,7 @@ from typing import Dict, List, Type
 
 from .base import Command, SetCommand
 from .fan_speed import FanSpeedLevel, GetFanSpeed, SetFanSpeed
+from .life_span import GetLifeSpan
 from .water_info import GetWaterInfo, SetWaterInfo, WaterLevel
 
 # fmt: off
@@ -11,7 +12,9 @@ _COMMANDS: List[Type[Command]] = [
     SetWaterInfo,
 
     GetFanSpeed,
-    SetFanSpeed
+    SetFanSpeed,
+
+    GetLifeSpan
 ]
 # fmt: on
 

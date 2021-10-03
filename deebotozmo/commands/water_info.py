@@ -3,12 +3,12 @@ import logging
 from typing import Any, Dict, Mapping, Union
 
 from ..events import WaterInfoEvent
-from .base import DisplayNameEnum, GetCommand, SetCommand, VacuumEmitter
+from .base import DisplayNameIntEnum, SetCommand, VacuumEmitter, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class WaterLevel(DisplayNameEnum):
+class WaterLevel(DisplayNameIntEnum):
     """Enum class for all possible water levels."""
 
     LOW = 1
@@ -17,13 +17,15 @@ class WaterLevel(DisplayNameEnum):
     ULTRAHIGH = 4
 
 
-class GetWaterInfo(GetCommand):
+class GetWaterInfo(_NoArgsCommand):
     """Get water info command."""
 
     name = "getWaterInfo"
 
     @classmethod
-    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
+    def _handle_body_data_dict(
+        cls, events: VacuumEmitter, data: Dict[str, Any]
+    ) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included

@@ -6,9 +6,6 @@ from deebotozmo.constants import (
     CLEAN_ACTION_RESUME,
     CLEAN_ACTION_START,
     CLEAN_ACTION_STOP,
-    COMPONENT_FILTER,
-    COMPONENT_MAIN_BRUSH,
-    COMPONENT_SIDE_BRUSH,
     MAP_TRACE_POINT_COUNT,
 )
 from deebotozmo.models import Vacuum
@@ -117,16 +114,6 @@ class GetCleanLogs(Command):
 
     def __init__(self) -> None:
         super().__init__("GetCleanLogs")
-
-
-class GetLifeSpan(Command):
-    """Get life span command."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            "getLifeSpan",
-            [COMPONENT_MAIN_BRUSH, COMPONENT_SIDE_BRUSH, COMPONENT_FILTER],
-        )
 
 
 class GetCleanInfo(Command):

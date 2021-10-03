@@ -8,6 +8,7 @@ import aiohttp
 
 from deebotozmo.commands import COMMANDS, Command, GetWaterInfo
 from deebotozmo.commands.fan_speed import GetFanSpeed
+from deebotozmo.commands.life_span import GetLifeSpan
 from deebotozmo.commands_old import CleanResume, CleanStart
 from deebotozmo.commands_old import Command as OldCommand
 from deebotozmo.commands_old import (
@@ -16,10 +17,9 @@ from deebotozmo.commands_old import (
     GetCleanInfo,
     GetCleanLogs,
     GetError,
-    GetLifeSpan,
     GetStats,
 )
-from deebotozmo.constants import COMPONENT_FROM_ECOVACS, ERROR_CODES
+from deebotozmo.constants import ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
@@ -29,6 +29,7 @@ from deebotozmo.events import (
     CleanLogEvent,
     ErrorEvent,
     FanSpeedEvent,
+    LifeSpanEvent,
     StatsEvent,
     StatusEvent,
     WaterInfoEvent,
@@ -91,7 +92,7 @@ class VacuumBot:
             fan_speed=EventEmitter[FanSpeedEvent](
                 get_refresh_function([GetFanSpeed()], self.execute_command)
             ),
-            lifespan=PollingEventEmitter[Dict[str, float]](
+            lifespan=PollingEventEmitter[LifeSpanEvent](
                 60, get_refresh_function([GetLifeSpan()], self.execute_command), status_
             ),
             map=self.map.events.map,
@@ -227,12 +228,15 @@ class VacuumBot:
         if fw_version:
             self.fw_version = fw_version
 
+        if event_name in ["speed", "waterinfo", "lifespan"]:
+            raise RuntimeError(
+                "Commands support new format. Should never happen! Please contact developers."
+            )
+
         if event_name == "stats":
             await self._handle_stats(event_data)
         elif event_name == "error":
             await self._handle_error(event, event_data)
-        elif event_name == "speed":
-            raise NotImplementedError()
         elif event_name.startswith("battery"):
             await self._handle_battery(event_data)
         elif event_name == "chargestate":
@@ -240,12 +244,8 @@ class VacuumBot:
                 await self._handle_charge_state_requested(event_body)
             else:
                 await self._handle_charge_state(event_data)
-        elif event_name == "lifespan":
-            await self._handle_life_span(event_data)
         elif event_name == "cleaninfo":
             await self._handle_clean_info(event_data)
-        elif event_name == "waterinfo":
-            raise NotImplementedError()
         elif "map" in event_name or event_name == "pos":
             await self.map.handle(event_name, event_data, requested)
         elif event_name.startswith("set"):
@@ -320,23 +320,6 @@ class VacuumBot:
     async def _handle_charge_state(self, event_data: dict) -> None:
         if event_data.get("isCharging") == 1:
             self._set_state(VacuumState.STATE_DOCKED)
-
-    async def _handle_life_span(
-        self, event_data: List[Dict[str, Union[str, int]]]
-    ) -> None:
-        components: Dict[str, float] = {}
-        for component in event_data:
-            component_type = COMPONENT_FROM_ECOVACS.get(str(component.get("type")))
-            left = int(component.get("left", 0))
-            total = int(component.get("total", 0))
-
-            if component_type and total > 0:
-                percent = round((left / total) * 100, 2)
-                components[component_type] = percent
-            else:
-                _LOGGER.warning("Could not parse life span event with %s", event_data)
-
-        self.events.lifespan.notify(components)
 
     async def _handle_clean_logs(self, event: Dict) -> None:
         response: Optional[List[dict]] = event.get("logs")

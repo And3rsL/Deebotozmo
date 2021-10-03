@@ -3,13 +3,14 @@ import asyncio
 import logging
 from asyncio import Task
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, Final, Generic, List, Optional, TypeVar
+from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
 
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
     ErrorEvent,
     FanSpeedEvent,
+    LifeSpanEvent,
     MapEvent,
     RoomsEvent,
     StatsEvent,
@@ -174,7 +175,7 @@ class VacuumEmitter(MapEmitter):
     clean_logs: EventEmitter[CleanLogEvent]
     error: EventEmitter[ErrorEvent]
     fan_speed: EventEmitter[FanSpeedEvent]
-    lifespan: EventEmitter[Dict[str, float]]
+    lifespan: EventEmitter[LifeSpanEvent]
     stats: EventEmitter[StatsEvent]
     status: EventEmitter[StatusEvent]
     water_info: EventEmitter[WaterInfoEvent]

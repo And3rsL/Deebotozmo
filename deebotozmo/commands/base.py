@@ -32,13 +32,36 @@ class Command(ABC):
         return self._args
 
     @classmethod
-    @abstractmethod
-    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
+    def _handle_body_data_list(cls, events: VacuumEmitter, data: List) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
         """
         raise NotImplementedError
+
+    @classmethod
+    def _handle_body_data_dict(
+        cls, events: VacuumEmitter, data: Dict[str, Any]
+    ) -> bool:
+        """Handle message->body->data and notify the correct event subscribers.
+
+        :return: True if data was valid and no error was included
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def _handle_body_data(
+        cls, events: VacuumEmitter, data: Union[Dict[str, Any], List]
+    ) -> bool:
+        """Handle message->body->data and notify the correct event subscribers.
+
+        :return: True if data was valid and no error was included
+        """
+        if isinstance(data, dict):
+            return cls._handle_body_data_dict(events, data)
+
+        if isinstance(data, list):
+            return cls._handle_body_data_list(events, data)
 
     @classmethod
     def _handle_body(cls, events: VacuumEmitter, body: Dict[str, Any]) -> bool:
@@ -71,8 +94,8 @@ class Command(ABC):
         return False
 
 
-class GetCommand(Command, ABC):
-    """Base get command."""
+class _NoArgsCommand(Command, ABC):
+    """Command without args."""
 
     # required as name is class variable, will be overwritten in subclasses
     name = "__invalid__"
@@ -124,17 +147,12 @@ class SetCommand(Command, ABC):
         _LOGGER.warning('Command "%s" was not successfully. body=%s', cls.name, body)
         return False
 
-    @classmethod
-    def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
-        # not required as we overwrite "_handle_body"
-        return True
-
 
 @unique
-class DisplayNameEnum(IntEnum):
+class DisplayNameIntEnum(IntEnum):
     """Int enum with a property "display_name"."""
 
-    def __new__(cls, *args: Tuple, **_: Mapping) -> "DisplayNameEnum":
+    def __new__(cls, *args: Tuple, **_: Mapping) -> "DisplayNameIntEnum":
         """Create new enum."""
         obj = int.__new__(cls)
         obj._value_ = args[0]
@@ -153,7 +171,7 @@ class DisplayNameEnum(IntEnum):
         return self.name.lower()
 
     @classmethod
-    def get(cls, value: str) -> "DisplayNameEnum":
+    def get(cls, value: str) -> "DisplayNameIntEnum":
         """Get enum member from name or display_name."""
         value = str(value).upper()
         if value in cls.__members__:
