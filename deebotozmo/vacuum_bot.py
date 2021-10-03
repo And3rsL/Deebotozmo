@@ -185,7 +185,7 @@ class VacuumBot:
             command_name = re.sub(
                 _COMMAND_REPLACE_PATTERN,
                 _COMMAND_REPLACE_REPLACEMENT,
-                command_name.lower(),
+                command_name,
             )
 
             # T8 series and newer
@@ -201,7 +201,7 @@ class VacuumBot:
                         "Command support new format. Should never happen! Please contact developers."
                     )
 
-                if "map" in command_name or command_name == GetPos.name:
+                if "Map" in command_name or command_name == GetPos.name:
                     await self.map.handle(
                         command_name, message, requested_command is not None
                     )
