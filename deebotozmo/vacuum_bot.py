@@ -6,7 +6,7 @@ from typing import Any, Dict, Final, List, Optional, Union
 
 import aiohttp
 
-from deebotozmo.commands import COMMANDS, Command, GetWaterInfo
+from deebotozmo.commands import COMMANDS, Command, GetStats, GetWaterInfo
 from deebotozmo.commands.fan_speed import GetFanSpeed
 from deebotozmo.commands.life_span import GetLifeSpan
 from deebotozmo.commands_old import CleanResume, CleanStart
@@ -17,7 +17,6 @@ from deebotozmo.commands_old import (
     GetCleanInfo,
     GetCleanLogs,
     GetError,
-    GetStats,
 )
 from deebotozmo.constants import ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
@@ -228,14 +227,12 @@ class VacuumBot:
         if fw_version:
             self.fw_version = fw_version
 
-        if event_name in ["speed", "waterinfo", "lifespan"]:
+        if event_name in ["speed", "waterinfo", "lifespan", "stats"]:
             raise RuntimeError(
                 "Commands support new format. Should never happen! Please contact developers."
             )
 
-        if event_name == "stats":
-            await self._handle_stats(event_data)
-        elif event_name == "error":
+        if event_name == "error":
             await self._handle_error(event, event_data)
         elif event_name.startswith("battery"):
             await self._handle_battery(event_data)
@@ -256,17 +253,6 @@ class VacuumBot:
             pass
         else:
             _LOGGER.debug("Unknown event: %s with %s", event_name, event)
-
-    async def _handle_stats(self, event_data: dict) -> None:
-        stats_event = StatsEvent(
-            event_data.get("area"),
-            event_data.get("cid"),
-            event_data.get("time"),
-            event_data.get("type"),
-            event_data.get("start"),
-        )
-
-        self.events.stats.notify(stats_event)
 
     async def _handle_error(self, event: dict, event_data: dict) -> None:
         error: Optional[int] = None

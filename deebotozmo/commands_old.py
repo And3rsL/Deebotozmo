@@ -153,13 +153,6 @@ class GetCachedMapInfo(Command):
         super().__init__("getCachedMapInfo")
 
 
-class GetStats(Command):
-    """Get stats command."""
-
-    def __init__(self) -> None:
-        super().__init__("getStats")
-
-
 class GetMapTrace(Command):
     """Get map trace command."""
 
