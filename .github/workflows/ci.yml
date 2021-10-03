@@ -32,3 +32,6 @@ jobs:
       - name: Pylint review
         run: |
           pylint deebotozmo
+      - name: Run tests
+        run: |
+          pytest

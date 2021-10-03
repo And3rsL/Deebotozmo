@@ -1,6 +1,5 @@
 """(fan) speed commands."""
 import logging
-from enum import unique
 from typing import Any, Dict, Mapping, Union
 
 from deebotozmo.commands import SetCommand
@@ -11,7 +10,6 @@ from deebotozmo.events import FanSpeedEvent
 _LOGGER = logging.getLogger(__name__)
 
 
-@unique
 class FanSpeedLevel(DisplayNameEnum):
     """Enum class for all possible fan speed levels."""
 
@@ -28,7 +26,7 @@ class GetFanSpeed(GetCommand):
 
     @classmethod
     def _handle_body_data(cls, events: VacuumEmitter, data: Dict[str, Any]) -> bool:
-        """Handle body data and notify the correct event subscriber.
+        """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
         """
