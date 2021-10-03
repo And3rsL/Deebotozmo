@@ -9,15 +9,16 @@ import aiohttp
 
 from deebotozmo.commands import (
     COMMANDS,
+    Clean,
     Command,
     GetBattery,
     GetChargeState,
     GetStats,
     GetWaterInfo,
 )
+from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.fan_speed import GetFanSpeed
 from deebotozmo.commands.life_span import GetLifeSpan
-from deebotozmo.commands_old import CleanResume, CleanStart
 from deebotozmo.commands_old import Command as OldCommand
 from deebotozmo.commands_old import GetCleanInfo, GetCleanLogs, GetError
 from deebotozmo.constants import ERROR_CODES
@@ -123,15 +124,15 @@ class VacuumBot:
     async def execute_command(self, command: Union[Command, OldCommand]) -> None:
         """Execute given command and handle response."""
         if (
-            command.name == CleanResume().name
+            command == Clean(CleanAction.RESUME)
             and self._status.state != VacuumState.STATE_PAUSED
         ):
-            command = CleanStart()
+            command = Clean(CleanAction.START)
         elif (
-            command.name == CleanStart().name
+            command == Clean(CleanAction.START)
             and self._status.state == VacuumState.STATE_PAUSED
         ):
-            command = CleanResume()
+            command = Clean(CleanAction.RESUME)
 
         async with self._semaphore:
             response = await self.json.send_command(command, self.vacuum)
@@ -231,6 +232,8 @@ class VacuumBot:
             "stats",
             "battery",
             "chargestate",
+            "charge",
+            "clean",
         ]:
             raise RuntimeError(
                 "Commands support new format. Should never happen! Please contact developers."
@@ -245,7 +248,7 @@ class VacuumBot:
         elif event_name.startswith("set"):
             # ignore set commands for now
             pass
-        elif event_name in ["playsound", "charge", "clean"]:
+        elif event_name == "playsound":
             # ignore this events
             pass
         else:

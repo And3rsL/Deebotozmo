@@ -1,13 +1,7 @@
 """Deebot commands."""
 from typing import Dict, List, Optional, Union
 
-from deebotozmo.constants import (
-    CLEAN_ACTION_PAUSE,
-    CLEAN_ACTION_RESUME,
-    CLEAN_ACTION_START,
-    CLEAN_ACTION_STOP,
-    MAP_TRACE_POINT_COUNT,
-)
+from deebotozmo.constants import MAP_TRACE_POINT_COUNT
 from deebotozmo.models import Vacuum
 
 
@@ -43,63 +37,6 @@ class PlaySound(Command):
 
     def __init__(self) -> None:
         super().__init__("playSound", {"count": 1, "sid": 30})
-
-
-class CleanStart(Command):
-    """Clean start command."""
-
-    def __init__(self, clean_type: str = "auto") -> None:
-        super().__init__("clean", {"act": CLEAN_ACTION_START, "type": clean_type})
-
-
-class CleanPause(Command):
-    """Clean Pause command."""
-
-    def __init__(self) -> None:
-        super().__init__("clean", {"act": CLEAN_ACTION_PAUSE})
-
-
-class CleanResume(Command):
-    """Clean resume command."""
-
-    def __init__(self) -> None:
-        super().__init__("clean", {"act": CLEAN_ACTION_RESUME})
-
-
-class CleanStop(Command):
-    """Clean stop command."""
-
-    def __init__(self) -> None:
-        super().__init__("clean", {"act": CLEAN_ACTION_STOP})
-
-
-class CleanAbstractArea(Command):
-    """Abstract clean area command."""
-
-    def __init__(self, area: str, cleanings: int, clean_type: str) -> None:
-        super().__init__(
-            "clean",
-            {
-                "act": CLEAN_ACTION_START,
-                "content": str(area),  # must be a string
-                "count": cleanings,
-                "type": clean_type,
-            },
-        )
-
-
-class CleanCustomArea(CleanAbstractArea):
-    """Custom area command."""
-
-    def __init__(self, *, map_position: str, cleanings: int = 1) -> None:
-        super().__init__(map_position, cleanings, "customArea")
-
-
-class CleanSpotArea(CleanAbstractArea):
-    """Clean spot command."""
-
-    def __init__(self, *, area: str, cleanings: int = 1) -> None:
-        super().__init__(area, cleanings, "spotArea")
 
 
 class GetCleanLogs(Command):
