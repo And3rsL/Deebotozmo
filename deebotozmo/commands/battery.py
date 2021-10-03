@@ -1,4 +1,4 @@
-"""Water info commands."""
+"""Battery commands."""
 import logging
 from typing import Any, Dict
 

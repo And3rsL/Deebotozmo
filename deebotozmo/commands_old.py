@@ -132,13 +132,6 @@ class GetCleanInfo(Command):
         super().__init__(command_name)
 
 
-class GetChargeState(Command):
-    """Get charge state command."""
-
-    def __init__(self) -> None:
-        super().__init__("getChargeState")
-
-
 class GetCachedMapInfo(Command):
     """Get cached map info command."""
 

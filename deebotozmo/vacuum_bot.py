@@ -1,17 +1,25 @@
 """Vacuum bot module."""
 import asyncio
+import inspect
 import logging
 import re
 from typing import Any, Dict, Final, List, Optional, Union
 
 import aiohttp
 
-from deebotozmo.commands import COMMANDS, Command, GetBattery, GetStats, GetWaterInfo
+from deebotozmo.commands import (
+    COMMANDS,
+    Command,
+    GetBattery,
+    GetChargeState,
+    GetStats,
+    GetWaterInfo,
+)
 from deebotozmo.commands.fan_speed import GetFanSpeed
 from deebotozmo.commands.life_span import GetLifeSpan
 from deebotozmo.commands_old import CleanResume, CleanStart
 from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import GetChargeState, GetCleanInfo, GetCleanLogs, GetError
+from deebotozmo.commands_old import GetCleanInfo, GetCleanLogs, GetError
 from deebotozmo.constants import ERROR_CODES
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
@@ -52,7 +60,8 @@ class VacuumBot:
     ):
         self._semaphore = asyncio.Semaphore(3)
         self._session = session
-        self.vacuum: Vacuum = vacuum
+        self._status: StatusEvent = StatusEvent(vacuum.status == 1, None)
+        self.vacuum: Final[Vacuum] = vacuum
 
         portal_url = EcovacsAPI.PORTAL_URL_FORMAT.format(continent=continent)
 
@@ -61,7 +70,6 @@ class VacuumBot:
 
         self.json: EcovacsJSON = EcovacsJSON(session, auth, portal_url, verify_ssl)
 
-        self._status: StatusEvent = StatusEvent(False, None)
         self.fw_version: Optional[str] = None
 
         self.map: Final = Map(self.execute_command)
@@ -99,6 +107,19 @@ class VacuumBot:
             ),
         )
 
+        async def on_status(event: StatusEvent) -> None:
+            last_status = self._status
+            self._status = event
+            if (not last_status.available) and event.available:
+                # bot was unavailable
+                for name, obj in inspect.getmembers(
+                    self.events, lambda obj: isinstance(obj, EventEmitter)
+                ):
+                    if name != "status":
+                        obj.request_refresh()
+
+        self.events.status.subscribe(on_status)
+
     async def execute_command(self, command: Union[Command, OldCommand]) -> None:
         """Execute given command and handle response."""
         if (
@@ -120,28 +141,10 @@ class VacuumBot:
     def set_available(self, available: bool) -> None:
         """Set available."""
         status = StatusEvent(available, self._status.state)
-        self._set_status(status)
-
-    def _set_state(self, state: VacuumState) -> None:
-        self._set_status(StatusEvent(True, state))
-
-    def _set_status(self, status: StatusEvent) -> None:
-        _LOGGER.debug("Calling _set_status with %s", status)
-
-        last_status = self._status
-
-        if self._status == status:
-            _LOGGER.debug("Status still the same... Skipping")
-            return
-
-        self._status = status
         self.events.status.notify(status)
 
-        if (not last_status.available) and status.available:
-            # bot was unavailable
-            for event in dir(self.events):
-                if isinstance(event, EventEmitter):
-                    event.request_refresh()
+    def _set_state(self, state: VacuumState) -> None:
+        self.events.status.notify(StatusEvent(True, state))
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
@@ -221,18 +224,20 @@ class VacuumBot:
         if fw_version:
             self.fw_version = fw_version
 
-        if event_name in ["speed", "waterinfo", "lifespan", "stats", "battery"]:
+        if event_name in [
+            "speed",
+            "waterinfo",
+            "lifespan",
+            "stats",
+            "battery",
+            "chargestate",
+        ]:
             raise RuntimeError(
                 "Commands support new format. Should never happen! Please contact developers."
             )
 
         if event_name == "error":
             await self._handle_error(event, event_data)
-        elif event_name == "chargestate":
-            if requested:
-                await self._handle_charge_state_requested(event_body)
-            else:
-                await self._handle_charge_state(event_data)
         elif event_name == "cleaninfo":
             await self._handle_clean_info(event_data)
         elif "map" in event_name or event_name == "pos":
@@ -270,28 +275,6 @@ class VacuumBot:
             _LOGGER.warning(
                 "Could not process error event with received data: %s", event
             )
-
-    async def _handle_charge_state_requested(self, event_body: dict) -> None:
-        if event_body["code"] == 0:
-            await self._handle_charge_state(event_body.get("data", {}))
-        else:
-            status: Optional[VacuumState] = None
-            if event_body["msg"] == "fail":
-                if event_body["code"] == "30007":  # Already charging
-                    status = VacuumState.STATE_DOCKED
-                elif event_body["code"] == "5":  # Busy with another command
-                    status = VacuumState.STATE_ERROR
-                elif (
-                    event_body["code"] == "3"
-                ):  # Bot in stuck state, example dust bin out
-                    status = VacuumState.STATE_ERROR
-
-            if status:
-                self._set_state(status)
-
-    async def _handle_charge_state(self, event_data: dict) -> None:
-        if event_data.get("isCharging") == 1:
-            self._set_state(VacuumState.STATE_DOCKED)
 
     async def _handle_clean_logs(self, event: Dict) -> None:
         response: Optional[List[dict]] = event.get("logs")

@@ -1,4 +1,4 @@
-"""Water info commands."""
+"""Life span commands."""
 import logging
 from enum import Enum, unique
 from typing import List
