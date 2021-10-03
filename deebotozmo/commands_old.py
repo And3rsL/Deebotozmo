@@ -117,10 +117,3 @@ class GetMajorMap(Command):
 
     def __init__(self) -> None:
         super().__init__("getMajorMap")
-
-
-class GetError(Command):
-    """Get error command."""
-
-    def __init__(self) -> None:
-        super().__init__("getError")

@@ -14,6 +14,7 @@ from deebotozmo.commands import (
     GetBattery,
     GetChargeState,
     GetCleanLogs,
+    GetError,
     GetStats,
     GetWaterInfo,
 )
@@ -21,8 +22,7 @@ from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.fan_speed import GetFanSpeed
 from deebotozmo.commands.life_span import GetLifeSpan
 from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import GetCleanInfo, GetError
-from deebotozmo.constants import ERROR_CODES
+from deebotozmo.commands_old import GetCleanInfo
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
@@ -212,6 +212,7 @@ class VacuumBot:
             "charge",
             "clean",
             "cleanlogs",
+            "error",
         ]:
             raise RuntimeError(
                 "Commands support new format. Should never happen! Please contact developers."
@@ -237,9 +238,7 @@ class VacuumBot:
         if fw_version:
             self.fw_version = fw_version
 
-        if event_name == "error":
-            await self._handle_error(event, event_data)
-        elif event_name == "cleaninfo":
+        if event_name == "cleaninfo":
             await self._handle_clean_info(event_data)
         elif "map" in event_name or event_name == "pos":
             await self.map.handle(event_name, event_data, requested)
@@ -251,31 +250,6 @@ class VacuumBot:
             pass
         else:
             _LOGGER.debug("Unknown event: %s with %s", event_name, event)
-
-    async def _handle_error(self, event: dict, event_data: dict) -> None:
-        error: Optional[int] = None
-        if "error" in event:
-            error = event["error"]
-        elif "errs" in event:
-            error = event["errs"]
-        elif "code" in event_data:
-            codes = event_data.get("code", [])
-            if codes:
-                # the last error code
-                error = codes[-1]
-
-        if error is not None:
-            description = ERROR_CODES.get(error)
-            if error != 0:
-                _LOGGER.warning(
-                    "Bot in error-state: code=%d, description=%s", error, description
-                )
-                self._set_state(VacuumState.STATE_ERROR)
-            self.events.error.notify(ErrorEvent(error, description))
-        else:
-            _LOGGER.warning(
-                "Could not process error event with received data: %s", event
-            )
 
     async def _handle_clean_info(self, event_data: dict) -> None:
         status: Optional[VacuumState] = None
