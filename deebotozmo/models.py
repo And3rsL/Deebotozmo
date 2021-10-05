@@ -1,6 +1,6 @@
 """Models module."""
 from dataclasses import dataclass
-from enum import Enum
+from enum import IntEnum, unique
 from typing import Optional
 
 
@@ -85,12 +85,13 @@ class RequestAuth:
         }
 
 
-class VacuumState(Enum):
+@unique
+class VacuumState(IntEnum):
     """Vacuum state representation."""
 
-    STATE_IDLE = 1
-    STATE_CLEANING = 2
-    STATE_RETURNING = 3
-    STATE_DOCKED = 4
-    STATE_ERROR = 5
-    STATE_PAUSED = 6
+    IDLE = 1
+    CLEANING = 2
+    RETURNING = 3
+    DOCKED = 4
+    ERROR = 5
+    PAUSED = 6

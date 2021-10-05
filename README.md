@@ -1,4 +1,4 @@
-<a href="https://www.buymeacoffee.com/4nd3rs" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-black.png" width="150px" height="35px" alt="Buy Me A Coffee" style="height: 35px !important;width: 150px !important;" ></a>
+<a href="https://www.buymeacoffee.com/edenhaus" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-black.png" width="150px" height="35px" alt="Buy Me A Coffee" style="height: 35px !important;width: 150px !important;" ></a>
 
 =====
 
@@ -28,7 +28,8 @@ import logging
 import random
 import string
 
-from deebotozmo.commands_old import *
+from deebotozmo.commands import *
+from deebotozmo.commands.clean import CleanAction
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_mqtt import EcovacsMqtt
 from deebotozmo.events import BatteryEvent
@@ -54,7 +55,8 @@ async def main():
     auth = await api.get_request_auth()
     bot = VacuumBot(session, auth, devices_[0], continent=continent, country=country, verify_ssl=False)
 
-    mqtt = EcovacsMqtt(auth, continent=continent)
+    mqtt = EcovacsMqtt(continent=continent, country=country)
+    await mqtt.initialize(auth)
     await mqtt.subscribe(bot)
 
     async def on_battery(event: BatteryEvent):
@@ -64,10 +66,10 @@ async def main():
         pass
 
     # Subscribe for events (more events available)
-    bot.batteryEvents.subscribe(on_battery)
+    bot.events.battery.subscribe(on_battery)
 
     # Execute commands
-    await bot.execute_command(CleanStart())
+    await bot.execute_command(Clean(CleanAction.START))
     await asyncio.sleep(900)  # Wait for...
     await bot.execute_command(Charge())
 

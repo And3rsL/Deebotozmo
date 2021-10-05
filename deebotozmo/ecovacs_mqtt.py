@@ -110,7 +110,7 @@ class EcovacsMqtt:
             bot = self._subscribers.get(topic_split[3])
             if bot:
                 data = json.loads(payload)
-                await bot.handle(topic_split[2], data, None)
+                await bot.handle(topic_split[2], data)
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error(
                 "An exception occurred during handling atr message", exc_info=True

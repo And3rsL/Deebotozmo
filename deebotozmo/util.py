@@ -6,7 +6,6 @@ import os
 from typing import Awaitable, Callable, List, Union
 
 from deebotozmo.commands import Command
-from deebotozmo.commands_old import Command as OldCommand
 
 
 def str_to_bool_or_cert(string: Union[bool, str]) -> Union[bool, str]:
@@ -33,8 +32,8 @@ def md5(text: str) -> str:
 
 
 def get_refresh_function(
-    commands: List[Union[Command, OldCommand]],
-    execute_command: Callable[[Union[Command, OldCommand]], Awaitable[None]],
+    commands: List[Command],
+    execute_command: Callable[[Command], Awaitable[None]],
 ) -> Callable[[], Awaitable[None]]:
     """Return refresh function for given commands."""
     if len(commands) == 1:

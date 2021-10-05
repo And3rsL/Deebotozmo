@@ -3,13 +3,15 @@ import asyncio
 import logging
 from asyncio import Task
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, Final, Generic, List, Optional, TypeVar
+from typing import Awaitable, Callable, Final, Generic, List, Optional, TypeVar
 
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
+    CustomCommandEvent,
     ErrorEvent,
     FanSpeedEvent,
+    LifeSpanEvent,
     MapEvent,
     RoomsEvent,
     StatsEvent,
@@ -42,11 +44,13 @@ class EventEmitter(Generic[T]):
 
     def __init__(
         self,
-        refresh_function: Callable[[], Awaitable[None]],
+        refresh_function: Optional[Callable[[], Awaitable[None]]] = None,
         notify_on_equal_event: bool = False,
     ):
         self._subscribers: List[EventListener] = []
-        self._refresh_function: Callable[[], Awaitable[None]] = refresh_function
+        self._refresh_function: Optional[
+            Callable[[], Awaitable[None]]
+        ] = refresh_function
         self._semaphore = asyncio.Semaphore(1)
         self._last_event: Optional[T] = None
         self._notify_on_equal_event = notify_on_equal_event
@@ -96,7 +100,8 @@ class EventEmitter(Generic[T]):
             return
 
         async with self._semaphore:
-            await self._refresh_function()
+            if self._refresh_function:
+                await self._refresh_function()
 
     def request_refresh(self) -> None:
         """Request manual refresh."""
@@ -121,7 +126,7 @@ class PollingEventEmitter(EventEmitter[T]):
 
         async def on_status(event: StatusEvent) -> None:
             self._status = event.state
-            if event.state == VacuumState.STATE_CLEANING:
+            if event.state == VacuumState.CLEANING:
                 self._start_refresh_task()
             else:
                 self._stop_refresh_task()
@@ -146,7 +151,7 @@ class PollingEventEmitter(EventEmitter[T]):
     def subscribe(self, callback: Callable[[T], Awaitable[None]]) -> EventListener[T]:
         """Subscribe to event."""
         listener = super().subscribe(callback)
-        if self._status == VacuumState.STATE_CLEANING:
+        if self._status == VacuumState.CLEANING:
             self._start_refresh_task()
         return listener
 
@@ -174,7 +179,8 @@ class VacuumEmitter(MapEmitter):
     clean_logs: EventEmitter[CleanLogEvent]
     error: EventEmitter[ErrorEvent]
     fan_speed: EventEmitter[FanSpeedEvent]
-    lifespan: EventEmitter[Dict[str, float]]
+    lifespan: EventEmitter[LifeSpanEvent]
     stats: EventEmitter[StatsEvent]
     status: EventEmitter[StatusEvent]
     water_info: EventEmitter[WaterInfoEvent]
+    custom_command: EventEmitter[CustomCommandEvent]

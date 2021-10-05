@@ -18,21 +18,14 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 import aiohttp
 import click
 
-from deebotozmo.commands import SetFanSpeed, SetWaterInfo
-from deebotozmo.commands_old import (
-    Charge,
-    CleanCustomArea,
-    CleanPause,
-    CleanResume,
-    CleanSpotArea,
-    CleanStart,
-    PlaySound,
-)
+from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
+from deebotozmo.commands.clean import CleanAction, CleanArea, CleanMode
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
     FanSpeedEvent,
+    LifeSpanEvent,
     MapEvent,
     RoomsEvent,
     StatsEvent,
@@ -193,7 +186,7 @@ async def play_sound(ctx: click.Context) -> None:
 @coro
 async def clean(ctx: click.Context) -> None:
     """Click subcommand that runs the auto clean command."""
-    await run_with_login(ctx, CleanStart)
+    await run_with_login(ctx, Clean, cmd_args=[CleanAction.START])
 
 
 @cli.command(
@@ -209,8 +202,8 @@ async def custom_area(ctx: click.Context, area: str, cleanings: int = 1) -> None
     """Click subcommand that runs a clean in a custom area."""
     await run_with_login(
         ctx,
-        CleanCustomArea,
-        cmd_args={"map_position": area, "cleanings": cleanings},
+        CleanArea,
+        cmd_args={"mode": CleanMode.CUSTOM_AREA, "area": area, "cleanings": cleanings},
     )
 
 
@@ -227,8 +220,8 @@ async def spot_area(ctx: click.Context, rooms: str, cleanings: int = 1) -> None:
     """Click subcommand that runs a clean in a specific room."""
     await run_with_login(
         ctx,
-        CleanSpotArea,
-        cmd_args={"area": rooms, "cleanings": cleanings},
+        CleanArea,
+        cmd_args={"mode": CleanMode.CUSTOM_AREA, "area": rooms, "cleanings": cleanings},
     )
 
 
@@ -263,7 +256,7 @@ async def charge(ctx: click.Context) -> None:
 @coro
 async def pause(ctx: click.Context) -> None:
     """Click subcommand that pauses the clean."""
-    await run_with_login(ctx, CleanPause)
+    await run_with_login(ctx, Clean, cmd_args=[CleanAction.PAUSE])
 
 
 @cli.command(help="Resume the robot")
@@ -271,7 +264,7 @@ async def pause(ctx: click.Context) -> None:
 @coro
 async def resume(ctx: click.Context) -> None:
     """Click subcommand that resumes the clean."""
-    await run_with_login(ctx, CleanResume)
+    await run_with_login(ctx, Clean, cmd_args=[CleanAction.RESUME])
 
 
 @cli.command(name="getcleanlogs", help="Get Clean Logs")
@@ -386,7 +379,7 @@ async def components(ctx: click.Context) -> None:
 
         event = asyncio.Event()
 
-        async def on_lifespan_event(lifespan_event: dict) -> None:
+        async def on_lifespan_event(lifespan_event: LifeSpanEvent) -> None:
             for key, value in lifespan_event.items():
                 print(f"{key}: {value}%")
             event.set()

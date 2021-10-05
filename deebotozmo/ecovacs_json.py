@@ -1,5 +1,5 @@
 """Handles Ecovacs JSON API."""
-
+import asyncio
 import datetime
 import logging
 from typing import Any, Dict, Tuple, Union
@@ -7,9 +7,8 @@ from typing import Any, Dict, Tuple, Union
 import aiohttp
 from aiohttp import ClientResponseError
 
-from deebotozmo.commands import Command
-from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import GetCleanLogs
+from deebotozmo.commands import Command, GetCleanLogs
+from deebotozmo.commands.custom import CustomCommand
 from deebotozmo.models import RequestAuth, Vacuum
 from deebotozmo.util import sanitize_data
 
@@ -36,7 +35,7 @@ class EcovacsJSON:
         self.verify_ssl = verify_ssl
 
     async def send_command(
-        self, command: Union[Command, OldCommand], vacuum: Vacuum
+        self, command: Union[Command, CustomCommand], vacuum: Vacuum
     ) -> dict:
         """Send json command for given vacuum to the api."""
         json, base_url, url_with_params = self._get_json_and_url(command, vacuum)
@@ -60,6 +59,8 @@ class EcovacsJSON:
                 json = await res.json()
                 _LOGGER.debug("Got %s", json)
                 return json
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Timeout reached while sending command: %s", command)
         except ClientResponseError as err:
             if err.status == 502:
                 _LOGGER.info(
@@ -72,13 +73,13 @@ class EcovacsJSON:
         return {}
 
     def _get_json_and_url(
-        self, command: Union[Command, OldCommand], vacuum: Vacuum
+        self, command: Union[Command, CustomCommand], vacuum: Vacuum
     ) -> Tuple[Dict[str, Any], str, str]:
         json: Dict[str, Any] = {"auth": self._auth.to_dict()}
         base_url = self.portal_url
         params = "?"
 
-        if command.name == GetCleanLogs().name:
+        if command.name == GetCleanLogs.name:
             json.update(
                 {
                     "td": command.name,

@@ -10,9 +10,8 @@ from typing import Any, Awaitable, Callable, Dict, Final, List, Optional, Union
 from numpy import ndarray, reshape, zeros
 from PIL import Image, ImageDraw, ImageOps
 
-from deebotozmo.commands import Command
-from deebotozmo.commands_old import Command as OldCommand
-from deebotozmo.commands_old import (
+from deebotozmo.commands import (
+    Command,
     GetCachedMapInfo,
     GetMajorMap,
     GetMapSet,
@@ -21,7 +20,6 @@ from deebotozmo.commands_old import (
     GetMinorMap,
     GetPos,
 )
-from deebotozmo.constants import MAP_TRACE_POINT_COUNT, ROOMS_FROM_ECOVACS
 from deebotozmo.event_emitter import EventEmitter, MapEmitter
 from deebotozmo.events import MapEvent, RoomsEvent
 from deebotozmo.models import Coordinate, Room
@@ -29,6 +27,23 @@ from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 _TRACE_MAP = "trace_map"
+_ROOM_INT_TO_NAME = {
+    0: "Default",
+    1: "Living Room",
+    2: "Dining Room",
+    3: "Bedroom",
+    4: "Study",
+    5: "Kitchen",
+    6: "Bathroom",
+    7: "Laundry",
+    8: "Lounge",
+    9: "Storeroom",
+    10: "Kids room",
+    11: "Sunroom",
+    12: "Corridor",
+    13: "Balcony",
+    14: "Gym",
+}
 
 
 def _decompress_7z_base64_data(data: str) -> bytes:
@@ -93,9 +108,7 @@ class Map:
     PIXEL_WIDTH = 50
     OFFSET = 400
 
-    def __init__(
-        self, execute_command: Callable[[Union[Command, OldCommand]], Awaitable[None]]
-    ):
+    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]):
         self._execute_command = execute_command
 
         self._robot_position: Optional[Coordinate] = None
@@ -122,36 +135,50 @@ class Map:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-        self, event_name: str, event_data: dict, requested: bool = True
+        self, command_name: str, message: Dict[str, Any], requested: bool = True
     ) -> None:
-        """Handle the given map event.
+        """Handle the given map message.
 
-        :param event_name: the name of the event or request
-        :param event_data: the data of it
+        :param command_name: the name of the event or request
+        :param message: the message
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
         :return: None
         """
+        if requested:
+            if message.get("ret") != "ok":
+                _LOGGER.warning('Event %s where ret != "ok": %s', command_name, message)
+                return
 
-        if event_name == "cachedmapinfo":
-            await self._handle_cached_map_info(event_data, requested)
-        elif event_name == "mapset":
-            await self._handle_map_set(event_data, requested)
-        elif event_name == "mapsubset":
-            self._handle_map_sub_set(event_data)
+            message = message.get("resp", message)
+
+        body = message.get("body", {})
+
+        if not body:
+            _LOGGER.warning("Invalid Event %s: %s", command_name, message)
+            return
+
+        data = body.get("data", {})
+
+        if command_name == GetCachedMapInfo.name:
+            await self._handle_cached_map_info(data, requested)
+        elif command_name == GetMapSet.name:
+            await self._handle_map_set(data, requested)
+        elif command_name == GetMapSubSet.name:
+            self._handle_map_sub_set(data)
         elif not self.events.map.has_subscribers:
             # above events must be processed always as they are needed to get room information's
             _LOGGER.debug("No Map subscribers. Skipping map events")
             return
-        elif event_name == "pos":
-            self._handle_position(event_data)
-        elif event_name == "maptrace":
-            await self._handle_map_trace(event_data, requested)
-        elif event_name == "majormap":
-            await self._handle_major_map(event_data, requested)
-        elif event_name == "minormap":
-            self._handle_minor_map(event_data)
+        elif command_name == GetPos.name:
+            self._handle_position(data)
+        elif command_name == GetMapTrace.name:
+            await self._handle_map_trace(data, requested)
+        elif command_name == GetMajorMap.name:
+            await self._handle_major_map(data, requested)
+        elif command_name == GetMinorMap.name:
+            self._handle_minor_map(data)
         else:
-            _LOGGER.debug("Unknown event: %s with %s", event_name, event_data)
+            _LOGGER.debug('Unknown command "%s" with %s', command_name, message)
 
     async def _handle_cached_map_info(self, event_data: dict, requested: bool) -> None:
         try:
@@ -206,7 +233,7 @@ class Map:
         subtype = int(event_data["subtype"])
         self._rooms.append(
             Room(
-                subtype=ROOMS_FROM_ECOVACS[subtype],
+                subtype=_ROOM_INT_TO_NAME[subtype],
                 id=int(event_data["mssid"]),
                 coordinates=event_data["value"],
             )
@@ -233,7 +260,7 @@ class Map:
 
             self._update_trace_points(event_data["traceValue"])
 
-            trace_start += MAP_TRACE_POINT_COUNT
+            trace_start += GetMapTrace.TRACE_POINT_COUNT
             if trace_start < total_count and requested:
                 await self._execute_command(GetMapTrace(trace_start))
 
