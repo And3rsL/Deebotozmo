@@ -135,12 +135,12 @@ class Map:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-        self, command_name: str, message: dict, requested: bool = True
+        self, command_name: str, message: Dict[str, Any], requested: bool = True
     ) -> None:
         """Handle the given map message.
 
         :param command_name: the name of the event or request
-        :param data: the data of it
+        :param message: the message
         :param requested: True if we manual requested the data (ex. via rest). MQTT -> False
         :return: None
         """

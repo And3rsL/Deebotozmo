@@ -146,7 +146,7 @@ class VacuumBot:
         async with self._semaphore:
             response = await self.json.send_command(command, self.vacuum)
 
-        await self.handle(command.name, response, command)
+        await self.handle(command, response)
 
     def set_available(self, available: bool) -> None:
         """Set available."""
@@ -159,24 +159,25 @@ class VacuumBot:
     # ---------------------------- EVENT HANDLING ----------------------------
 
     async def handle(
-        self,
-        command_name: str,
-        message: Dict[str, Any],
-        requested_command: Optional[Union[Command, CustomCommand]],
+        self, command: Union[str, Command, CustomCommand], message: Dict[str, Any]
     ) -> None:
         """Handle the given event.
 
-        :param command_name: the name of the event or request
+        :param command: command object if manual request or command name
         :param message: the message (data) of it
-        :param requested_command: The request command object. None -> MQTT
         :return: None
         """
-        _LOGGER.debug("Handle %s: %s", command_name, message)
-        if requested_command and isinstance(
-            requested_command, (CommandWithHandling, CustomCommand)
-        ):
-            requested_command.handle_requested(self.events, message)
+
+        if isinstance(command, (CommandWithHandling, CustomCommand)):
+            _LOGGER.debug("Handle %s: %s", command.name, message)
+            command.handle_requested(self.events, message)
         else:
+            if isinstance(command, str):
+                command_name = command
+            else:
+                command_name = command.name
+
+            _LOGGER.debug("Handle %s: %s", command_name, message)
             fw_version = message.get("header", {}).get("fwVer", None)
             if fw_version:
                 self.fw_version = fw_version
@@ -192,9 +193,9 @@ class VacuumBot:
             if command_name.endswith("_V2"):
                 command_name = command_name[:-3]
 
-            command = COMMANDS.get(command_name, None)
-            if command:
-                command.handle(self.events, message)
+            found_command = COMMANDS.get(command_name, None)
+            if found_command:
+                found_command.handle(self.events, message)
             else:
                 if command_name in COMMANDS.keys():
                     raise RuntimeError(
@@ -203,7 +204,7 @@ class VacuumBot:
 
                 if "Map" in command_name or command_name == GetPos.name:
                     await self.map.handle(
-                        command_name, message, requested_command is not None
+                        command_name, message, command_name != command
                     )
                 else:
                     _LOGGER.debug('Unknown command "%s" with %s', command_name, message)
