@@ -204,7 +204,7 @@ class VacuumBot:
 
                 if "Map" in command_name or command_name == GetPos.name:
                     await self.map.handle(
-                        command_name, message, command_name != command
+                        command_name, message, not isinstance(command, str)
                     )
                 else:
                     _LOGGER.debug('Unknown command "%s" with %s', command_name, message)
