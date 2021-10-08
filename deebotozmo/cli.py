@@ -143,8 +143,8 @@ async def create_config(
             "email": email,
             "password_hash": password_hash,
             "device_id": device_id,
-            "country_code": country_code,
-            "continent_code": continent_code,
+            "country": country_code,
+            "continent": continent_code,
             "verify_ssl": verify_ssl,
         }
     )
