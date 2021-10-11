@@ -16,7 +16,11 @@ from functools import wraps
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 import aiohttp
-import click
+
+try:
+    import click
+except ModuleNotFoundError:
+    sys.exit('Dependencies missing!! Please run "pip install deebotozmo[cli]"')
 
 from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
 from deebotozmo.commands.clean import CleanAction, CleanArea, CleanMode
@@ -555,7 +559,3 @@ class CliUtil:
                 return device
         logging.warning("Failed to find a device, defaulting to first item in list.")
         return self.devices[0]
-
-
-if __name__ == "__main__":
-    cli()
