@@ -13,6 +13,7 @@ known to work with the Ecovacs Deebot 960/950/920 from both North America and Eu
 If you have a recent version of Python 3, you should be able to
 do `pip install deebotozmo` to get the most recently released version of
 this.
+If you want to use the cli, you need to install it with `pip install deebotozmo[cli]`
 
 ## Usage
 
