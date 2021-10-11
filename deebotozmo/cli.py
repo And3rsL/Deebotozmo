@@ -22,9 +22,11 @@ try:
 except ModuleNotFoundError:
     sys.exit('Dependencies missing!! Please run "pip install deebotozmo[cli]"')
 
+from deebotozmo import create_instances
+from deebotozmo._api_client import InternalApiClient
+from deebotozmo.authentication import Authenticator
 from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
 from deebotozmo.commands.clean import CleanAction, CleanArea, CleanMode
-from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
@@ -36,7 +38,7 @@ from deebotozmo.events import (
     StatusEvent,
     WaterInfoEvent,
 )
-from deebotozmo.models import Vacuum, VacuumState
+from deebotozmo.models import Configuration, Vacuum, VacuumState
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
@@ -129,15 +131,11 @@ async def create_config(
     device_id = md5(str(time.time()))
     async with aiohttp.ClientSession() as session:
         try:
-            EcovacsAPI(
-                session,
-                device_id,
-                email,
-                password_hash,
-                continent=continent_code,
-                country=country_code,
-                verify_ssl=verify_ssl,
+            config = Configuration(
+                device_id, country_code, continent_code, session, verify_ssl
             )
+            ecovacs_api_client = InternalApiClient(config)
+            Authenticator(config, ecovacs_api_client, email, password_hash)
         except ValueError as error:
             click.echo(error.args[0])
             sys.exit(1)
@@ -499,14 +497,16 @@ class CliUtil:
 
         self._session = aiohttp.ClientSession()
 
-        self._api = EcovacsAPI(
-            self._session,
+        _config = Configuration(
             config["device_id"],
-            config["email"],
-            config["password_hash"],
-            continent=self._continent,
-            country=self._country,
-            verify_ssl=bool(self._verify_ssl),
+            config["country"],
+            config["continent"],
+            aiohttp.ClientSession(),
+            config["verify_ssl"],
+        )
+
+        (self._authenticator, self._api_client) = create_instances(
+            _config, config["email"], config["password_hash"]
         )
 
         if not config_file_exists():
@@ -525,20 +525,10 @@ class CliUtil:
 
     async def before(self, selected_device: Optional[str] = None) -> None:
         """Communicate with Deebot."""
-        await self._api.login()
-
-        self.devices = await self._api.get_devices()
+        self.devices = await self._api_client.get_devices()
         device = self._get_matched_device(selected_device)
 
-        auth = await self._api.get_request_auth()
-        self._bot = VacuumBot(
-            self._session,
-            auth,
-            device,
-            continent=self._continent,
-            country=self._country,
-            verify_ssl=bool(self._verify_ssl),
-        )
+        self._bot = VacuumBot(self._session, device, self._api_client)
 
     async def after(self) -> None:
         """Close all connections."""

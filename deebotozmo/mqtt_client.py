@@ -8,8 +8,9 @@ from cachetools import TTLCache
 from gmqtt import Client, Subscription
 from gmqtt.mqtt.constants import MQTTv311
 
+from deebotozmo.authentication import Authenticator
 from deebotozmo.commands import COMMANDS, SET_COMMAND_NAMES, SetCommand
-from deebotozmo.models import RequestAuth, Vacuum
+from deebotozmo.models import Configuration, Vacuum
 from deebotozmo.vacuum_bot import VacuumBot
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,14 +36,16 @@ class NotInitializedError(Exception):
     """Thrown when not class was not initialized correctly."""
 
 
-class EcovacsMqtt:
-    """Handle mqtt connections."""
+class MqttClient:
+    """MQTT client."""
 
-    def __init__(self, *, continent: str, country: str):
+    def __init__(self, config: Configuration, authenticator: Authenticator):
+        self._config = config
+        self._authenticator = authenticator
         self._subscribers: MutableMapping[str, VacuumBot] = {}
         self._port = 443
-        self._hostname = f"mq-{continent}.ecouser.net"
-        if country.lower() == "cn":
+        self._hostname = f"mq-{config.continent}.ecouser.net"
+        if config.country.lower() == "cn":
             self._hostname = "mq.ecouser.net"
 
         self._client: Optional[Client] = None
@@ -65,15 +68,16 @@ class EcovacsMqtt:
 
         self.__on_message = _on_message
 
-    async def initialize(self, auth: RequestAuth) -> None:
+    async def initialize(self) -> None:
         """Initialize MQTT."""
         if self._client is not None:
             self.disconnect()
 
-        client_id = f"{auth.user_id}@ecouser/{auth.resource}"
+        credentials = await self._authenticator.authenticate()
+        client_id = f"{credentials.user_id}@ecouser/{self._config.device_id}"
         self._client = Client(client_id)
         self._client.on_message = self.__on_message
-        self._client.set_auth_credentials(auth.user_id, auth.token)
+        self._client.set_auth_credentials(credentials.user_id, credentials.token)
 
         ssl_ctx = ssl.create_default_context()
         ssl_ctx.check_hostname = False

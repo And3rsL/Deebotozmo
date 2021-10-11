@@ -7,6 +7,7 @@ from typing import Any, Dict, Final, Optional, Union
 
 import aiohttp
 
+from deebotozmo.api_client import ApiClient
 from deebotozmo.commands import (
     COMMANDS,
     Clean,
@@ -26,8 +27,6 @@ from deebotozmo.commands import (
 from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.custom import CustomCommand
 from deebotozmo.commands.stats import GetTotalStats
-from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.ecovacs_json import EcovacsJSON
 from deebotozmo.event_emitter import (
     EventEmitter,
     PollingEventEmitter,
@@ -47,7 +46,7 @@ from deebotozmo.events import (
     WaterInfoEvent,
 )
 from deebotozmo.map import Map
-from deebotozmo.models import RequestAuth, Vacuum, VacuumState
+from deebotozmo.models import Vacuum, VacuumState
 from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,24 +61,15 @@ class VacuumBot:
     def __init__(
         self,
         session: aiohttp.ClientSession,
-        auth: RequestAuth,
         vacuum: Vacuum,
-        *,
-        continent: str,
-        country: str,
-        verify_ssl: Union[bool, str] = True,
+        api_client: ApiClient,
     ):
-        self._semaphore = asyncio.Semaphore(3)
         self._session = session
-        self._status: StatusEvent = StatusEvent(vacuum.status == 1, None)
         self.vacuum: Final[Vacuum] = vacuum
+        self._api_client = api_client
 
-        portal_url = EcovacsAPI.PORTAL_URL_FORMAT.format(continent=continent)
-
-        if country.lower() == "cn":
-            portal_url = EcovacsAPI.PORTAL_URL_FORMAT_CN
-
-        self.json: EcovacsJSON = EcovacsJSON(session, auth, portal_url, verify_ssl)
+        self._semaphore = asyncio.Semaphore(3)
+        self._status: StatusEvent = StatusEvent(vacuum.status == 1, None)
 
         self.fw_version: Optional[str] = None
 
@@ -153,7 +143,7 @@ class VacuumBot:
             command = Clean(CleanAction.RESUME)
 
         async with self._semaphore:
-            response = await self.json.send_command(command, self.vacuum)
+            response = await self._api_client.send_command(command, self.vacuum)
 
         await self.handle(command, response)
 

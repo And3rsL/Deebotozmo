@@ -27,19 +27,19 @@ A simple usage might go something like this:
 import aiohttp
 import asyncio
 import logging
-import random
-import string
+import time
 
+from deebotozmo import create_instances
 from deebotozmo.commands import *
 from deebotozmo.commands.clean import CleanAction
-from deebotozmo.ecovacs_api import EcovacsAPI
-from deebotozmo.ecovacs_mqtt import EcovacsMqtt
+from deebotozmo.models import Configuration
+from deebotozmo.mqtt_client import MqttClient
 from deebotozmo.events import BatteryEvent
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
-device_id = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
-email = "your email or phonenumber (cn)"
+device_id = md5(str(time.time()))
+account_id = "your email or phonenumber (cn)"
 password_hash = md5("yourPassword")
 continent = "eu"
 country = "de"
@@ -48,17 +48,19 @@ country = "de"
 async def main():
   async with aiohttp.ClientSession() as session:
     logging.basicConfig(level=logging.DEBUG)
-    api = EcovacsAPI(session, device_id, email, password_hash, continent=continent, country=country,
-                     verify_ssl=False)
-    await api.login()
+    config = Configuration(
+            device_id, country, continent,session, False
+        )
 
-    devices_ = await api.get_devices()
+    (authenticator, api_client) = create_instances(config, account_id, password_hash)
 
-    auth = await api.get_request_auth()
-    bot = VacuumBot(session, auth, devices_[0], continent=continent, country=country, verify_ssl=False)
 
-    mqtt = EcovacsMqtt(continent=continent, country=country)
-    await mqtt.initialize(auth)
+    devices_ = await api_client.get_devices()
+
+    bot = VacuumBot(session, devices_[0], api_client)
+
+    mqtt = MqttClient(config, authenticator)
+    await mqtt.initialize()
     await mqtt.subscribe(bot)
 
     async def on_battery(event: BatteryEvent):
