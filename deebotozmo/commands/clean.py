@@ -70,9 +70,10 @@ class GetCleanInfo(_NoArgsCommand):
         """
 
         status: Optional[VacuumState] = None
+        state = data.get("state")
         if data.get("trigger") == "alert":
             status = VacuumState.ERROR
-        elif data.get("state") == "clean":
+        elif state == "clean":
             clean_state = data.get("cleanState", {})
             motion_state = clean_state.get("motionState")
             if motion_state == "working":
@@ -94,8 +95,10 @@ class GetCleanInfo(_NoArgsCommand):
 
                 _LOGGER.debug("Last custom area values (x1,y1,x2,y2): %s", area_values)
 
-        elif data.get("state") == "goCharging":
+        elif state == "goCharging":
             status = VacuumState.RETURNING
+        elif state == "idle":
+            status = VacuumState.IDLE
 
         if status:
             events.status.notify(StatusEvent(True, status))
