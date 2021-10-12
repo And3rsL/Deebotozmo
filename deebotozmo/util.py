@@ -68,7 +68,7 @@ _SANITIZE_LOG_KEYS: Set[str] = {
 def sanitize_data(data: dict) -> dict:
     """Sanitize data (remove personal data)."""
     sanitized_data = copy.deepcopy(data)
-    for key, value in sanitized_data.items():
+    for key in sanitized_data.keys():
         if any(substring in key.lower() for substring in _SANITIZE_LOG_KEYS):
             sanitized_data[key] = "[REMOVED]"
 
