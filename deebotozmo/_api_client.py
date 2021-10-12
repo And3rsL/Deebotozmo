@@ -18,7 +18,7 @@ def _get_portal_url(config: Configuration, path: str) -> str:
     return urljoin(f"https://{subdomain}.ecouser.net/api/", path)
 
 
-class InternalApiClient:
+class _InternalApiClient:
     """Internal api client.
 
     Only required for AuthClient and ApiClient. For all other usecases use APIClient instead.

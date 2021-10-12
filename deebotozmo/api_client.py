@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from deebotozmo.commands import Command, GetCleanLogs
 from deebotozmo.commands.custom import CustomCommand
 
-from ._api_client import InternalApiClient
+from ._api_client import _InternalApiClient
 from .authentication import Authenticator
 from .const import (
     PATH_API_APPSVR_APP,
@@ -32,7 +32,7 @@ class ApiClient:
     """Api client."""
 
     def __init__(
-        self, internal_api_client: InternalApiClient, authenticator: Authenticator
+        self, internal_api_client: _InternalApiClient, authenticator: Authenticator
     ):
         self._api_client = internal_api_client
         self._authenticator = authenticator

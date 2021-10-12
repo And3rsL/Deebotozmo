@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Set, Union
 
 from aiohttp import hdrs
 
-from deebotozmo._api_client import InternalApiClient
+from deebotozmo._api_client import _InternalApiClient
 from deebotozmo.const import REALM
 from deebotozmo.models import Configuration, Credentials
 from deebotozmo.util import md5, sanitize_data
@@ -35,13 +35,13 @@ _META = {
 }
 
 
-class AuthClient:
+class _AuthClient:
     """Ecovacs auth client."""
 
     def __init__(
         self,
         config: Configuration,
-        internal_api_client: InternalApiClient,
+        internal_api_client: _InternalApiClient,
         account_id: str,
         password_hash: str,
     ):
@@ -224,11 +224,11 @@ class Authenticator:
     def __init__(
         self,
         config: Configuration,
-        ecovacs_api_client: InternalApiClient,
+        ecovacs_api_client: _InternalApiClient,
         account_id: str,
         password_hash: str,
     ):
-        self._auth_client = AuthClient(
+        self._auth_client = _AuthClient(
             config,
             ecovacs_api_client,
             account_id,

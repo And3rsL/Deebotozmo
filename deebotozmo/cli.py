@@ -23,8 +23,6 @@ except ModuleNotFoundError:
     sys.exit('Dependencies missing!! Please run "pip install deebotozmo[cli]"')
 
 from deebotozmo import create_instances
-from deebotozmo._api_client import InternalApiClient
-from deebotozmo.authentication import Authenticator
 from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
 from deebotozmo.commands.clean import CleanAction, CleanArea, CleanMode
 from deebotozmo.events import (
@@ -134,8 +132,8 @@ async def create_config(
             config = Configuration(
                 device_id, country_code, continent_code, session, verify_ssl
             )
-            ecovacs_api_client = InternalApiClient(config)
-            Authenticator(config, ecovacs_api_client, email, password_hash)
+            (authenticator, _) = create_instances(config, email, password_hash)
+            await authenticator.authenticate()
         except ValueError as error:
             click.echo(error.args[0])
             sys.exit(1)
