@@ -36,7 +36,7 @@ from deebotozmo.events import (
     StatusEvent,
     WaterInfoEvent,
 )
-from deebotozmo.models import Configuration, Vacuum, VacuumState
+from deebotozmo.models import Configuration, DeviceInfo, VacuumState
 from deebotozmo.util import md5
 from deebotozmo.vacuum_bot import VacuumBot
 
@@ -481,7 +481,7 @@ class CliUtil:
     def __init__(self) -> None:
         """Init CliUtil."""
         self._bot: Optional[VacuumBot] = None
-        self.devices: List[Vacuum] = []
+        self.devices: List[DeviceInfo] = []
 
         try:
             config = read_config()
@@ -532,7 +532,7 @@ class CliUtil:
         """Close all connections."""
         await self._session.close()
 
-    def _get_matched_device(self, device_match: Optional[str]) -> Vacuum:
+    def _get_matched_device(self, device_match: Optional[str]) -> DeviceInfo:
         """Match a device based on nick, device name, did or device name or return first device."""
         if device_match is None:
             return self.devices[0]

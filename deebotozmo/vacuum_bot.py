@@ -46,7 +46,7 @@ from deebotozmo.events import (
     WaterInfoEvent,
 )
 from deebotozmo.map import Map
-from deebotozmo.models import Vacuum, VacuumState
+from deebotozmo.models import DeviceInfo, VacuumState
 from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,15 +61,15 @@ class VacuumBot:
     def __init__(
         self,
         session: aiohttp.ClientSession,
-        vacuum: Vacuum,
+        device_info: DeviceInfo,
         api_client: ApiClient,
     ):
         self._session = session
-        self.vacuum: Final[Vacuum] = vacuum
+        self.device_info: Final[DeviceInfo] = device_info
         self._api_client = api_client
 
         self._semaphore = asyncio.Semaphore(3)
-        self._status: StatusEvent = StatusEvent(vacuum.status == 1, None)
+        self._status: StatusEvent = StatusEvent(device_info.status == 1, None)
 
         self.fw_version: Optional[str] = None
 
@@ -143,7 +143,7 @@ class VacuumBot:
             command = Clean(CleanAction.RESUME)
 
         async with self._semaphore:
-            response = await self._api_client.send_command(command, self.vacuum)
+            response = await self._api_client.send_command(command, self.device_info)
 
         await self.handle(command, response)
 
