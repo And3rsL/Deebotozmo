@@ -16,6 +16,7 @@ from deebotozmo.events import (
     RoomsEvent,
     StatsEvent,
     StatusEvent,
+    TotalStatsEvent,
     WaterInfoEvent,
 )
 from deebotozmo.models import VacuumState
@@ -109,8 +110,36 @@ class EventEmitter(Generic[T]):
             asyncio.create_task(self._call_refresh_function())
 
 
+class RefreshOnStatusEventEmitter(EventEmitter[T]):
+    """Event emitter, which call the refresh_function on given status."""
+
+    def __init__(
+        self,
+        refresh_function: Callable[[], Awaitable[None]],
+        status_event: EventEmitter[StatusEvent],
+        refresh_on_state: VacuumState,
+        notify_on_equal_event: bool = False,
+    ):
+        super().__init__(refresh_function, notify_on_equal_event)
+        self._status: Optional[StatusEvent] = None
+
+        async def on_status(event: StatusEvent) -> None:
+            if not self._status:
+                # init. On the first subscriber the refresh_function will called automatically
+                pass
+            elif self._status.available != event.available:
+                # Skip available changes
+                pass
+            elif event.state == refresh_on_state and self._status.state != event.state:
+                self.request_refresh()
+
+            self._status = event
+
+        status_event.subscribe(on_status)
+
+
 class PollingEventEmitter(EventEmitter[T]):
-    """EventEmiter, which is polling data with the given refresh_function on the given interval."""
+    """Event emitter, which is polling data with the given refresh_function on the given interval."""
 
     def __init__(
         self,
@@ -182,5 +211,6 @@ class VacuumEmitter(MapEmitter):
     lifespan: EventEmitter[LifeSpanEvent]
     stats: EventEmitter[StatsEvent]
     status: EventEmitter[StatusEvent]
+    total_stats: EventEmitter[TotalStatsEvent]
     water_info: EventEmitter[WaterInfoEvent]
     custom_command: EventEmitter[CustomCommandEvent]
