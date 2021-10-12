@@ -10,7 +10,7 @@ from gmqtt.mqtt.constants import MQTTv311
 
 from deebotozmo.authentication import Authenticator
 from deebotozmo.commands import COMMANDS, SET_COMMAND_NAMES, SetCommand
-from deebotozmo.models import Configuration, Vacuum
+from deebotozmo.models import Configuration, Credentials, Vacuum
 from deebotozmo.vacuum_bot import VacuumBot
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,9 +68,17 @@ class MqttClient:
 
         self.__on_message = _on_message
 
+        def on_credentials_changed(credentials: Credentials) -> None:
+            if self._client:
+                self._client.set_auth_credentials(
+                    credentials.user_id, credentials.token
+                )
+
+        authenticator.subscribe(on_credentials_changed)
+
     async def initialize(self) -> None:
         """Initialize MQTT."""
-        if self._client is not None:
+        if self._client:
             self.disconnect()
 
         credentials = await self._authenticator.authenticate()
