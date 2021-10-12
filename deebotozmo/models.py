@@ -1,7 +1,9 @@
 """Models module."""
 from dataclasses import dataclass
 from enum import IntEnum, unique
-from typing import Optional
+from typing import Optional, Union
+
+import aiohttp
 
 
 class Vacuum(dict):
@@ -65,26 +67,6 @@ class Room:
     coordinates: str
 
 
-@dataclass
-class RequestAuth:
-    """Request authentication representation."""
-
-    user_id: str
-    realm: str
-    token: str
-    resource: str
-
-    def to_dict(self) -> dict:
-        """Return object as dict."""
-        return {
-            "with": "users",
-            "userid": self.user_id,
-            "realm": self.realm,
-            "token": self.token,
-            "resource": self.resource,
-        }
-
-
 @unique
 class VacuumState(IntEnum):
     """Vacuum state representation."""
@@ -95,3 +77,25 @@ class VacuumState(IntEnum):
     DOCKED = 4
     ERROR = 5
     PAUSED = 6
+
+
+@dataclass
+class Credentials:
+    """Credentials representation."""
+
+    token: str
+    user_id: str
+    expires_at: int = 0
+
+
+@dataclass
+class Configuration:
+    """Configuration representation."""
+
+    device_id: str
+    country: str
+    continent: str
+
+    session: aiohttp.ClientSession
+
+    verify_ssl: Union[bool, str] = True
