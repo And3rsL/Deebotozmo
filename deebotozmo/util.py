@@ -3,7 +3,7 @@ import asyncio
 import copy
 import hashlib
 import os
-from typing import Awaitable, Callable, List, Union
+from typing import Awaitable, Callable, List, Set, Union
 
 from deebotozmo.commands import Command
 
@@ -53,11 +53,23 @@ def get_refresh_function(
     return refresh
 
 
+# all lowercase
+_SANITIZE_LOG_KEYS: Set[str] = {
+    "auth",
+    "token",
+    "id",
+    "login",
+    "mobile",
+    "user",
+    "email",
+}
+
+
 def sanitize_data(data: dict) -> dict:
     """Sanitize data (remove personal data)."""
     sanitized_data = copy.deepcopy(data)
-    for key in ["auth", "token", "userId", "userid", "accessToken", "uid", "toId"]:
-        if key in sanitized_data:
+    for key in sanitized_data.keys():
+        if any(substring in key.lower() for substring in _SANITIZE_LOG_KEYS):
             sanitized_data[key] = "[REMOVED]"
 
     return sanitized_data
