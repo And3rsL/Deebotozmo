@@ -15,7 +15,7 @@ from .const import (
     PATH_API_LG_LOG,
     PATH_API_PIM_PRODUCT_IOT_MAP,
 )
-from .models import Configuration, Vacuum
+from .models import Configuration, DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
 _REQUEST_HEADERS = {
@@ -37,7 +37,7 @@ class ApiClient:
         self._api_client = internal_api_client
         self._authenticator = authenticator
 
-    async def get_devices(self) -> List[Vacuum]:
+    async def get_devices(self) -> List[DeviceInfo]:
         """Get compatible devices."""
         credentials = await self._authenticator.authenticate()
         json = {
@@ -49,10 +49,10 @@ class ApiClient:
         )
 
         if resp.get("code", None) == 0:
-            devices: List[Vacuum] = []
+            devices: List[DeviceInfo] = []
             for device in resp["devices"]:
                 if device.get("company") == "eco-ng":
-                    devices.append(Vacuum(device))
+                    devices.append(DeviceInfo(device))
                 else:
                     _LOGGER.debug("Skipping device as it is not supported: %s", device)
             return devices
@@ -82,7 +82,7 @@ class ApiClient:
     async def send_command(
         self,
         command: Union[Command, CustomCommand],
-        vacuum: Vacuum,
+        device_info: DeviceInfo,
     ) -> Dict[str, Any]:
         """Send json command for given vacuum to the api."""
         query_params = {}
@@ -91,8 +91,8 @@ class ApiClient:
         if command.name == GetCleanLogs.name:
             json = {
                 "td": command.name,
-                "did": vacuum.did,
-                "resource": vacuum.resource,
+                "did": device_info.did,
+                "resource": device_info.resource,
             }
 
             path = PATH_API_LG_LOG
@@ -114,9 +114,9 @@ class ApiClient:
                 "payload": payload,
                 "payloadType": "j",
                 "td": "q",
-                "toId": vacuum.did,
-                "toRes": vacuum.resource,
-                "toType": vacuum.get_class,
+                "toId": device_info.did,
+                "toRes": device_info.resource,
+                "toType": device_info.get_class,
             }
 
             path = PATH_API_IOT_DEVMANAGER

@@ -10,24 +10,26 @@ from gmqtt.mqtt.constants import MQTTv311
 
 from deebotozmo.authentication import Authenticator
 from deebotozmo.commands import COMMANDS, SET_COMMAND_NAMES, SetCommand
-from deebotozmo.models import Configuration, Credentials, Vacuum
+from deebotozmo.models import Configuration, Credentials, DeviceInfo
 from deebotozmo.vacuum_bot import VacuumBot
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _get_subscriptions(vacuum: Vacuum) -> List[Subscription]:
+def _get_subscriptions(device_info: DeviceInfo) -> List[Subscription]:
     return [
         # iot/atr/[command]]/[did]]/[class]]/[resource]/j
-        Subscription(f"iot/atr/+/{vacuum.did}/{vacuum.get_class}/{vacuum.resource}/j"),
+        Subscription(
+            f"iot/atr/+/{device_info.did}/{device_info.get_class}/{device_info.resource}/j"
+        ),
         # iot/p2p/[command]]/[sender did]/[sender class]]/[sender resource]
         # /[receiver did]/[receiver class]]/[receiver resource]/[q|p/[request id/j
         # [q|p] q-> request p-> response
         Subscription(
-            f"iot/p2p/+/+/+/+/{vacuum.did}/{vacuum.get_class}/{vacuum.resource}/q/+/j"
+            f"iot/p2p/+/+/+/+/{device_info.did}/{device_info.get_class}/{device_info.resource}/q/+/j"
         ),
         Subscription(
-            f"iot/p2p/+/{vacuum.did}/{vacuum.get_class}/{vacuum.resource}/+/+/+/p/+/j"
+            f"iot/p2p/+/{device_info.did}/{device_info.get_class}/{device_info.resource}/+/+/+/p/+/j"
         ),
     ]
 
@@ -99,16 +101,16 @@ class MqttClient:
         if self._client is None:
             raise NotInitializedError
 
-        vacuum = vacuum_bot.vacuum
-        self._client.subscribe(_get_subscriptions(vacuum))
-        self._subscribers[vacuum.did] = vacuum_bot
+        device_info = vacuum_bot.device_info
+        self._client.subscribe(_get_subscriptions(device_info))
+        self._subscribers[device_info.did] = vacuum_bot
 
     def unsubscribe(self, vacuum_bot: VacuumBot) -> None:
         """Unsubscribe given vacuum."""
-        vacuum = vacuum_bot.vacuum
+        device_info = vacuum_bot.device_info
 
-        if self._subscribers.pop(vacuum.did, None) and self._client:
-            for subscription in _get_subscriptions(vacuum):
+        if self._subscribers.pop(device_info.did, None) and self._client:
+            for subscription in _get_subscriptions(device_info):
                 self._client.unsubscribe(subscription.topic)
 
     def disconnect(self) -> None:

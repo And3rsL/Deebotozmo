@@ -6,7 +6,7 @@ from typing import Optional, Union
 import aiohttp
 
 
-class Vacuum(dict):
+class DeviceInfo(dict):
     """Class holds all values, which we get from api. Common values can be accessed through properties."""
 
     @property
