@@ -91,7 +91,7 @@ class TotalStatsEvent:
 
     area: int
     time: int
-    count: int
+    cleanings: int
 
 
 @dataclass
