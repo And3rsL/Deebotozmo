@@ -25,9 +25,15 @@ from deebotozmo.commands import (
 )
 from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.custom import CustomCommand
+from deebotozmo.commands.stats import GetTotalStats
 from deebotozmo.ecovacs_api import EcovacsAPI
 from deebotozmo.ecovacs_json import EcovacsJSON
-from deebotozmo.event_emitter import EventEmitter, PollingEventEmitter, VacuumEmitter
+from deebotozmo.event_emitter import (
+    EventEmitter,
+    PollingEventEmitter,
+    RefreshOnStatusEventEmitter,
+    VacuumEmitter,
+)
 from deebotozmo.events import (
     BatteryEvent,
     CleanLogEvent,
@@ -37,6 +43,7 @@ from deebotozmo.events import (
     LifeSpanEvent,
     StatsEvent,
     StatusEvent,
+    TotalStatsEvent,
     WaterInfoEvent,
 )
 from deebotozmo.map import Map
@@ -88,8 +95,10 @@ class VacuumBot:
             battery=EventEmitter[BatteryEvent](
                 get_refresh_function([GetBattery()], self.execute_command)
             ),
-            clean_logs=EventEmitter[CleanLogEvent](
-                get_refresh_function([GetCleanLogs()], self.execute_command)
+            clean_logs=RefreshOnStatusEventEmitter[CleanLogEvent](
+                get_refresh_function([GetCleanLogs()], self.execute_command),
+                status_,
+                VacuumState.DOCKED,
             ),
             error=EventEmitter[ErrorEvent](
                 get_refresh_function([GetError()], self.execute_command)
@@ -106,6 +115,11 @@ class VacuumBot:
                 get_refresh_function([GetStats()], self.execute_command)
             ),
             status=status_,
+            total_stats=RefreshOnStatusEventEmitter[TotalStatsEvent](
+                get_refresh_function([GetTotalStats()], self.execute_command),
+                status_,
+                VacuumState.DOCKED,
+            ),
             water_info=EventEmitter[WaterInfoEvent](
                 get_refresh_function([GetWaterInfo()], self.execute_command)
             ),
@@ -122,11 +136,6 @@ class VacuumBot:
                 ):
                     if name != "status":
                         obj.request_refresh()
-            elif (
-                last_status.state != VacuumState.DOCKED
-                and event.state == VacuumState.DOCKED
-            ):
-                self.events.clean_logs.request_refresh()
 
         self.events.status.subscribe(on_status)
 

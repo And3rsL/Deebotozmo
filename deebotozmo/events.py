@@ -86,6 +86,15 @@ class StatsEvent:
 
 
 @dataclass
+class TotalStatsEvent:
+    """Total stats event representation."""
+
+    area: int
+    time: int
+    cleanings: int
+
+
+@dataclass
 class StatusEvent:
     """Status event representation."""
 
