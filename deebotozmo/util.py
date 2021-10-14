@@ -2,31 +2,9 @@
 import asyncio
 import copy
 import hashlib
-import os
-from distutils.util import strtobool
-from typing import Awaitable, Callable, List, Set, Union
+from typing import Awaitable, Callable, List, Set
 
 from deebotozmo.commands import Command
-
-
-def str_to_bool_or_cert(value: Union[bool, str]) -> Union[bool, str]:
-    """Convert string to bool or certificate."""
-    if isinstance(value, bool):
-        return value
-
-    try:
-        return strtobool(value)
-    except ValueError:
-        pass
-
-    if value is not None:
-        if os.path.exists(str(value)):
-            # User could provide a path to a CA Cert as well, which is useful for Bumper
-            if os.path.isfile(str(value)):
-                return value
-            raise ValueError(f"Certificate path provided is not a file: {value}")
-
-    raise ValueError(f'Cannot convert "{value}" to a bool or certificate path')
 
 
 def md5(text: str) -> str:
