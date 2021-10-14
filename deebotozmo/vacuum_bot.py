@@ -31,6 +31,7 @@ from deebotozmo.event_emitter import (
     EventEmitter,
     PollingEventEmitter,
     RefreshOnStatusEventEmitter,
+    StatusEventEmitter,
     VacuumEmitter,
 )
 from deebotozmo.events import (
@@ -75,7 +76,7 @@ class VacuumBot:
 
         self.map: Final = Map(self.execute_command)
 
-        status_ = EventEmitter[StatusEvent](
+        status_ = StatusEventEmitter(
             get_refresh_function(
                 [GetChargeState(), GetCleanInfo()],
                 self.execute_command,

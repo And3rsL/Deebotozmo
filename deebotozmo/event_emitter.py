@@ -110,13 +110,29 @@ class EventEmitter(Generic[T]):
             asyncio.create_task(self._call_refresh_function())
 
 
+class StatusEventEmitter(EventEmitter[StatusEvent]):
+    """Status event emitter."""
+
+    def notify(self, event: StatusEvent) -> bool:
+        """Notify subscriber with given event representation."""
+        # todo distinguish better between docked and idle. Problem getCleanInfo will return state=idle, when bot is charging # pylint: disable=fixme
+        if (
+            event.state == VacuumState.IDLE
+            and self._last_event
+            and self._last_event.state == VacuumState.DOCKED
+        ):
+            return super().notify(StatusEvent(event.available, VacuumState.DOCKED))
+
+        return super().notify(event)
+
+
 class RefreshOnStatusEventEmitter(EventEmitter[T]):
     """Event emitter, which call the refresh_function on given status."""
 
     def __init__(
         self,
         refresh_function: Callable[[], Awaitable[None]],
-        status_event: EventEmitter[StatusEvent],
+        status_emitter: StatusEventEmitter,
         refresh_on_state: VacuumState,
         notify_on_equal_event: bool = False,
     ):
@@ -135,7 +151,7 @@ class RefreshOnStatusEventEmitter(EventEmitter[T]):
 
             self._status = event
 
-        status_event.subscribe(on_status)
+        status_emitter.subscribe(on_status)
 
 
 class PollingEventEmitter(EventEmitter[T]):
