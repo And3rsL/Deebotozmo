@@ -130,7 +130,11 @@ async def create_config(
     async with aiohttp.ClientSession() as session:
         try:
             config = Configuration(
-                device_id, country_code, continent_code, session, verify_ssl
+                session,
+                device_id=device_id,
+                country=country_code,
+                continent=continent_code,
+                verify_ssl=verify_ssl,
             )
             (authenticator, _) = create_instances(config, email, password_hash)
             await authenticator.authenticate()
@@ -496,11 +500,11 @@ class CliUtil:
         self._session = aiohttp.ClientSession()
 
         _config = Configuration(
-            config["device_id"],
-            config["country"],
-            config["continent"],
             aiohttp.ClientSession(),
-            config["verify_ssl"],
+            device_id=config["device_id"],
+            country=config["country"],
+            continent=config["continent"],
+            verify_ssl=config["verify_ssl"],
         )
 
         (self._authenticator, self._api_client) = create_instances(

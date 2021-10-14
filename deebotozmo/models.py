@@ -5,6 +5,8 @@ from typing import Optional, Union
 
 import aiohttp
 
+from deebotozmo.util import str_to_bool_or_cert
+
 
 class DeviceInfo(dict):
     """Class holds all values, which we get from api. Common values can be accessed through properties."""
@@ -88,14 +90,45 @@ class Credentials:
     expires_at: int = 0
 
 
-@dataclass
 class Configuration:
     """Configuration representation."""
 
-    device_id: str
-    country: str
-    continent: str
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        *,
+        device_id: str,
+        country: str,
+        continent: str,
+        verify_ssl: Union[bool, str] = True,
+    ):
+        self._session = session
+        self._device_id = device_id
+        self._country = country
+        self._continent = continent
+        self._verify_ssl = str_to_bool_or_cert(verify_ssl)
 
-    session: aiohttp.ClientSession
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        """Client session."""
+        return self._session
 
-    verify_ssl: Union[bool, str] = True
+    @property
+    def device_id(self) -> str:
+        """Device id."""
+        return self._device_id
+
+    @property
+    def country(self) -> str:
+        """Country code."""
+        return self._country
+
+    @property
+    def continent(self) -> str:
+        """Continent code."""
+        return self._continent
+
+    @property
+    def verify_ssl(self) -> Union[bool, str]:
+        """Return bool or path to cert."""
+        return self._verify_ssl
