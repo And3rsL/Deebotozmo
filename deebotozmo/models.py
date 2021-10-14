@@ -1,5 +1,7 @@
 """Models module."""
+import os
 from dataclasses import dataclass
+from distutils.util import strtobool
 from enum import IntEnum, unique
 from typing import Optional, Union
 
@@ -50,7 +52,7 @@ class DeviceInfo(dict):
         return str(self["class"])
 
 
-@dataclass
+@dataclass(frozen=True)
 class Coordinate:
     """Coordinate representation."""
 
@@ -58,7 +60,7 @@ class Coordinate:
     y: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class Room:
     """Room representation."""
 
@@ -79,7 +81,7 @@ class VacuumState(IntEnum):
     PAUSED = 6
 
 
-@dataclass
+@dataclass(frozen=True)
 class Credentials:
     """Credentials representation."""
 
@@ -88,14 +90,65 @@ class Credentials:
     expires_at: int = 0
 
 
-@dataclass
+def _str_to_bool_or_cert(value: Union[bool, str]) -> Union[bool, str]:
+    """Convert string to bool or certificate."""
+    if isinstance(value, bool):
+        return value
+
+    try:
+        return strtobool(value)
+    except ValueError:
+        pass
+
+    if value is not None:
+        if os.path.exists(str(value)):
+            # User could provide a path to a CA Cert as well, which is useful for Bumper
+            if os.path.isfile(str(value)):
+                return value
+            raise ValueError(f"Certificate path provided is not a file: {value}")
+
+    raise ValueError(f'Cannot convert "{value}" to a bool or certificate path')
+
+
 class Configuration:
     """Configuration representation."""
 
-    device_id: str
-    country: str
-    continent: str
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        *,
+        device_id: str,
+        country: str,
+        continent: str,
+        verify_ssl: Union[bool, str] = True,
+    ):
+        self._session = session
+        self._device_id = device_id
+        self._country = country
+        self._continent = continent
+        self._verify_ssl = _str_to_bool_or_cert(verify_ssl)
 
-    session: aiohttp.ClientSession
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        """Client session."""
+        return self._session
 
-    verify_ssl: Union[bool, str] = True
+    @property
+    def device_id(self) -> str:
+        """Device id."""
+        return self._device_id
+
+    @property
+    def country(self) -> str:
+        """Country code."""
+        return self._country
+
+    @property
+    def continent(self) -> str:
+        """Continent code."""
+        return self._continent
+
+    @property
+    def verify_ssl(self) -> Union[bool, str]:
+        """Return bool or path to cert."""
+        return self._verify_ssl

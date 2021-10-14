@@ -130,7 +130,11 @@ async def create_config(
     async with aiohttp.ClientSession() as session:
         try:
             config = Configuration(
-                device_id, country_code, continent_code, session, verify_ssl
+                session,
+                device_id=device_id,
+                country=country_code,
+                continent=continent_code,
+                verify_ssl=verify_ssl,
             )
             (authenticator, _) = create_instances(config, email, password_hash)
             await authenticator.authenticate()
@@ -221,7 +225,7 @@ async def spot_area(ctx: click.Context, rooms: str, cleanings: int = 1) -> None:
     await run_with_login(
         ctx,
         CleanArea,
-        cmd_args={"mode": CleanMode.CUSTOM_AREA, "area": rooms, "cleanings": cleanings},
+        cmd_args={"mode": CleanMode.SPOT_AREA, "area": rooms, "cleanings": cleanings},
     )
 
 
@@ -282,7 +286,6 @@ async def get_clean_logs(ctx: click.Context) -> None:
             print(json.dumps(asdict(clean_log_event)))
             event.set()
 
-        event.clear()
         listener = util.bot.events.clean_logs.subscribe(on_clean_event)
         await event.wait()
         listener.unsubscribe()
@@ -306,7 +309,6 @@ async def statuses(ctx: click.Context) -> None:
                 print(f"Vacuum State: {status_event.state.name}")
             event.set()
 
-        event.clear()
         status_listener = util.bot.events.status.subscribe(on_status)
         await event.wait()
         status_listener.unsubscribe()
@@ -360,7 +362,6 @@ async def stats(ctx: click.Context) -> None:
             print(f"Stats Type: {stats_event.type}")
             event.set()
 
-        event.clear()
         listener = util.bot.events.stats.subscribe(on_stats_event)
         await event.wait()
         listener.unsubscribe()
@@ -384,7 +385,6 @@ async def components(ctx: click.Context) -> None:
                 print(f"{key}: {value}%")
             event.set()
 
-        event.clear()
         listener = util.bot.events.lifespan.subscribe(on_lifespan_event)
         await event.wait()
         listener.unsubscribe()
@@ -408,7 +408,6 @@ async def get_rooms(ctx: click.Context) -> None:
                 print(f"{room.id} {room.subtype}")
             event.set()
 
-        event.set()
         listener = util.bot.map.events.rooms.subscribe(on_rooms)
         await event.wait()
         listener.unsubscribe()
@@ -450,7 +449,6 @@ async def export_live_map(
                 file.write(base64.decodebytes(util.bot.map.get_base64_map()))
             event.set()
 
-        event.clear()
         listener = util.bot.events.map.subscribe(on_map)
         await event.wait()
         listener.unsubscribe()
@@ -496,11 +494,11 @@ class CliUtil:
         self._session = aiohttp.ClientSession()
 
         _config = Configuration(
-            config["device_id"],
-            config["country"],
-            config["continent"],
             aiohttp.ClientSession(),
-            config["verify_ssl"],
+            device_id=config["device_id"],
+            country=config["country"],
+            continent=config["continent"],
+            verify_ssl=config["verify_ssl"],
         )
 
         (self._authenticator, self._api_client) = create_instances(

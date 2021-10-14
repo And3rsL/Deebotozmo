@@ -6,14 +6,14 @@ from typing import Any, Dict, List, Optional, TypedDict
 from deebotozmo.models import Room, VacuumState
 
 
-@dataclass
+@dataclass(frozen=True)
 class BatteryEvent:
     """Battery event representation."""
 
     value: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class CleanLogEntry:
     """Clean log entry representation."""
 
@@ -29,14 +29,14 @@ class CleanLogEntry:
     total_time: Optional[int]  # in seconds
 
 
-@dataclass
+@dataclass(frozen=True)
 class CleanLogEvent:
     """Clean log event representation."""
 
     logs: List[CleanLogEntry]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ErrorEvent:
     """Error event representation."""
 
@@ -44,7 +44,7 @@ class ErrorEvent:
     description: Optional[str]
 
 
-@dataclass
+@dataclass(frozen=True)
 class FanSpeedEvent:
     """Fan speed event representation."""
 
@@ -62,19 +62,19 @@ class LifeSpanEvent(TypedDict, total=False):
     filter: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class MapEvent:
     """Map event representation."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class RoomsEvent:
     """Room event representation."""
 
     rooms: List[Room]
 
 
-@dataclass
+@dataclass(frozen=True)
 class StatsEvent:
     """Stats event representation."""
 
@@ -85,7 +85,7 @@ class StatsEvent:
     start: Optional[int]
 
 
-@dataclass
+@dataclass(frozen=True)
 class TotalStatsEvent:
     """Total stats event representation."""
 
@@ -94,7 +94,7 @@ class TotalStatsEvent:
     cleanings: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class StatusEvent:
     """Status event representation."""
 
@@ -102,7 +102,7 @@ class StatusEvent:
     state: Optional[VacuumState]
 
 
-@dataclass
+@dataclass(frozen=True)
 class WaterInfoEvent:
     """Water info event representation."""
 
@@ -110,7 +110,7 @@ class WaterInfoEvent:
     amount: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class CustomCommandEvent:
     """Custom command event representation."""
 
