@@ -52,7 +52,7 @@ class DeviceInfo(dict):
         return str(self["class"])
 
 
-@dataclass
+@dataclass(frozen=True)
 class Coordinate:
     """Coordinate representation."""
 
@@ -60,7 +60,7 @@ class Coordinate:
     y: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class Room:
     """Room representation."""
 
@@ -81,7 +81,7 @@ class VacuumState(IntEnum):
     PAUSED = 6
 
 
-@dataclass
+@dataclass(frozen=True)
 class Credentials:
     """Credentials representation."""
 
