@@ -230,7 +230,14 @@ class Map:
             _LOGGER.debug('Currently supporting only type="ar": event=%s', event_data)
             return
 
-        subtype = int(event_data.get("subtype", event_data["subType"]))
+        subtype = event_data.get("subtype", event_data.get("subType", None))
+        if subtype is None:
+            _LOGGER.warning(
+                "[_handle_map_sub_set] SubType missing in message %s", event_data
+            )
+            return
+
+        subtype = int(subtype)
         room = Room(
             subtype=_ROOM_INT_TO_NAME[subtype],
             id=int(event_data["mssid"]),
