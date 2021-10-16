@@ -113,7 +113,7 @@ class Map:
 
         self._robot_position: Optional[Coordinate] = None
         self._charger_position: Optional[Coordinate] = None
-        self._rooms: List[Room] = []
+        self._rooms: Final[Dict[int, Room]] = {}
         self._amount_rooms: int = 0
         self._trace_values: List[int] = []
         self._map_pieces: List[MapPiece] = [MapPiece(i) for i in range(64)]
@@ -203,7 +203,7 @@ class Map:
         map_type = event_data["type"]
         subsets = event_data["subsets"]
 
-        self._rooms = []
+        self._rooms.clear()
         self._amount_rooms = len(subsets) if subsets else 0
 
         if requested:
@@ -230,17 +230,19 @@ class Map:
             _LOGGER.debug('Currently supporting only type="ar": event=%s', event_data)
             return
 
-        subtype = int(event_data["subtype"])
-        self._rooms.append(
-            Room(
-                subtype=_ROOM_INT_TO_NAME[subtype],
-                id=int(event_data["mssid"]),
-                coordinates=event_data["value"],
-            )
+        subtype = int(event_data.get("subtype", event_data["subType"]))
+        room = Room(
+            subtype=_ROOM_INT_TO_NAME[subtype],
+            id=int(event_data["mssid"]),
+            coordinates=event_data["value"],
         )
+        if self._rooms.get(subtype, None) == room:
+            return
+
+        self._rooms[subtype] = room
 
         if len(self._rooms) == self._amount_rooms:
-            self.events.rooms.notify(RoomsEvent(self._rooms))
+            self.events.rooms.notify(RoomsEvent(list(self._rooms.values())))
 
     def _handle_position(self, event_data: dict) -> None:
         if "chargePos" in event_data:
