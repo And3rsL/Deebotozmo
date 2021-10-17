@@ -1,21 +1,11 @@
 """Life span commands."""
 import logging
-from enum import Enum, unique
 from typing import List
 
-from ..events import LifeSpanEvent
-from .base import CommandWithHandling, VacuumEmitter
+from ..events import LifeSpan, LifeSpanEventDto
+from .base import CommandWithHandling, EventBus
 
 _LOGGER = logging.getLogger(__name__)
-
-
-@unique
-class LifeSpan(str, Enum):
-    """Enum class for all possible life span components."""
-
-    SIDE_BRUSH = "sideBrush"
-    BRUSH = "brush"
-    FILTER = "heap"
 
 
 class GetLifeSpan(CommandWithHandling):
@@ -28,13 +18,12 @@ class GetLifeSpan(CommandWithHandling):
         super().__init__(args)
 
     @classmethod
-    def _handle_body_data_list(cls, events: VacuumEmitter, data: List) -> bool:
+    def _handle_body_data_list(cls, event_bus: EventBus, data: List) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
         """
         handle_all_components = True
-        components: LifeSpanEvent = {}
         for component in data:
             try:
                 component_type = LifeSpan(component.get("type"))
@@ -50,13 +39,10 @@ class GetLifeSpan(CommandWithHandling):
 
             if component_type and total > 0:
                 percent = round((left / total) * 100, 2)
-                components[component_type.value] = percent  # type: ignore
+                event_bus.notify(LifeSpanEventDto(component_type, percent))
             else:
                 _LOGGER.warning("Could not parse life span event with %s", data)
                 handle_all_components = False
                 continue
-
-        if components:
-            events.lifespan.notify(components)
 
         return handle_all_components

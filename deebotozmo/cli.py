@@ -26,15 +26,16 @@ from deebotozmo import create_instances
 from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
 from deebotozmo.commands.clean import CleanAction, CleanArea, CleanMode
 from deebotozmo.events import (
-    BatteryEvent,
-    CleanLogEvent,
-    FanSpeedEvent,
-    LifeSpanEvent,
-    MapEvent,
-    RoomsEvent,
-    StatsEvent,
-    StatusEvent,
-    WaterInfoEvent,
+    BatteryEventDto,
+    CleanLogEventDto,
+    FanSpeedEventDto,
+    LifeSpan,
+    LifeSpanEventDto,
+    MapEventDto,
+    RoomsEventDto,
+    StatsEventDto,
+    StatusEventDto,
+    WaterInfoEventDto,
 )
 from deebotozmo.models import Configuration, DeviceInfo, VacuumState
 from deebotozmo.util import md5
@@ -282,11 +283,11 @@ async def get_clean_logs(ctx: click.Context) -> None:
 
         event = asyncio.Event()
 
-        async def on_clean_event(clean_log_event: CleanLogEvent) -> None:
+        async def on_clean_event(clean_log_event: CleanLogEventDto) -> None:
             print(json.dumps(asdict(clean_log_event)))
             event.set()
 
-        listener = util.bot.events.clean_logs.subscribe(on_clean_event)
+        listener = util.bot.events.subscribe(CleanLogEventDto, on_clean_event)
         await event.wait()
         listener.unsubscribe()
     finally:
@@ -303,40 +304,42 @@ async def statuses(ctx: click.Context) -> None:
         await util.before(ctx.obj[DEVICE])
         event = asyncio.Event()
 
-        async def on_status(status_event: StatusEvent) -> None:
+        async def on_status(status_event: StatusEventDto) -> None:
             print(f"Vacuum Available: {status_event.available}")
             if isinstance(status_event.state, VacuumState):
                 print(f"Vacuum State: {status_event.state.name}")
             event.set()
 
-        status_listener = util.bot.events.status.subscribe(on_status)
+        status_listener = util.bot.events.subscribe(StatusEventDto, on_status)
         await event.wait()
         status_listener.unsubscribe()
 
-        async def on_battery(battery_event: BatteryEvent) -> None:
+        async def on_battery(battery_event: BatteryEventDto) -> None:
             print(f"Battery: {battery_event.value}%")
             event.set()
 
         event.clear()
-        battery_listener = util.bot.events.battery.subscribe(on_battery)
+        battery_listener = util.bot.events.subscribe(BatteryEventDto, on_battery)
         await event.wait()
         battery_listener.unsubscribe()
 
-        async def on_fan_event(fan_speed_event: FanSpeedEvent) -> None:
+        async def on_fan_event(fan_speed_event: FanSpeedEventDto) -> None:
             print(f"Fan Speed: {fan_speed_event.speed}")
             event.set()
 
         event.clear()
-        fan_speed_listener = util.bot.events.fan_speed.subscribe(on_fan_event)
+        fan_speed_listener = util.bot.events.subscribe(FanSpeedEventDto, on_fan_event)
         await event.wait()
         fan_speed_listener.unsubscribe()
 
-        async def on_water_level(water_info_event: WaterInfoEvent) -> None:
+        async def on_water_level(water_info_event: WaterInfoEventDto) -> None:
             print(f"Water Level: {water_info_event.amount}")
             event.set()
 
         event.clear()
-        water_level_listener = util.bot.events.water_info.subscribe(on_water_level)
+        water_level_listener = util.bot.events.subscribe(
+            WaterInfoEventDto, on_water_level
+        )
         await event.wait()
         water_level_listener.unsubscribe()
     finally:
@@ -354,7 +357,7 @@ async def stats(ctx: click.Context) -> None:
 
         event = asyncio.Event()
 
-        async def on_stats_event(stats_event: StatsEvent) -> None:
+        async def on_stats_event(stats_event: StatsEventDto) -> None:
             print(f"Stats Cid: {stats_event.clean_id}")
             print(f"Stats Area: {stats_event.area}")
             if isinstance(stats_event.time, int):
@@ -362,7 +365,7 @@ async def stats(ctx: click.Context) -> None:
             print(f"Stats Type: {stats_event.type}")
             event.set()
 
-        listener = util.bot.events.stats.subscribe(on_stats_event)
+        listener = util.bot.events.subscribe(StatsEventDto, on_stats_event)
         await event.wait()
         listener.unsubscribe()
     finally:
@@ -378,15 +381,19 @@ async def components(ctx: click.Context) -> None:
     try:
         await util.before(ctx.obj[DEVICE])
 
-        event = asyncio.Event()
+        events = {
+            LifeSpan.BRUSH: asyncio.Event(),
+            LifeSpan.SIDE_BRUSH: asyncio.Event(),
+            LifeSpan.FILTER: asyncio.Event(),
+        }
 
-        async def on_lifespan_event(lifespan_event: LifeSpanEvent) -> None:
-            for key, value in lifespan_event.items():
-                print(f"{key}: {value}%")
-            event.set()
+        async def on_lifespan_event(lifespan_event: LifeSpanEventDto) -> None:
+            print(f"{lifespan_event.type.value}: {lifespan_event.percent}%")
+            events[lifespan_event.type].set()
 
-        listener = util.bot.events.lifespan.subscribe(on_lifespan_event)
-        await event.wait()
+        listener = util.bot.events.subscribe(LifeSpanEventDto, on_lifespan_event)
+        for event in events.values():
+            await event.wait()
         listener.unsubscribe()
     finally:
         await util.after()
@@ -403,12 +410,12 @@ async def get_rooms(ctx: click.Context) -> None:
 
         event = asyncio.Event()
 
-        async def on_rooms(rooms_event: RoomsEvent) -> None:
+        async def on_rooms(rooms_event: RoomsEventDto) -> None:
             for room in rooms_event.rooms:
                 print(f"{room.id} {room.subtype}")
             event.set()
 
-        listener = util.bot.map.events.rooms.subscribe(on_rooms)
+        listener = util.bot.events.subscribe(RoomsEventDto, on_rooms)
         await event.wait()
         listener.unsubscribe()
     finally:
@@ -444,12 +451,12 @@ async def export_live_map(
 
         event = asyncio.Event()
 
-        async def on_map(_: MapEvent) -> None:
+        async def on_map(_: MapEventDto) -> None:
             with open(filepath, "wb") as file:
                 file.write(base64.decodebytes(util.bot.map.get_base64_map()))
             event.set()
 
-        listener = util.bot.events.map.subscribe(on_map)
+        listener = util.bot.events.subscribe(MapEventDto, on_map)
         await event.wait()
         listener.unsubscribe()
     finally:

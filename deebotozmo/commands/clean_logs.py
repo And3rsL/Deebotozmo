@@ -2,8 +2,8 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from ..events import CleanLogEntry, CleanLogEvent
-from .base import CommandWithHandling, VacuumEmitter
+from ..events import CleanLogEntry, CleanLogEventDto
+from .base import CommandWithHandling, EventBus
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class GetCleanLogs(CommandWithHandling):
     def __init__(self, count: int = 0) -> None:
         super().__init__({"count": count})
 
-    def handle_requested(self, events: VacuumEmitter, response: Dict[str, Any]) -> bool:
+    def handle_requested(self, event_bus: EventBus, response: Dict[str, Any]) -> bool:
         """Handle response from a manual requested command.
 
         :return: True if data was valid and no error was included
@@ -39,14 +39,14 @@ class GetCleanLogs(CommandWithHandling):
                         )
                     )
 
-                events.clean_logs.notify(CleanLogEvent(logs))
+                event_bus.notify(CleanLogEventDto(logs))
                 return True
 
         _LOGGER.warning("Could not parse clean logs event with %s", response)
         return False
 
     @classmethod
-    def handle(cls, events: VacuumEmitter, message: Dict[str, Any]) -> bool:
+    def handle(cls, event_bus: EventBus, message: Dict[str, Any]) -> bool:
         """Handle message and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included

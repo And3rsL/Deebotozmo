@@ -1,13 +1,18 @@
-"""Deebot events."""
+"""Events module."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, TypedDict
+from enum import Enum, unique
+from typing import Any, Dict, List, Optional
 
 from deebotozmo.models import Room, VacuumState
 
 
+class EventDto:
+    """Event base class."""
+
+
 @dataclass(frozen=True)
-class BatteryEvent:
+class BatteryEventDto(EventDto):
     """Battery event representation."""
 
     value: int
@@ -30,14 +35,22 @@ class CleanLogEntry:
 
 
 @dataclass(frozen=True)
-class CleanLogEvent:
+class CleanLogEventDto(EventDto):
     """Clean log event representation."""
 
     logs: List[CleanLogEntry]
 
 
 @dataclass(frozen=True)
-class ErrorEvent:
+class CustomCommandEventDto(EventDto):
+    """Custom command event representation."""
+
+    name: str
+    response: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ErrorEventDto(EventDto):
     """Error event representation."""
 
     code: int
@@ -45,37 +58,43 @@ class ErrorEvent:
 
 
 @dataclass(frozen=True)
-class FanSpeedEvent:
+class FanSpeedEventDto(EventDto):
     """Fan speed event representation."""
 
     speed: str
 
 
-class LifeSpanEvent(TypedDict, total=False):
-    """Life span event representation.
+@unique
+class LifeSpan(str, Enum):
+    """Enum class for all possible life span components."""
 
-    Must be in sync with the enum :class:`~LifeSpan`.
-    """
-
-    sideBrush: float
-    brush: float
-    filter: float
+    SIDE_BRUSH = "sideBrush"
+    BRUSH = "brush"
+    FILTER = "heap"
 
 
 @dataclass(frozen=True)
-class MapEvent:
+class LifeSpanEventDto(EventDto):
+    """Life span event representation."""
+
+    type: LifeSpan
+    percent: float
+
+
+@dataclass(frozen=True)
+class MapEventDto(EventDto):
     """Map event representation."""
 
 
 @dataclass(frozen=True)
-class RoomsEvent:
+class RoomsEventDto(EventDto):
     """Room event representation."""
 
     rooms: List[Room]
 
 
 @dataclass(frozen=True)
-class StatsEvent:
+class StatsEventDto(EventDto):
     """Stats event representation."""
 
     area: Optional[int]
@@ -86,7 +105,7 @@ class StatsEvent:
 
 
 @dataclass(frozen=True)
-class TotalStatsEvent:
+class TotalStatsEventDto(EventDto):
     """Total stats event representation."""
 
     area: int
@@ -95,7 +114,7 @@ class TotalStatsEvent:
 
 
 @dataclass(frozen=True)
-class StatusEvent:
+class StatusEventDto(EventDto):
     """Status event representation."""
 
     available: bool
@@ -103,16 +122,8 @@ class StatusEvent:
 
 
 @dataclass(frozen=True)
-class WaterInfoEvent:
+class WaterInfoEventDto(EventDto):
     """Water info event representation."""
 
     mop_attached: bool
     amount: str
-
-
-@dataclass(frozen=True)
-class CustomCommandEvent:
-    """Custom command event representation."""
-
-    name: str
-    response: Dict[str, Any]

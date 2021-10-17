@@ -1,8 +1,11 @@
 """Custom command module."""
+import logging
 from typing import Any, Dict, List, Union
 
-from deebotozmo.event_emitter import _LOGGER, VacuumEmitter
-from deebotozmo.events import CustomCommandEvent
+from ..events import CustomCommandEventDto
+from .base import EventBus
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CustomCommand:
@@ -24,14 +27,14 @@ class CustomCommand:
         """Command additional arguments."""
         return self._args
 
-    def handle_requested(self, events: VacuumEmitter, response: Dict[str, Any]) -> bool:
+    def handle_requested(self, events: EventBus, response: Dict[str, Any]) -> bool:
         """Handle response from a manual requested command.
 
         :return: True if data was valid and no error was included
         """
         if response.get("ret") == "ok":
             data = response.get("resp", response)
-            events.custom_command.notify(CustomCommandEvent(self.name, data))
+            events.notify(CustomCommandEventDto(self.name, data))
             return True
 
         _LOGGER.warning('Command "%s" was not successfully: %s', self.name, response)
