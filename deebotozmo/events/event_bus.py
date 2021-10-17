@@ -1,5 +1,6 @@
 """Event emitter module."""
 import asyncio
+import inspect
 import logging
 import threading
 from typing import (
@@ -29,16 +30,14 @@ class EventListener(Generic[T]):
     def __init__(
         self,
         event_bus: "EventBus",
-        event_class: Type[T],
         callback: Callable[[T], Awaitable[None]],
     ) -> None:
         self._event_bus: Final = event_bus
-        self._event_class: Final = event_class
         self.callback: Final = callback
 
     def unsubscribe(self) -> None:
         """Unsubscribe from event bus."""
-        self._event_bus.unsubscribe(self._event_class, self)
+        self._event_bus.unsubscribe(self)
 
 
 class _EventProcessingData(Generic[T]):
@@ -70,7 +69,7 @@ class EventBus:
         self._lock = threading.Lock()
         self._execute_command: Final = execute_command
 
-    def has_subscribers(self, event: Type[EventDto]) -> bool:
+    def has_subscribers(self, event: Type[T]) -> bool:
         """Return True, if emitter has subscribers."""
         return (
             len(self._event_processing_dict[event].subscribers) > 0
@@ -80,13 +79,13 @@ class EventBus:
 
     def subscribe(
         self,
-        event_class: Type[T],
         callback: Callable[[T], Awaitable[None]],
     ) -> EventListener[T]:
         """Subscribe to event."""
-        event_processing_data = self._get_or_create_event_processing_data(event_class)
+        event_type = self._get_type_from_callable(callback)
+        event_processing_data = self._get_or_create_event_processing_data(event_type)
 
-        listener = EventListener(self, event_class, callback)
+        listener = EventListener(self, callback)
         event_processing_data.subscribers.append(listener)
 
         if event_processing_data.last_event:
@@ -94,15 +93,14 @@ class EventBus:
             asyncio.create_task(listener.callback(event_processing_data.last_event))
         elif len(event_processing_data.subscribers) == 1:
             # first subscriber therefore do refresh
-            self.request_refresh(event_class)
+            self.request_refresh(event_type)
 
         return listener
 
-    def unsubscribe(
-        self, event_class: Type[EventDto], listener: EventListener[T]
-    ) -> None:
+    def unsubscribe(self, listener: EventListener[T]) -> None:
         """Unsubscribe from event."""
-        self._event_processing_dict[event_class].subscribers.remove(listener)
+        event_type = self._get_type_from_callable(listener.callback)
+        self._event_processing_dict[event_type].subscribers.remove(listener)
 
     def notify(self, event: T) -> bool:
         """Notify subscriber with given event representation."""
@@ -161,3 +159,18 @@ class EventBus:
                 self._event_processing_dict[event_class] = event_processing_data
 
             return event_processing_data
+
+    @staticmethod
+    def _get_type_from_callable(callback: Callable[[T], Awaitable[None]]) -> Type[T]:
+        signature = inspect.signature(callback)
+        parameters = signature.parameters
+        event_type: Type = parameters[next(iter(parameters))].annotation
+
+        if not issubclass(event_type, EventDto):
+            raise ValueError("First argument of callback must be a subtype of EventDto")
+        if event_type == EventDto:
+            raise ValueError(
+                "First argument of callback must be a subtype of EventDto and not EventDto"
+            )
+
+        return event_type  # type: ignore

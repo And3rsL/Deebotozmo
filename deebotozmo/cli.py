@@ -287,7 +287,7 @@ async def get_clean_logs(ctx: click.Context) -> None:
             print(json.dumps(asdict(clean_log_event)))
             event.set()
 
-        listener = util.bot.events.subscribe(CleanLogEventDto, on_clean_event)
+        listener = util.bot.events.subscribe(on_clean_event)
         await event.wait()
         listener.unsubscribe()
     finally:
@@ -310,7 +310,7 @@ async def statuses(ctx: click.Context) -> None:
                 print(f"Vacuum State: {status_event.state.name}")
             event.set()
 
-        status_listener = util.bot.events.subscribe(StatusEventDto, on_status)
+        status_listener = util.bot.events.subscribe(on_status)
         await event.wait()
         status_listener.unsubscribe()
 
@@ -319,7 +319,7 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        battery_listener = util.bot.events.subscribe(BatteryEventDto, on_battery)
+        battery_listener = util.bot.events.subscribe(on_battery)
         await event.wait()
         battery_listener.unsubscribe()
 
@@ -328,7 +328,7 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        fan_speed_listener = util.bot.events.subscribe(FanSpeedEventDto, on_fan_event)
+        fan_speed_listener = util.bot.events.subscribe(on_fan_event)
         await event.wait()
         fan_speed_listener.unsubscribe()
 
@@ -337,9 +337,7 @@ async def statuses(ctx: click.Context) -> None:
             event.set()
 
         event.clear()
-        water_level_listener = util.bot.events.subscribe(
-            WaterInfoEventDto, on_water_level
-        )
+        water_level_listener = util.bot.events.subscribe(on_water_level)
         await event.wait()
         water_level_listener.unsubscribe()
     finally:
@@ -365,7 +363,7 @@ async def stats(ctx: click.Context) -> None:
             print(f"Stats Type: {stats_event.type}")
             event.set()
 
-        listener = util.bot.events.subscribe(StatsEventDto, on_stats_event)
+        listener = util.bot.events.subscribe(on_stats_event)
         await event.wait()
         listener.unsubscribe()
     finally:
@@ -391,7 +389,7 @@ async def components(ctx: click.Context) -> None:
             print(f"{lifespan_event.type.value}: {lifespan_event.percent}%")
             events[lifespan_event.type].set()
 
-        listener = util.bot.events.subscribe(LifeSpanEventDto, on_lifespan_event)
+        listener = util.bot.events.subscribe(on_lifespan_event)
         for event in events.values():
             await event.wait()
         listener.unsubscribe()
@@ -415,7 +413,7 @@ async def get_rooms(ctx: click.Context) -> None:
                 print(f"{room.id} {room.subtype}")
             event.set()
 
-        listener = util.bot.events.subscribe(RoomsEventDto, on_rooms)
+        listener = util.bot.events.subscribe(on_rooms)
         await event.wait()
         listener.unsubscribe()
     finally:
@@ -456,7 +454,7 @@ async def export_live_map(
                 file.write(base64.decodebytes(util.bot.map.get_base64_map()))
             event.set()
 
-        listener = util.bot.events.subscribe(MapEventDto, on_map)
+        listener = util.bot.events.subscribe(on_map)
         await event.wait()
         listener.unsubscribe()
     finally:
