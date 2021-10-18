@@ -1,6 +1,5 @@
 """Event emitter module."""
 import asyncio
-import inspect
 import logging
 import threading
 from typing import (
@@ -29,15 +28,15 @@ class EventListener(Generic[T]):
 
     def __init__(
         self,
-        event_bus: "EventBus",
+        event_processing_data: "_EventProcessingData",
         callback: Callable[[T], Awaitable[None]],
     ) -> None:
-        self._event_bus: Final = event_bus
+        self._event_processing_data: Final = event_processing_data
         self.callback: Final = callback
 
     def unsubscribe(self) -> None:
         """Unsubscribe from event bus."""
-        self._event_bus.unsubscribe(self)
+        self._event_processing_data.subscribers.remove(self)
 
 
 class _EventProcessingData(Generic[T]):
@@ -79,13 +78,13 @@ class EventBus:
 
     def subscribe(
         self,
+        event_type: Type[T],
         callback: Callable[[T], Awaitable[None]],
     ) -> EventListener[T]:
         """Subscribe to event."""
-        event_type = self._get_type_from_callable(callback)
         event_processing_data = self._get_or_create_event_processing_data(event_type)
 
-        listener = EventListener(self, callback)
+        listener = EventListener(event_processing_data, callback)
         event_processing_data.subscribers.append(listener)
 
         if event_processing_data.last_event:
@@ -96,11 +95,6 @@ class EventBus:
             self.request_refresh(event_type)
 
         return listener
-
-    def unsubscribe(self, listener: EventListener[T]) -> None:
-        """Unsubscribe from event."""
-        event_type = self._get_type_from_callable(listener.callback)
-        self._event_processing_dict[event_type].subscribers.remove(listener)
 
     def notify(self, event: T) -> bool:
         """Notify subscriber with given event representation."""
@@ -159,18 +153,3 @@ class EventBus:
                 self._event_processing_dict[event_class] = event_processing_data
 
             return event_processing_data
-
-    @staticmethod
-    def _get_type_from_callable(callback: Callable[[T], Awaitable[None]]) -> Type[T]:
-        signature = inspect.signature(callback)
-        parameters = signature.parameters
-        event_type: Type = parameters[next(iter(parameters))].annotation
-
-        if not issubclass(event_type, EventDto):
-            raise ValueError("First argument of callback must be a subtype of EventDto")
-        if event_type == EventDto:
-            raise ValueError(
-                "First argument of callback must be a subtype of EventDto and not EventDto"
-            )
-
-        return event_type  # type: ignore

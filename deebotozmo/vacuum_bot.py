@@ -63,12 +63,12 @@ class VacuumBot:
                 self.events.request_refresh(CleanLogEventDto)
                 self.events.request_refresh(TotalStatsEventDto)
 
-        self.events.subscribe(on_status)
+        self.events.subscribe(StatusEventDto, on_status)
 
         async def on_stats(_: StatsEventDto) -> None:
             self.events.request_refresh(LifeSpanEventDto)
 
-        self.events.subscribe(on_stats)
+        self.events.subscribe(StatsEventDto, on_stats)
 
     async def execute_command(self, command: Union[Command, CustomCommand]) -> None:
         """Execute given command and handle response."""
