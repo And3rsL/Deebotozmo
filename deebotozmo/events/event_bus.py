@@ -16,7 +16,8 @@ from typing import (
 
 from deebotozmo.commands._base import Command
 
-from . import EventDto
+from ..models import VacuumState
+from . import EventDto, StatusEventDto
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,6 +100,17 @@ class EventBus:
     def notify(self, event: T) -> bool:
         """Notify subscriber with given event representation."""
         event_processing_data = self._get_or_create_event_processing_data(type(event))
+
+        if (
+            isinstance(event, StatusEventDto)
+            and event.state == VacuumState.IDLE
+            and event_processing_data.last_event
+            and event_processing_data.last_event.state == VacuumState.DOCKED  # type: ignore
+        ):
+            # todo distinguish better between docked and idle and outside event bus. # pylint: disable=fixme
+            # Problem getCleanInfo will return state=idle, when bot is charging
+            event = StatusEventDto(event.available, VacuumState.DOCKED)  # type: ignore
+
         if event == event_processing_data.last_event:
             _LOGGER.debug("Event is the same! Skipping (%s)", event)
             return False
