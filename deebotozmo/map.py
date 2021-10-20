@@ -10,8 +10,8 @@ from typing import Any, Awaitable, Callable, Dict, Final, List, Optional, Union
 from numpy import ndarray, reshape, zeros
 from PIL import Image, ImageDraw, ImageOps
 
+from deebotozmo.command import Command
 from deebotozmo.commands import (
-    Command,
     GetCachedMapInfo,
     GetMajorMap,
     GetMapSet,

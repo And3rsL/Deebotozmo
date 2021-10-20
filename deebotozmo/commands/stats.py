@@ -3,7 +3,7 @@ import logging
 from typing import Any, Dict
 
 from ..events import StatsEventDto, TotalStatsEventDto
-from .base import EventBus, _NoArgsCommand
+from .common import EventBus, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 

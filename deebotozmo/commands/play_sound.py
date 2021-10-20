@@ -1,7 +1,7 @@
 """Play sound commands."""
 import logging
 
-from .base import _ExecuteCommand
+from .common import _ExecuteCommand
 
 _LOGGER = logging.getLogger(__name__)
 

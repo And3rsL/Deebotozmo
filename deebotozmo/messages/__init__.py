@@ -4,7 +4,7 @@
 from typing import Dict, List, Type
 
 from deebotozmo.commands import COMMANDS_WITH_HANDLING
-from deebotozmo.messages.base import Message
+from deebotozmo.message import Message
 from deebotozmo.messages.stats import ReportStats
 
 # fmt: off

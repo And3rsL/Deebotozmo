@@ -8,7 +8,8 @@ from typing import Any, Dict, Final, Optional, Union
 import aiohttp
 
 from deebotozmo.api_client import ApiClient
-from deebotozmo.commands import Clean, Command, CommandWithHandling, GetPos
+from deebotozmo.command import Command
+from deebotozmo.commands import Clean, CommandWithHandling, GetPos
 from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.custom import CustomCommand
 from deebotozmo.events import (

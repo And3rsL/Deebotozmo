@@ -3,10 +3,9 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Mapping, Type, Union
 
+from deebotozmo.command import Command
 from deebotozmo.events.event_bus import EventBus
-from deebotozmo.messages.base import Message
-
-from ._base import Command
+from deebotozmo.message import Message
 
 _LOGGER = logging.getLogger(__name__)
 

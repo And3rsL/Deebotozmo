@@ -4,7 +4,7 @@ from typing import Any, Dict, Mapping, Union
 
 from ..events import FanSpeedEventDto
 from ..util import DisplayNameIntEnum
-from .base import EventBus, SetCommand, _NoArgsCommand
+from .common import EventBus, SetCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 

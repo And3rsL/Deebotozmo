@@ -2,8 +2,10 @@
 import logging
 from typing import Any, Dict
 
+from deebotozmo.message import Message
+
 from ..events import CleanJobStopReason, ReportStatsEventDto
-from .base import EventBus, Message
+from ..events.event_bus import EventBus
 
 _LOGGER = logging.getLogger(__name__)
 

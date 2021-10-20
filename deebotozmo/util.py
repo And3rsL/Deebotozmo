@@ -1,38 +1,13 @@
 """Util module."""
-import asyncio
 import copy
 import hashlib
 from enum import IntEnum, unique
-from typing import Awaitable, Callable, List, Mapping, Optional, Set, Tuple
-
-from deebotozmo.commands._base import Command
+from typing import Mapping, Optional, Set, Tuple
 
 
 def md5(text: str) -> str:
     """Hash text using md5."""
     return hashlib.md5(bytes(str(text), "utf8")).hexdigest()
-
-
-def get_refresh_function(
-    commands: List[Command],
-    execute_command: Callable[[Command], Awaitable[None]],
-) -> Callable[[], Awaitable[None]]:
-    """Return refresh function for given commands."""
-    if len(commands) == 1:
-
-        async def refresh() -> None:
-            await execute_command(commands[0])
-
-    else:
-
-        async def refresh() -> None:
-            tasks = []
-            for command in commands:
-                tasks.append(asyncio.create_task(execute_command(command)))
-
-            await asyncio.gather(*tasks)
-
-    return refresh
 
 
 # all lowercase

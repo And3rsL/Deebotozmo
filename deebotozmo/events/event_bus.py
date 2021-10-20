@@ -14,7 +14,7 @@ from typing import (
     TypeVar,
 )
 
-from deebotozmo.commands._base import Command
+from deebotozmo.command import Command
 
 from ..models import VacuumState
 from . import EventDto, StatusEventDto
