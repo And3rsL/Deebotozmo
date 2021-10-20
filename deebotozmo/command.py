@@ -1,4 +1,4 @@
-"""Base messages."""
+"""Base command."""
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Union
 
