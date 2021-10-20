@@ -1,70 +1,23 @@
 """Base commands."""
 import logging
 from abc import ABC, abstractmethod
-from enum import IntEnum, unique
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Mapping, Type, Union
 
-from deebotozmo.commands._base import Command
 from deebotozmo.events.event_bus import EventBus
+from deebotozmo.messages.base import Message
+
+from ._base import Command
 
 _LOGGER = logging.getLogger(__name__)
 
 _CODE = "code"
 
 
-class CommandWithHandling(Command, ABC):
+class CommandWithHandling(Command, Message, ABC):
     """Command, which handle response by itself."""
 
     # required as name is class variable, will be overwritten in subclasses
     name = "__invalid__"
-
-    @classmethod
-    def _handle_body_data_list(cls, event_bus: EventBus, data: List) -> bool:
-        """Handle message->body->data and notify the correct event subscribers.
-
-        :return: True if data was valid and no error was included
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def _handle_body_data_dict(cls, event_bus: EventBus, data: Dict[str, Any]) -> bool:
-        """Handle message->body->data and notify the correct event subscribers.
-
-        :return: True if data was valid and no error was included
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def _handle_body_data(
-        cls, event_bus: EventBus, data: Union[Dict[str, Any], List]
-    ) -> bool:
-        """Handle message->body->data and notify the correct event subscribers.
-
-        :return: True if data was valid and no error was included
-        """
-        if isinstance(data, dict):
-            return cls._handle_body_data_dict(event_bus, data)
-
-        if isinstance(data, list):
-            return cls._handle_body_data_list(event_bus, data)
-
-    @classmethod
-    def _handle_body(cls, event_bus: EventBus, body: Dict[str, Any]) -> bool:
-        """Handle message->body and notify the correct event subscribers.
-
-        :return: True if data was valid and no error was included
-        """
-        data = body.get("data", body)
-        return cls._handle_body_data(event_bus, data)
-
-    @classmethod
-    def handle(cls, event_bus: EventBus, message: Dict[str, Any]) -> bool:
-        """Handle message and notify the correct event subscribers.
-
-        :return: True if data was valid and no error was included
-        """
-        data_body = message.get("body", message)
-        return cls._handle_body(event_bus, data_body)
 
     def handle_requested(self, event_bus: EventBus, response: Dict[str, Any]) -> bool:
         """Handle response from a manual requested command.
@@ -138,39 +91,3 @@ class SetCommand(_ExecuteCommand, ABC):
     def get_command(self) -> Type[CommandWithHandling]:
         """Return the corresponding "get" command."""
         raise NotImplementedError
-
-
-@unique
-class DisplayNameIntEnum(IntEnum):
-    """Int enum with a property "display_name"."""
-
-    def __new__(cls, *args: Tuple, **_: Mapping) -> "DisplayNameIntEnum":
-        """Create new enum."""
-        obj = int.__new__(cls)
-        obj._value_ = args[0]
-        return obj
-
-    def __init__(self, _: int, display_name: Optional[str] = None):
-        super().__init__()
-        self._display_name = display_name
-
-    @property
-    def display_name(self) -> str:
-        """Return the custom display name or the lowered name property."""
-        if self._display_name:
-            return self._display_name
-
-        return self.name.lower()
-
-    @classmethod
-    def get(cls, value: str) -> "DisplayNameIntEnum":
-        """Get enum member from name or display_name."""
-        value = str(value).upper()
-        if value in cls.__members__:
-            return cls[value]
-
-        for member in cls:
-            if value == member.display_name.upper():
-                return member
-
-        raise ValueError(f"'{value}' is not a valid {cls.__name__} member")

@@ -8,7 +8,7 @@ from typing import Any, Dict, Final, Optional, Union
 import aiohttp
 
 from deebotozmo.api_client import ApiClient
-from deebotozmo.commands import COMMANDS, Clean, Command, CommandWithHandling, GetPos
+from deebotozmo.commands import Clean, Command, CommandWithHandling, GetPos
 from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.custom import CustomCommand
 from deebotozmo.events import (
@@ -20,6 +20,7 @@ from deebotozmo.events import (
 )
 from deebotozmo.events.event_bus import EventBus
 from deebotozmo.map import Map
+from deebotozmo.messages import MESSAGES
 from deebotozmo.models import DeviceInfo, VacuumState
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,65 +87,59 @@ class VacuumBot:
         async with self._semaphore:
             response = await self._api_client.send_command(command, self.device_info)
 
-        await self.handle(command, response)
+        _LOGGER.debug("Handle command %s: %s", command.name, response)
+        if isinstance(command, (CommandWithHandling, CustomCommand)):
+            command.handle_requested(self.events, response)
+            if isinstance(command, CustomCommand):
+                # Responses of CustomCommands will be handled like messages got via mqtt,
+                # so build in events will be raised if this response too.
+                await self.handle_message(command.name, response)
+        elif "Map" in command.name or command.name == GetPos.name:
+            # todo refactor map commands and remove it # pylint: disable=fixme
+            await self.map.handle(command.name, response, True)
+        else:
+            _LOGGER.warning("Unsupported command! Command %s", command.name)
 
     def set_available(self, available: bool) -> None:
         """Set available."""
         status = StatusEventDto(available, self._status.state)
         self.events.notify(status)
 
-    def _set_state(self, state: VacuumState) -> None:
-        self.events.notify(StatusEventDto(True, state))
-
-    # ---------------------------- EVENT HANDLING ----------------------------
-
-    async def handle(
-        self, command: Union[str, Command, CustomCommand], message: Dict[str, Any]
+    async def handle_message(
+        self, message_name: str, message_data: Dict[str, Any]
     ) -> None:
-        """Handle the given event.
+        """Handle the given message.
 
-        :param command: command object if manual request or command name
-        :param message: the message (data) of it
+        :param message_name: message name
+        :param message_data: message data
         :return: None
         """
+        _LOGGER.debug("Handle message %s: %s", message_name, message_data)
+        fw_version = message_data.get("header", {}).get("fwVer", None)
+        if fw_version:
+            self.fw_version = fw_version
 
-        if isinstance(command, (CommandWithHandling, CustomCommand)):
-            _LOGGER.debug("Handle %s: %s", command.name, message)
-            command.handle_requested(self.events, message)
+        message_type = MESSAGES.get(message_name, None)
+        if message_type:
+            message_type.handle(self.events, message_data)
+            return
+
+        _LOGGER.debug("Falling back to old handling way...")
+        # Handle message starting with "on","off","report" the same as "get" commands
+        message_name = re.sub(
+            _COMMAND_REPLACE_PATTERN,
+            _COMMAND_REPLACE_REPLACEMENT,
+            message_name,
+        )
+
+        # T8 series and newer
+        if message_name.endswith("_V2"):
+            message_name = message_name[:-3]
+
+        found_command = MESSAGES.get(message_name, None)
+        if found_command:
+            found_command.handle(self.events, message_data)
+        elif "Map" in message_name or message_name == GetPos.name:
+            await self.map.handle(message_name, message_data, False)
         else:
-            if isinstance(command, str):
-                command_name = command
-            else:
-                command_name = command.name
-
-            _LOGGER.debug("Handle %s: %s", command_name, message)
-            fw_version = message.get("header", {}).get("fwVer", None)
-            if fw_version:
-                self.fw_version = fw_version
-
-            # Handle command start start with "on","off","report" the same as "get" commands
-            command_name = re.sub(
-                _COMMAND_REPLACE_PATTERN,
-                _COMMAND_REPLACE_REPLACEMENT,
-                command_name,
-            )
-
-            # T8 series and newer
-            if command_name.endswith("_V2"):
-                command_name = command_name[:-3]
-
-            found_command = COMMANDS.get(command_name, None)
-            if found_command:
-                found_command.handle(self.events, message)
-            else:
-                if command_name in COMMANDS.keys():
-                    raise RuntimeError(
-                        "Command support new format. Should never happen! Please contact developers."
-                    )
-
-                if "Map" in command_name or command_name == GetPos.name:
-                    await self.map.handle(
-                        command_name, message, not isinstance(command, str)
-                    )
-                else:
-                    _LOGGER.debug('Unknown command "%s" with %s', command_name, message)
+            _LOGGER.debug('Unknown message "%s" with %s', message_name, message_data)

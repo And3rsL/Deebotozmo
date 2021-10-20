@@ -3,7 +3,8 @@ import logging
 from typing import Any, Dict, Mapping, Union
 
 from ..events import WaterInfoEventDto
-from .base import DisplayNameIntEnum, EventBus, SetCommand, _NoArgsCommand
+from ..util import DisplayNameIntEnum
+from .base import EventBus, SetCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -57,18 +57,12 @@ _COMMANDS: List[Type[CommandWithHandling]] = [
 ]
 # fmt: on
 
-COMMANDS: Dict[str, Type[CommandWithHandling]] = {cmd.name: cmd for cmd in _COMMANDS}
+COMMANDS_WITH_HANDLING: Dict[str, Type[CommandWithHandling]] = {
+    cmd.name: cmd for cmd in _COMMANDS
+}
 
-SET_COMMAND_NAMES: List[str] = [
-    cmd.name for cmd in COMMANDS.values() if issubclass(cmd, SetCommand)
-]
-
-MAP_COMMANDS: List[Type[Command]] = [
-    GetMajorMap,
-    GetMapSet,
-    GetMinorMap,
-    GetPos,
-    GetMapTrace,
-    GetMapSubSet,
-    GetCachedMapInfo,
-]
+SET_COMMAND_NAMES: Dict[str, Type[SetCommand]] = {
+    cmd_name: cmd
+    for (cmd_name, cmd) in COMMANDS_WITH_HANDLING.items()
+    if issubclass(cmd, SetCommand)
+}
