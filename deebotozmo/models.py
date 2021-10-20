@@ -96,7 +96,7 @@ def _str_to_bool_or_cert(value: Union[bool, str]) -> Union[bool, str]:
         return value
 
     try:
-        return strtobool(value)
+        return bool(strtobool(value))
     except ValueError:
         pass
 
