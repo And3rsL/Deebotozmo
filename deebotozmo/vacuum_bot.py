@@ -97,7 +97,9 @@ class VacuumBot:
                 await self.handle_message(command.name, response)
         elif "Map" in command.name or command.name == GetPos.name:
             # todo refactor map commands and remove it # pylint: disable=fixme
-            await self.map.handle(command.name, response, True)
+            await self.map._handle(  # pylint: disable=protected-access
+                command.name, response, True
+            )
         else:
             _LOGGER.warning("Unsupported command! Command %s", command.name)
 
@@ -141,6 +143,8 @@ class VacuumBot:
         if found_command:
             found_command.handle(self.events, message_data)
         elif "Map" in message_name or message_name == GetPos.name:
-            await self.map.handle(message_name, message_data, False)
+            await self.map._handle(  # pylint: disable=protected-access
+                message_name, message_data, False
+            )
         else:
             _LOGGER.debug('Unknown message "%s" with %s', message_name, message_data)

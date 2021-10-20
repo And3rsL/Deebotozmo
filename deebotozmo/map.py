@@ -125,10 +125,10 @@ class Map:
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
-    async def handle(
+    async def _handle(
         self, command_name: str, message: Dict[str, Any], requested: bool = True
     ) -> None:
-        """Handle the given map message.
+        """Handle the given map message. Do not use this method!! Use vacuum_bot methods instead.
 
         :param command_name: the name of the event or request
         :param message: the message
