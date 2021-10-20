@@ -3,10 +3,9 @@ import logging
 from enum import Enum, unique
 from typing import Any, Dict, Optional
 
-from ..event_emitter import VacuumEmitter
-from ..events import StatusEvent
+from ..events import StatusEventDto
 from ..models import VacuumState
-from .base import _ExecuteCommand, _NoArgsCommand
+from .base import EventBus, _ExecuteCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,9 +60,7 @@ class GetCleanInfo(_NoArgsCommand):
     name = "getCleanInfo"
 
     @classmethod
-    def _handle_body_data_dict(
-        cls, events: VacuumEmitter, data: Dict[str, Any]
-    ) -> bool:
+    def _handle_body_data_dict(cls, event_bus: EventBus, data: Dict[str, Any]) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
@@ -101,6 +98,6 @@ class GetCleanInfo(_NoArgsCommand):
             status = VacuumState.IDLE
 
         if status:
-            events.status.notify(StatusEvent(True, status))
+            event_bus.notify(StatusEventDto(True, status))
 
         return True

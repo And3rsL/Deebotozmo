@@ -2,8 +2,8 @@
 import logging
 from typing import Any, Dict, Mapping, Union
 
-from ..events import WaterInfoEvent
-from .base import DisplayNameIntEnum, SetCommand, VacuumEmitter, _NoArgsCommand
+from ..events import WaterInfoEventDto
+from .base import DisplayNameIntEnum, EventBus, SetCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,9 +23,7 @@ class GetWaterInfo(_NoArgsCommand):
     name = "getWaterInfo"
 
     @classmethod
-    def _handle_body_data_dict(
-        cls, events: VacuumEmitter, data: Dict[str, Any]
-    ) -> bool:
+    def _handle_body_data_dict(cls, event_bus: EventBus, data: Dict[str, Any]) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
@@ -35,8 +33,10 @@ class GetWaterInfo(_NoArgsCommand):
 
         if amount is not None:
             try:
-                events.water_info.notify(
-                    WaterInfoEvent(mop_attached, WaterLevel(int(amount)).display_name)
+                event_bus.notify(
+                    WaterInfoEventDto(
+                        mop_attached, WaterLevel(int(amount)).display_name
+                    )
                 )
                 return True
             except ValueError:

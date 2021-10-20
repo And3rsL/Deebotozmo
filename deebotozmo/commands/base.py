@@ -4,32 +4,12 @@ from abc import ABC, abstractmethod
 from enum import IntEnum, unique
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Type, Union
 
-from deebotozmo.event_emitter import VacuumEmitter
+from deebotozmo.commands._base import Command
+from deebotozmo.events.event_bus import EventBus
 
 _LOGGER = logging.getLogger(__name__)
 
 _CODE = "code"
-
-
-class Command(ABC):
-    """Abstract command object."""
-
-    def __init__(self, args: Union[Dict, List, None] = None) -> None:
-        if args is None:
-            args = {}
-        self._args = args
-
-    @classmethod
-    @property
-    @abstractmethod
-    def name(cls) -> str:
-        """Command name."""
-        raise NotImplementedError
-
-    @property
-    def args(self) -> Union[Dict[str, Any], List]:
-        """Command additional arguments."""
-        return self._args
 
 
 class CommandWithHandling(Command, ABC):
@@ -39,7 +19,7 @@ class CommandWithHandling(Command, ABC):
     name = "__invalid__"
 
     @classmethod
-    def _handle_body_data_list(cls, events: VacuumEmitter, data: List) -> bool:
+    def _handle_body_data_list(cls, event_bus: EventBus, data: List) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
@@ -47,9 +27,7 @@ class CommandWithHandling(Command, ABC):
         raise NotImplementedError
 
     @classmethod
-    def _handle_body_data_dict(
-        cls, events: VacuumEmitter, data: Dict[str, Any]
-    ) -> bool:
+    def _handle_body_data_dict(cls, event_bus: EventBus, data: Dict[str, Any]) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
@@ -58,44 +36,44 @@ class CommandWithHandling(Command, ABC):
 
     @classmethod
     def _handle_body_data(
-        cls, events: VacuumEmitter, data: Union[Dict[str, Any], List]
+        cls, event_bus: EventBus, data: Union[Dict[str, Any], List]
     ) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
         """
         if isinstance(data, dict):
-            return cls._handle_body_data_dict(events, data)
+            return cls._handle_body_data_dict(event_bus, data)
 
         if isinstance(data, list):
-            return cls._handle_body_data_list(events, data)
+            return cls._handle_body_data_list(event_bus, data)
 
     @classmethod
-    def _handle_body(cls, events: VacuumEmitter, body: Dict[str, Any]) -> bool:
+    def _handle_body(cls, event_bus: EventBus, body: Dict[str, Any]) -> bool:
         """Handle message->body and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
         """
         data = body.get("data", body)
-        return cls._handle_body_data(events, data)
+        return cls._handle_body_data(event_bus, data)
 
     @classmethod
-    def handle(cls, events: VacuumEmitter, message: Dict[str, Any]) -> bool:
+    def handle(cls, event_bus: EventBus, message: Dict[str, Any]) -> bool:
         """Handle message and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
         """
         data_body = message.get("body", message)
-        return cls._handle_body(events, data_body)
+        return cls._handle_body(event_bus, data_body)
 
-    def handle_requested(self, events: VacuumEmitter, response: Dict[str, Any]) -> bool:
+    def handle_requested(self, event_bus: EventBus, response: Dict[str, Any]) -> bool:
         """Handle response from a manual requested command.
 
         :return: True if data was valid and no error was included
         """
         if response.get("ret") == "ok":
             data = response.get("resp", response)
-            return self.handle(events, data)
+            return self.handle(event_bus, data)
 
         _LOGGER.warning('Command "%s" was not successfully: %s', self.name, response)
         return False
@@ -118,7 +96,7 @@ class _ExecuteCommand(CommandWithHandling, ABC):
     name = "__invalid__"
 
     @classmethod
-    def _handle_body(cls, events: VacuumEmitter, body: Dict[str, Any]) -> bool:
+    def _handle_body(cls, event_bus: EventBus, body: Dict[str, Any]) -> bool:
         """Handle message->body and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included

@@ -2,9 +2,9 @@
 import logging
 from typing import Any, Dict
 
-from ..events import ErrorEvent, StatusEvent
+from ..events import ErrorEventDto, StatusEventDto
 from ..models import VacuumState
-from .base import VacuumEmitter, _NoArgsCommand
+from .base import EventBus, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,9 +15,7 @@ class GetError(_NoArgsCommand):
     name = "getError"
 
     @classmethod
-    def _handle_body_data_dict(
-        cls, events: VacuumEmitter, data: Dict[str, Any]
-    ) -> bool:
+    def _handle_body_data_dict(cls, event_bus: EventBus, data: Dict[str, Any]) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
@@ -35,8 +33,8 @@ class GetError(_NoArgsCommand):
                         error,
                         description,
                     )
-                    events.status.notify(StatusEvent(True, VacuumState.ERROR))
-                events.error.notify(ErrorEvent(error, description))
+                    event_bus.notify(StatusEventDto(True, VacuumState.ERROR))
+                event_bus.notify(ErrorEventDto(error, description))
                 return True
 
         _LOGGER.warning("Could not process error message: message=%s", data)

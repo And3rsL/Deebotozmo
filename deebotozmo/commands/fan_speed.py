@@ -2,10 +2,8 @@
 import logging
 from typing import Any, Dict, Mapping, Union
 
-from deebotozmo.commands import SetCommand
-from deebotozmo.commands.base import DisplayNameIntEnum, _NoArgsCommand
-from deebotozmo.event_emitter import VacuumEmitter
-from deebotozmo.events import FanSpeedEvent
+from ..events import FanSpeedEventDto
+from .base import DisplayNameIntEnum, EventBus, SetCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,9 +23,7 @@ class GetFanSpeed(_NoArgsCommand):
     name = "getSpeed"
 
     @classmethod
-    def _handle_body_data_dict(
-        cls, events: VacuumEmitter, data: Dict[str, Any]
-    ) -> bool:
+    def _handle_body_data_dict(cls, event_bus: EventBus, data: Dict[str, Any]) -> bool:
         """Handle message->body->data and notify the correct event subscribers.
 
         :return: True if data was valid and no error was included
@@ -36,8 +32,8 @@ class GetFanSpeed(_NoArgsCommand):
 
         if speed is not None:
             try:
-                events.fan_speed.notify(
-                    FanSpeedEvent(FanSpeedLevel(int(speed)).display_name)
+                event_bus.notify(
+                    FanSpeedEventDto(FanSpeedLevel(int(speed)).display_name)
                 )
                 return True
             except ValueError:

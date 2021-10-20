@@ -8,47 +8,19 @@ from typing import Any, Dict, Final, Optional, Union
 import aiohttp
 
 from deebotozmo.api_client import ApiClient
-from deebotozmo.commands import (
-    COMMANDS,
-    Clean,
-    Command,
-    CommandWithHandling,
-    GetBattery,
-    GetChargeState,
-    GetCleanInfo,
-    GetCleanLogs,
-    GetError,
-    GetFanSpeed,
-    GetLifeSpan,
-    GetPos,
-    GetStats,
-    GetWaterInfo,
-)
+from deebotozmo.commands import COMMANDS, Clean, Command, CommandWithHandling, GetPos
 from deebotozmo.commands.clean import CleanAction
 from deebotozmo.commands.custom import CustomCommand
-from deebotozmo.commands.stats import GetTotalStats
-from deebotozmo.event_emitter import (
-    EventEmitter,
-    PollingEventEmitter,
-    RefreshOnStatusEventEmitter,
-    StatusEventEmitter,
-    VacuumEmitter,
-)
 from deebotozmo.events import (
-    BatteryEvent,
-    CleanLogEvent,
-    CustomCommandEvent,
-    ErrorEvent,
-    FanSpeedEvent,
-    LifeSpanEvent,
-    StatsEvent,
-    StatusEvent,
-    TotalStatsEvent,
-    WaterInfoEvent,
+    CleanLogEventDto,
+    LifeSpanEventDto,
+    StatsEventDto,
+    StatusEventDto,
+    TotalStatsEventDto,
 )
+from deebotozmo.events.event_bus import EventBus
 from deebotozmo.map import Map
 from deebotozmo.models import DeviceInfo, VacuumState
-from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,65 +42,33 @@ class VacuumBot:
         self._api_client = api_client
 
         self._semaphore = asyncio.Semaphore(3)
-        self._status: StatusEvent = StatusEvent(device_info.status == 1, None)
+        self._status: StatusEventDto = StatusEventDto(device_info.status == 1, None)
 
         self.fw_version: Optional[str] = None
+        self.events: Final[EventBus] = EventBus(self.execute_command)
 
-        self.map: Final = Map(self.execute_command)
+        self.map: Final[Map] = Map(self.execute_command, self.events)
 
-        status_ = StatusEventEmitter(
-            get_refresh_function(
-                [GetChargeState(), GetCleanInfo()],
-                self.execute_command,
-            )
-        )
-        self.events: Final = VacuumEmitter(
-            battery=EventEmitter[BatteryEvent](
-                get_refresh_function([GetBattery()], self.execute_command)
-            ),
-            clean_logs=RefreshOnStatusEventEmitter[CleanLogEvent](
-                get_refresh_function([GetCleanLogs()], self.execute_command),
-                status_,
-                VacuumState.DOCKED,
-            ),
-            error=EventEmitter[ErrorEvent](
-                get_refresh_function([GetError()], self.execute_command)
-            ),
-            fan_speed=EventEmitter[FanSpeedEvent](
-                get_refresh_function([GetFanSpeed()], self.execute_command)
-            ),
-            lifespan=PollingEventEmitter[LifeSpanEvent](
-                60, get_refresh_function([GetLifeSpan()], self.execute_command), status_
-            ),
-            map=self.map.events.map,
-            rooms=self.map.events.rooms,
-            stats=EventEmitter[StatsEvent](
-                get_refresh_function([GetStats()], self.execute_command)
-            ),
-            status=status_,
-            total_stats=RefreshOnStatusEventEmitter[TotalStatsEvent](
-                get_refresh_function([GetTotalStats()], self.execute_command),
-                status_,
-                VacuumState.DOCKED,
-            ),
-            water_info=EventEmitter[WaterInfoEvent](
-                get_refresh_function([GetWaterInfo()], self.execute_command)
-            ),
-            custom_command=EventEmitter[CustomCommandEvent](),
-        )
-
-        async def on_status(event: StatusEvent) -> None:
+        async def on_status(event: StatusEventDto) -> None:
             last_status = self._status
             self._status = event
             if (not last_status.available) and event.available:
                 # bot was unavailable
                 for name, obj in inspect.getmembers(
-                    self.events, lambda obj: isinstance(obj, EventEmitter)
+                    self.events, lambda obj: isinstance(obj, EventBus)
                 ):
                     if name != "status":
                         obj.request_refresh()
+            elif event.state == VacuumState.DOCKED:
+                self.events.request_refresh(CleanLogEventDto)
+                self.events.request_refresh(TotalStatsEventDto)
 
-        self.events.status.subscribe(on_status)
+        self.events.subscribe(StatusEventDto, on_status)
+
+        async def on_stats(_: StatsEventDto) -> None:
+            self.events.request_refresh(LifeSpanEventDto)
+
+        self.events.subscribe(StatsEventDto, on_stats)
 
     async def execute_command(self, command: Union[Command, CustomCommand]) -> None:
         """Execute given command and handle response."""
@@ -150,11 +90,11 @@ class VacuumBot:
 
     def set_available(self, available: bool) -> None:
         """Set available."""
-        status = StatusEvent(available, self._status.state)
-        self.events.status.notify(status)
+        status = StatusEventDto(available, self._status.state)
+        self.events.notify(status)
 
     def _set_state(self, state: VacuumState) -> None:
-        self.events.status.notify(StatusEvent(True, state))
+        self.events.notify(StatusEventDto(True, state))
 
     # ---------------------------- EVENT HANDLING ----------------------------
 

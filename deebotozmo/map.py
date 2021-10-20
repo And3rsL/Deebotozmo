@@ -20,10 +20,9 @@ from deebotozmo.commands import (
     GetMinorMap,
     GetPos,
 )
-from deebotozmo.event_emitter import EventEmitter, MapEmitter
-from deebotozmo.events import MapEvent, RoomsEvent
+from deebotozmo.events import MapEventDto, RoomsEventDto
+from deebotozmo.events.event_bus import EventBus
 from deebotozmo.models import Coordinate, Room
-from deebotozmo.util import get_refresh_function
 
 _LOGGER = logging.getLogger(__name__)
 _TRACE_MAP = "trace_map"
@@ -108,8 +107,11 @@ class Map:
     PIXEL_WIDTH = 50
     OFFSET = 400
 
-    def __init__(self, execute_command: Callable[[Command], Awaitable[None]]):
+    def __init__(
+        self, execute_command: Callable[[Command], Awaitable[None]], event_bus: EventBus
+    ):
         self._execute_command = execute_command
+        self._event_bus = event_bus
 
         self._robot_position: Optional[Coordinate] = None
         self._charger_position: Optional[Coordinate] = None
@@ -120,17 +122,6 @@ class Map:
         self._is_map_up_to_date: bool = False
         self._base64_image: Optional[bytes] = None
         self._last_requested_width: Optional[int] = None
-
-        self.events: Final = MapEmitter(
-            map=EventEmitter[MapEvent](
-                get_refresh_function(
-                    [GetMapTrace(), GetPos(), GetMajorMap()], execute_command
-                ),
-            ),
-            rooms=EventEmitter[RoomsEvent](
-                get_refresh_function([GetCachedMapInfo()], execute_command)
-            ),
-        )
 
     # ---------------------------- EVENT HANDLING ----------------------------
 
@@ -165,7 +156,7 @@ class Map:
             await self._handle_map_set(data, requested)
         elif command_name == GetMapSubSet.name:
             self._handle_map_sub_set(data)
-        elif not self.events.map.has_subscribers:
+        elif not self._event_bus.has_subscribers(MapEventDto):
             # above events must be processed always as they are needed to get room information's
             _LOGGER.debug("No Map subscribers. Skipping map events")
             return
@@ -249,7 +240,7 @@ class Map:
         self._rooms[subtype] = room
 
         if len(self._rooms) == self._amount_rooms:
-            self.events.rooms.notify(RoomsEvent(list(self._rooms.values())))
+            self._event_bus.notify(RoomsEventDto(list(self._rooms.values())))
 
     def _handle_position(self, event_data: dict) -> None:
         if "chargePos" in event_data:
