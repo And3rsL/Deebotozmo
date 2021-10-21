@@ -22,7 +22,7 @@ from .map import (
 from .play_sound import PlaySound
 from .relocation import SetRelocationState
 from .stats import GetStats
-from .water_info import GetWaterInfo, SetWaterInfo, WaterLevel
+from .water_info import GetWaterInfo, SetWaterInfo
 
 # fmt: off
 # ordered by file asc

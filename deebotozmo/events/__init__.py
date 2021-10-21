@@ -4,12 +4,11 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional
 
+from deebotozmo.events.base import EventDto
 from deebotozmo.models import Room, VacuumState
 from deebotozmo.util import DisplayNameIntEnum
 
-
-class EventDto:
-    """Event base class."""
+from .water_info import WaterAmount, WaterInfoEventDto
 
 
 @dataclass(frozen=True)
@@ -136,11 +135,3 @@ class StatusEventDto(EventDto):
 
     available: bool
     state: Optional[VacuumState]
-
-
-@dataclass(frozen=True)
-class WaterInfoEventDto(EventDto):
-    """Water info event representation."""
-
-    mop_attached: bool
-    amount: str
