@@ -37,7 +37,7 @@ class DisplayNameIntEnum(IntEnum):
     """Int enum with a property "display_name"."""
 
     def __new__(cls, *args: Tuple, **_: Mapping) -> "DisplayNameIntEnum":
-        """Create new enum."""
+        """Create new DisplayNameIntEnum."""
         obj = int.__new__(cls)
         obj._value_ = args[0]
         return obj
@@ -66,3 +66,14 @@ class DisplayNameIntEnum(IntEnum):
                 return member
 
         raise ValueError(f"'{value}' is not a valid {cls.__name__} member")
+
+    def __eq__(self, x: object) -> bool:
+        if not isinstance(x, type(self)):
+            return False
+        return bool(self._value_ == x._value_)
+
+    def __ne__(self, x: object) -> bool:
+        return not self.__eq__(x)
+
+    def __hash__(self) -> int:
+        return hash(self._value_)
