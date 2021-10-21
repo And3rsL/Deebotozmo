@@ -3,7 +3,7 @@ import logging
 from typing import Any, Dict, List, Union
 
 from ..events import CustomCommandEventDto
-from .base import EventBus
+from .common import EventBus
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -5,6 +5,7 @@ from enum import Enum, unique
 from typing import Any, Dict, List, Optional
 
 from deebotozmo.models import Room, VacuumState
+from deebotozmo.util import DisplayNameIntEnum
 
 
 class EventDto:
@@ -102,6 +103,22 @@ class StatsEventDto(EventDto):
     time: Optional[int]
     type: Optional[str]
     start: Optional[int]
+
+
+class CleanJobStopReason(DisplayNameIntEnum):
+    """Enum of the different clean job stop reasons."""
+
+    FINISHED = 1
+    MANUAL_STOPPED = 2, "manual stopped"
+    FINISHED_WITH_WARNINGS = 3, "finished with warnings"
+
+
+@dataclass(frozen=True)
+class ReportStatsEventDto(StatsEventDto):
+    """Report stats event representation."""
+
+    stop_reason: CleanJobStopReason
+    rooms: List[int]
 
 
 @dataclass(frozen=True)

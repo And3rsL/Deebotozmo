@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 
 from ..events import StatusEventDto
 from ..models import VacuumState
-from .base import _CODE, EventBus, _NoArgsCommand
+from .common import _CODE, EventBus, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
 

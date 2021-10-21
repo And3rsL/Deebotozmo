@@ -3,7 +3,7 @@ import logging
 from typing import List
 
 from ..events import LifeSpan, LifeSpanEventDto
-from .base import CommandWithHandling, EventBus
+from .common import CommandWithHandling, EventBus
 
 _LOGGER = logging.getLogger(__name__)
 

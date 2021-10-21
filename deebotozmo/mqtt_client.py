@@ -9,7 +9,7 @@ from gmqtt import Client, Subscription
 from gmqtt.mqtt.constants import MQTTv311
 
 from deebotozmo.authentication import Authenticator
-from deebotozmo.commands import COMMANDS, SET_COMMAND_NAMES, SetCommand
+from deebotozmo.commands import SET_COMMAND_NAMES, SetCommand
 from deebotozmo.models import Configuration, Credentials, DeviceInfo
 from deebotozmo.vacuum_bot import VacuumBot
 
@@ -124,7 +124,7 @@ class MqttClient:
             bot = self._subscribers.get(topic_split[3])
             if bot:
                 data = json.loads(payload)
-                await bot.handle(topic_split[2], data)
+                await bot.handle_message(topic_split[2], data)
         except Exception:  # pylint: disable=broad-except
             _LOGGER.error(
                 "An exception occurred during handling atr message", exc_info=True
@@ -133,7 +133,8 @@ class MqttClient:
     def _handle_p2p(self, topic_split: List[str], payload: bytes) -> None:
         try:
             command_name = topic_split[2]
-            if command_name not in SET_COMMAND_NAMES:
+            command_type = SET_COMMAND_NAMES.get(command_name, None)
+            if command_type is None:
                 # command doesn't need special treatment or is not supported yet
                 return
 
@@ -152,9 +153,7 @@ class MqttClient:
                     )
                     return
 
-                command_class = COMMANDS.get(command_name)
-                if command_class and issubclass(command_class, SetCommand):
-                    self._received_set_commands[request_id] = command_class(**data)
+                self._received_set_commands[request_id] = command_type(**data)
             else:
                 command = self._received_set_commands.get(request_id, None)
                 if not command:

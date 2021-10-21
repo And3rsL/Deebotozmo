@@ -1,8 +1,9 @@
 """Event constants."""
 from typing import List, Mapping, Type
 
+from deebotozmo.command import Command
+
 from ..commands import (
-    Command,
     GetBattery,
     GetCachedMapInfo,
     GetChargeState,
@@ -27,6 +28,7 @@ from . import (
     FanSpeedEventDto,
     LifeSpanEventDto,
     MapEventDto,
+    ReportStatsEventDto,
     RoomsEventDto,
     StatsEventDto,
     StatusEventDto,
@@ -42,6 +44,7 @@ EVENT_DTO_REFRESH_COMMANDS: Mapping[Type[EventDto], List[Command]] = {
     FanSpeedEventDto: [GetFanSpeed()],
     LifeSpanEventDto: [GetLifeSpan()],
     MapEventDto: [GetMapTrace(), GetPos(), GetMajorMap()],
+    ReportStatsEventDto: [],  # ReportStats cannot be pulled
     RoomsEventDto: [GetCachedMapInfo()],
     StatsEventDto: [GetStats()],
     StatusEventDto: [GetChargeState(), GetCleanInfo()],

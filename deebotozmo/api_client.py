@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Union
 from urllib.parse import urljoin
 
-from deebotozmo.commands import Command, GetCleanLogs
+from deebotozmo.command import Command
+from deebotozmo.commands import GetCleanLogs
 from deebotozmo.commands.custom import CustomCommand
 
 from ._api_client import _InternalApiClient
