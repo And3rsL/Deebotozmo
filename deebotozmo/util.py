@@ -42,8 +42,9 @@ class DisplayNameIntEnum(IntEnum):
         obj._value_ = args[0]
         return obj
 
-    def __init__(self, _: int, display_name: Optional[str] = None):
+    def __init__(self, value: int, display_name: Optional[str] = None):
         super().__init__()
+        self._value_ = value
         self._display_name = display_name
 
     @property
