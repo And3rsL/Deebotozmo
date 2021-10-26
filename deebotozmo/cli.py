@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """Cli module."""
+import sys
+
+try:
+    import click
+except ModuleNotFoundError:
+    sys.exit('Dependencies missing!! Please run "pip install deebotozmo[cli]"')
+
 import asyncio
 import base64
 import configparser
@@ -9,18 +16,12 @@ import logging
 import mimetypes
 import os
 import platform
-import sys
 import time
 from dataclasses import asdict
 from functools import wraps
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 import aiohttp
-
-try:
-    import click
-except ModuleNotFoundError:
-    sys.exit('Dependencies missing!! Please run "pip install deebotozmo[cli]"')
 
 from deebotozmo import create_instances
 from deebotozmo.commands import Charge, Clean, PlaySound, SetFanSpeed, SetWaterInfo
@@ -333,7 +334,7 @@ async def statuses(ctx: click.Context) -> None:
         fan_speed_listener.unsubscribe()
 
         async def on_water_level(water_info_event: WaterInfoEventDto) -> None:
-            print(f"Water Level: {water_info_event.amount}")
+            print(f"Water Level: {water_info_event.amount.display_name}")
             event.set()
 
         event.clear()

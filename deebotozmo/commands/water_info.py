@@ -2,20 +2,10 @@
 import logging
 from typing import Any, Dict, Mapping, Union
 
-from ..events import WaterInfoEventDto
-from ..util import DisplayNameIntEnum
+from ..events import WaterAmount, WaterInfoEventDto
 from .common import EventBus, SetCommand, _NoArgsCommand
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class WaterLevel(DisplayNameIntEnum):
-    """Enum class for all possible water levels."""
-
-    LOW = 1
-    MEDIUM = 2
-    HIGH = 3
-    ULTRAHIGH = 4
 
 
 class GetWaterInfo(_NoArgsCommand):
@@ -35,9 +25,7 @@ class GetWaterInfo(_NoArgsCommand):
         if amount is not None:
             try:
                 event_bus.notify(
-                    WaterInfoEventDto(
-                        mop_attached, WaterLevel(int(amount)).display_name
-                    )
+                    WaterInfoEventDto(mop_attached, WaterAmount(int(amount)))
                 )
                 return True
             except ValueError:
@@ -54,13 +42,13 @@ class SetWaterInfo(SetCommand):
     get_command = GetWaterInfo
 
     def __init__(
-        self, amount: Union[str, int, WaterLevel], **kwargs: Mapping[str, Any]
+        self, amount: Union[str, int, WaterAmount], **kwargs: Mapping[str, Any]
     ) -> None:
         # removing "enable" as we don't can set it
         remove_from_kwargs = ["enable"]
         if isinstance(amount, str):
-            amount = WaterLevel.get(amount)
-        if isinstance(amount, WaterLevel):
+            amount = WaterAmount.get(amount)
+        if isinstance(amount, WaterAmount):
             amount = amount.value
 
         super().__init__({"amount": amount, "enable": 0}, remove_from_kwargs, **kwargs)
